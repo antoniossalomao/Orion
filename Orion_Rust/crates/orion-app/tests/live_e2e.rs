@@ -45,7 +45,7 @@ async fn entrar_conversar_fixar_arquivar_e_sair() {
     assert_eq!(app.gate_err, "Usuário ou senha incorretos.");
 
     // senha certa → entra e carrega as conversas do servidor
-    drive(&mut app, Msg::PwChanged(senha)).await;
+    drive(&mut app, Msg::PwChanged(senha.into())).await;
     drive(&mut app, Msg::Login).await;
     assert!(app.logged, "{}", app.gate_err);
     assert!(app.convs.iter().all(|c| !c.id.is_empty()));

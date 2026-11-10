@@ -26,7 +26,7 @@ pub fn greet(h: u32) -> &'static str {
 }
 
 fn sugg<'a>(ic: Option<&str>, dot: bool, label: String, warn: bool, msg: Msg) -> El<'a> {
-    let mut r = row![].spacing(8).align_y(Vertical::Center);
+    let mut r = row![].spacing(t::SP_2).align_y(Vertical::Center);
     if dot {
         r = r.push(dot_el(t::SIGNAL, 6.0));
     }
@@ -36,7 +36,7 @@ fn sugg<'a>(ic: Option<&str>, dot: bool, label: String, warn: bool, msg: Msg) ->
     r = r.push(tx(label, 13.0, if warn { t::FG } else { t::FG2 }).wrapping(iced::widget::text::Wrapping::None));
     button(container(r).center_y(Length::Fill))
         .height(Length::Fixed(34.0))
-        .padding(pad(0.0, 12.0, 0.0, 12.0))
+        .padding(pad(0.0, t::SP_3, 0.0, t::SP_3))
         .on_press(msg)
         .style(move |_, st| button::Style {
             background: Some(Background::Color(t::mix(t::BG, 0.7))),
@@ -80,19 +80,19 @@ pub fn view(app: &App) -> El<'_> {
     .width(Length::Fill)
     .align_x(Horizontal::Center)
     .line_height(iced::widget::text::LineHeight::Relative(1.08));
-    let eyebrow = row![grow(), belt_fg(false), txf(spaced(crate::i18n::text("SEU ESPAÇO COM ORION"), 1), 11.0, t::FG3, t::UI_MED), grow()].spacing(10).align_y(Vertical::Center);
+    let eyebrow = row![grow(), belt_fg(false), txf(spaced(crate::i18n::text("SEU ESPAÇO COM ORION"), 1), 11.0, t::FG3, t::UI_MED), grow()].spacing(t::SP_25).align_y(Vertical::Center);
 
     let mut status = row![
         grow(),
-        row![dot_el(t::OK, 6.0), tx(crate::i18n::text("Conectado"), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center),
-        row![icon("cpu", 14.0, t::FG3), tx(app.p.model_label(), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center),
-        row![icon("graph", 14.0, t::FG3), tx(match app.mem.nodes.len() { 1 => crate::i18n::text("1 nota no vault").to_string(), n => crate::i18n::formatted("{n} notas no vault", format!("{n} notas no vault")) }, 12.0, t::FG3)].spacing(6).align_y(Vertical::Center),
+        row![dot_el(t::OK, 6.0), tx(crate::i18n::text("Conectado"), 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center),
+        row![icon("cpu", 14.0, t::FG3), tx(app.p.model_label(), 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center),
+        row![icon("graph", 14.0, t::FG3), tx(match app.mem.nodes.len() { 1 => crate::i18n::text("1 nota no vault").to_string(), n => crate::i18n::formatted("{n} notas no vault", format!("{n} notas no vault")) }, 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center),
     ];
     // O horário do backup só aparece nos dados de exemplo: ainda não vem do núcleo.
     if !app.is_live() {
-        status = status.push(row![icon("clock", 14.0, t::FG3), tx(crate::i18n::text("Backup do vault às 14:00"), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center));
+        status = status.push(row![icon("clock", 14.0, t::FG3), tx(crate::i18n::text("Backup do vault às 14:00"), 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center));
     }
-    let status = status.push(grow()).spacing(16).align_y(Vertical::Center);
+    let status = status.push(grow()).spacing(t::SP_4).align_y(Vertical::Center);
 
     let est = |label: &str, lead: f32| 28.0 + lead + label.chars().count() as f32 * 13.0 * 0.5 + 2.0;
     let mut items: Vec<(f32, El)> = vec![];
@@ -113,11 +113,13 @@ pub fn view(app: &App) -> El<'_> {
             used = 0.0;
         }
         used += if used > 0.0 { 8.0 + w } else { w };
-        lines.last_mut().unwrap().push(el);
+        if let Some(line) = lines.last_mut() {
+            line.push(el);
+        }
     }
-    let mut sg = column![].spacing(8);
+    let mut sg = column![].spacing(t::SP_2);
     for l in lines {
-        let mut r = row![grow()].spacing(8).align_y(Vertical::Center);
+        let mut r = row![grow()].spacing(t::SP_2).align_y(Vertical::Center);
         for e in l {
             r = r.push(e);
         }
@@ -125,18 +127,18 @@ pub fn view(app: &App) -> El<'_> {
     }
 
     // Projetos recentes (F01.24): até três, na ordem da lista; o clique abre a conversa do projeto ou um chat novo nele.
-    let mut recent = row![grow(), tx(crate::i18n::text("Projetos recentes"), 12.0, t::FG3)].spacing(10).align_y(Vertical::Center);
+    let mut recent = row![grow(), tx(crate::i18n::text("Projetos recentes"), 12.0, t::FG3)].spacing(t::SP_25).align_y(Vertical::Center);
     for i in recent_projects(app) {
         recent = recent.push(sugg(Some("folder"), false, ell(&app.projects[i].n, 100.0, 13.0), false, Msg::OpenProject(i)));
     }
     let recent = recent.push(grow());
 
-    let mut content = column![eyebrow, container(hello).padding(pad(4.0, 0.0, 22.0, 0.0)), crate::views::composer::view(app, true), container(status).padding(pad(6.0, 0.0, 0.0, 0.0)), container(sg).padding(pad(18.0, 0.0, 0.0, 0.0))]
-        .spacing(12)
+    let mut content = column![eyebrow, container(hello).padding(pad(t::SP_1, 0.0, t::SP_6, 0.0)), crate::views::composer::view(app, true), container(status).padding(pad(t::SP_15, 0.0, 0.0, 0.0)), container(sg).padding(pad(t::SP_45, 0.0, 0.0, 0.0))]
+        .spacing(t::SP_3)
         .width(Length::Fixed(660.0));
     if !app.projects.is_empty() {
-        content = content.push(container(recent).padding(pad(8.0, 0.0, 0.0, 0.0)));
+        content = content.push(container(recent).padding(pad(t::SP_2, 0.0, 0.0, 0.0)));
     }
-    let c = container(content).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).padding(pad(40.0, 16.0, 56.0, 16.0));
+    let c = container(content).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).padding(pad(t::SP_10, t::SP_4, t::SP_14, t::SP_4));
     stack![sky, c].width(Length::Fill).height(Length::Fill).into()
 }

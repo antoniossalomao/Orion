@@ -33,9 +33,9 @@ impl canvas::Program<Msg> for Brilho {
         let geometry = state.0.draw(renderer, b.size(), |f| {
         let (w, h) = (b.width, b.height);
         let blobs: [(f32, f32, f32, iced::Color, f32); 3] = if self.lado == 0 {
-            [(0.28, 0.24, 0.50, t::SIGNAL, 0.055), (0.55, 0.88, 0.58, t::ACCENT, 0.07), (0.45, 0.52, 0.48, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.05)]
+            [(0.28, 0.24, 0.50, t::SIGNAL, 0.055), (0.55, 0.88, 0.58, t::ACCENT, 0.07), (0.45, 0.52, 0.48, t::ACCENT, 0.05)]
         } else {
-            [(0.92, 0.08, 0.70, t::ACCENT, 0.08), (0.10, 0.95, 0.55, t::SIGNAL, 0.04), (0.55, 0.45, 0.50, iced::Color::from_rgb(0.55, 0.45, 0.85), 0.03)]
+            [(0.92, 0.08, 0.70, t::ACCENT, 0.08), (0.10, 0.95, 0.55, t::SIGNAL, 0.04), (0.55, 0.45, 0.50, t::ACCENT, 0.03)]
         };
         for (n, (x, y, r, c, a)) in blobs.into_iter().enumerate() {
             let k = n as f32 * 1.7;
@@ -108,23 +108,23 @@ pub fn view(app: &App) -> El<'_> {
             .secure(secure)
             .size(14)
             .font(t::UI)
-            .padding(pad(12.0, 12.0, 12.0, 12.0))
+            .padding(pad(t::SP_3, t::SP_3, t::SP_3, t::SP_3))
             .style(field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 10.0));
-        column![tx(crate::i18n::text(rotulo), 12.0, t::FG2), entrada].spacing(6)
+        column![tx(crate::i18n::text(rotulo), 12.0, t::FG2), entrada].spacing(t::SP_15)
     };
     let neutro = app.gate_err.is_empty() || app.gate_err.starts_with("Conectando") || app.gate_err.starts_with("Entrando") || app.gate_err.starts_with("Abrindo") || app.gate_err.starts_with("Digite a senha");
     let aviso = container(tx(if app.gate_err.starts_with("Digite a senha") { String::new() } else { crate::i18n::status(&app.gate_err) }, 12.0, if neutro { t::FG3 } else { t::DANGER })).height(Length::Fixed(16.0));
 
-    let cab = column![belt_fg(false), txf(if code { crate::i18n::text("Confirme sua identidade") } else { crate::i18n::text("Bem-vindo de volta") }, 26.0, t::FG, t::SERIF)].spacing(10).align_x(Horizontal::Center);
+    let cab = column![belt_fg(false), txf(if code { crate::i18n::text("Confirme sua identidade") } else { crate::i18n::text("Bem-vindo de volta") }, 26.0, t::FG, t::SERIF)].spacing(t::SP_25).align_x(Horizontal::Center);
 
-    let mut campos = column![].spacing(10).width(Length::Fill);
+    let mut campos = column![].spacing(t::SP_25).width(Length::Fill);
     let bg = t::SIDE;
     if !code {
         campos = campos.push(rise(fade(campo(crate::i18n::text("Usuário"), &app.user, Msg::UserChanged, false), p_user, bg), p_user, 10.0));
     }
-    campos = campos.push(rise(fade(campo(if code { crate::i18n::text("Código do Telegram") } else { crate::i18n::text("Senha") }, &app.pw, Msg::PwChanged, !code), p_senha, bg), p_senha, 10.0));
+    campos = campos.push(rise(fade(campo(if code { crate::i18n::text("Código do Telegram") } else { crate::i18n::text("Senha") }, &app.pw, |s| Msg::PwChanged(s.into()), !code), p_senha, bg), p_senha, 10.0));
 
-    let entrar = iced::widget::button(container(row![txf(crate::i18n::text("Entrar"), 14.0, t::PRIMARY_INK, t::UI_MED), crate::icons::icon("chevR", 14.0, t::PRIMARY_INK)].spacing(8).align_y(iced::alignment::Vertical::Center)).width(Length::Fill).center_x(Length::Fill).center_y(Length::Fill))
+    let entrar = iced::widget::button(container(row![txf(crate::i18n::text("Entrar"), 14.0, t::PRIMARY_INK, t::UI_MED), crate::icons::icon("chevR", 14.0, t::PRIMARY_INK)].spacing(t::SP_2).align_y(iced::alignment::Vertical::Center)).width(Length::Fill).center_x(Length::Fill).center_y(Length::Fill))
         .width(Length::Fill)
         .height(Length::Fixed(44.0))
         .padding(0)
@@ -132,7 +132,7 @@ pub fn view(app: &App) -> El<'_> {
         .style(move |_, st| {
             let hov = matches!(st, iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed);
             let k = if hov { 1.06 } else { 1.0 };
-            let a = iced::Color { r: (t::PRIMARY.r * k).min(1.0), g: (t::PRIMARY.g * k).min(1.0), b: (t::PRIMARY.b * k).min(1.0), a: 1.0 };
+            let a = t::lighten(t::PRIMARY, k);
             iced::widget::button::Style {
                 background: Some(degrade(a, t::mix(t::ACCENT, 0.9), 100.0)),
                 text_color: t::PRIMARY_INK,
@@ -154,10 +154,10 @@ pub fn view(app: &App) -> El<'_> {
     let interior: El = if let Some(f) = &app.recov {
         crate::recovery::view(f, cab.into())
     } else {
-        column![cab, sp_h(14.0), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),face,hello,if code{btn(crate::i18n::text("Voltar à senha"),Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{esqueci}].spacing(8).align_x(Horizontal::Center).width(Length::Fill).into()
+        column![cab, sp_h(t::SP_35), campos, aviso, rise(fade(entrar, p_btn, bg), p_btn, 10.0),face,hello,if code{btn(crate::i18n::text("Voltar à senha"),Kind::Ghost,true,None,Some(Msg::LoginCancel))}else{esqueci}].spacing(t::SP_2).align_x(Horizontal::Center).width(Length::Fill).into()
     };
     let cartao = container(interior)
-        .padding(pad(30.0, 28.0, 26.0, 28.0))
+        .padding(pad(t::SP_8, t::SP_7, t::SP_6, t::SP_7))
         .width(Length::Fixed(380.0))
         .style(|_| container::Style {
             background: Some(degrade(t::alpha(iced::Color::WHITE, 0.035), t::alpha(iced::Color::WHITE, 0.012), 160.0)),
@@ -168,14 +168,14 @@ pub fn view(app: &App) -> El<'_> {
     let rodape = txf(if app.db_locked { crate::i18n::text("Sua senha protege o Orion e suas cópias de segurança") } else { crate::i18n::text("Tudo fica neste computador") }, 12.0, t::FG2, t::UI);
 
     let glow_dir = canvas(Brilho { t: tempo, lado: 1, p: p_ceu }).width(Length::Fill).height(Length::Fill);
-    let conteudo = container(column![rise(fade(cartao, p_card, bg), p_card, 18.0), sp_h(18.0), fade(rodape, p_card, bg)].align_x(Horizontal::Center)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);
-    let painel = container(stack![glow_dir, conteudo]).width(Length::FillPortion(105)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(degrade(t::mix(t::SIDE, 1.0), iced::Color::from_rgb(0.075, 0.078, 0.095), 160.0)), ..Default::default() });
+    let conteudo = container(column![rise(fade(cartao, p_card, bg), p_card, 18.0), sp_h(t::SP_45), fade(rodape, p_card, bg)].align_x(Horizontal::Center)).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill);
+    let painel = container(stack![glow_dir, conteudo]).width(Length::FillPortion(105)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(degrade(t::mix(t::SIDE, 1.0), t::LOGIN_PANEL, 160.0)), ..Default::default() });
 
     let sky = iced::widget::image(app.sky_frame.img.clone()).content_fit(iced::ContentFit::Cover).width(Length::Fill).height(Length::Fill);
     let glow_esq = canvas(Brilho { t: tempo, lado: 0, p: p_ceu }).width(Length::Fill).height(Length::Fill);
-    let marca = container(row![column![belt_fg(false), txf("Orion", 24.0, t::FG, t::SERIF)].spacing(4), grow(), txf(concat!("v", env!("CARGO_PKG_VERSION")), 12.0, t::FG2, t::UI)].align_y(iced::alignment::Vertical::Bottom)).width(Length::Fill).height(Length::Fill).align_bottom(Length::Fill).padding(pad(0.0, 26.0, 24.0, 28.0));
+    let marca = container(row![column![belt_fg(false), txf("Orion", 24.0, t::FG, t::SERIF)].spacing(t::SP_1), grow(), txf(concat!("v", env!("CARGO_PKG_VERSION")), 12.0, t::FG2, t::UI)].align_y(iced::alignment::Vertical::Bottom)).width(Length::Fill).height(Length::Fill).align_bottom(Length::Fill).padding(pad(0.0, t::SP_6, t::SP_6, t::SP_7));
     let esq = container(fade(stack![sky, glow_esq, marca], p_ceu, t::BG)).width(Length::FillPortion(100)).height(Length::Fill).clip(true).style(|_| container::Style { background: Some(t::BG.into()), ..Default::default() });
-    let divisor = container(sp_w(1.0)).width(Length::Fixed(1.0)).height(Length::Fill).style(|_| container::Style { background: Some(degrade(t::alpha(iced::Color::WHITE, 0.0), t::alpha(iced::Color::WHITE, 0.10), 0.0)), ..Default::default() });
+    let divisor = container(sp_w(t::SP_PX)).width(Length::Fixed(1.0)).height(Length::Fill).style(|_| container::Style { background: Some(degrade(t::alpha(iced::Color::WHITE, 0.0), t::alpha(iced::Color::WHITE, 0.10), 0.0)), ..Default::default() });
 
     let largo = app.win.width >= 760.0;
     let mut r = row![].width(Length::Fill).height(Length::Fill);

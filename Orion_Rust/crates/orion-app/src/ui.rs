@@ -131,7 +131,7 @@ pub fn ib_wh<'a>(name: &str, w: f32, h: f32, glyph: f32, msg: Option<Msg>, hover
 
 /// Dica ao passar o mouse (`title` do protótipo).
 pub fn tip<'a>(el: impl Into<El<'a>>, label: &str) -> El<'a> {
-    iced::widget::tooltip(el, container(tx(label.to_string(), 11.5, t::FG)).padding(pad(4.0, 8.0, 4.0, 8.0)).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CTRL.into() }, ..Default::default() }), iced::widget::tooltip::Position::Bottom)
+    iced::widget::tooltip(el, container(tx(label.to_string(), 11.5, t::FG)).padding(pad(t::SP_1, t::SP_2, t::SP_1, t::SP_2)).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CTRL.into() }, ..Default::default() }), iced::widget::tooltip::Position::Bottom)
         .gap(6)
         .delay(std::time::Duration::from_millis(500))
         .into()
@@ -191,13 +191,13 @@ pub enum Kind {
 pub fn btn<'a>(label: &str, kind: Kind, small: bool, ic: Option<&str>, msg: Option<Msg>) -> El<'a> {
     let (fg, bg, hbg, line, hline_) = match kind {
         Kind::Normal => (t::FG, None, Some(t::HOVER), t::LINE2, t::LINE3),
-        Kind::Primary => (t::PRIMARY_INK, Some(t::PRIMARY), Some(Color { r: (t::PRIMARY.r * 1.06).min(1.0), g: (t::PRIMARY.g * 1.06).min(1.0), b: (t::PRIMARY.b * 1.06).min(1.0), a: 1.0 }), Color::TRANSPARENT, Color::TRANSPARENT),
+        Kind::Primary => (t::PRIMARY_INK, Some(t::PRIMARY), Some(t::lighten(t::PRIMARY, 1.06)), Color::TRANSPARENT, Color::TRANSPARENT),
         Kind::Danger => (t::DANGER, None, Some(t::DANGER_SOFT), t::mix(t::DANGER, 0.4), t::DANGER),
         Kind::Ghost => (t::FG2, None, None, Color::TRANSPARENT, Color::TRANSPARENT),
     };
     let hfg = if kind == Kind::Ghost { t::FG } else { fg };
     let size = if small { 12.5 } else { 13.0 };
-    let mut r = row![].spacing(6).align_y(Vertical::Center);
+    let mut r = row![].spacing(t::SP_15).align_y(Vertical::Center);
     if let Some(i) = ic {
         r = r.push(icon(i, if small { 14.0 } else { 16.0 }, fg));
     }
@@ -212,7 +212,7 @@ pub fn btn<'a>(label: &str, kind: Kind, small: bool, ic: Option<&str>, msg: Opti
 
 /// Chip `.chip` (28 px, raio 7).
 pub fn chip<'a>(label: String, soft: Option<String>, lead: Option<&str>, chev: bool, msg: Msg) -> El<'a> {
-    let mut r = row![].spacing(6).align_y(Vertical::Center);
+    let mut r = row![].spacing(t::SP_15).align_y(Vertical::Center);
     if let Some(i) = lead {
         r = r.push(icon(i, 14.0, t::FG2));
     }
@@ -223,13 +223,13 @@ pub fn chip<'a>(label: String, soft: Option<String>, lead: Option<&str>, chev: b
     if chev {
         r = r.push(icon("chevD", 14.0, t::FG3));
     }
-    button(container(r).center_y(Length::Fill)).height(Length::Fixed(28.0)).padding(pad(0.0, 8.0, 0.0, 8.0)).on_press(msg).style(btn_style(None, Some(t::HOVER), t::FG2, t::FG, Color::TRANSPARENT, Color::TRANSPARENT, 7.0)).into()
+    button(container(r).center_y(Length::Fill)).height(Length::Fixed(28.0)).padding(pad(0.0, t::SP_2, 0.0, t::SP_2)).on_press(msg).style(btn_style(None, Some(t::HOVER), t::FG2, t::FG, Color::TRANSPARENT, Color::TRANSPARENT, 7.0)).into()
 }
 
 /// Pílula `.pill` da barra superior.
 pub fn pill<'a>(dot: Color, label: &str, border: Color, strong: bool, msg: Option<Msg>) -> El<'a> {
-    let inner = row![dot_el(dot, 6.0), tx(label.to_string(), 12.0, if strong { t::FG } else { t::FG2 })].spacing(6).align_y(Vertical::Center);
-    let c = container(inner).height(Length::Fixed(26.0)).center_y(Length::Fixed(26.0)).padding(pad(0.0, 10.0, 0.0, 10.0)).style(surface(None, Some(border), 999.0));
+    let inner = row![dot_el(dot, 6.0), tx(label.to_string(), 12.0, if strong { t::FG } else { t::FG2 })].spacing(t::SP_15).align_y(Vertical::Center);
+    let c = container(inner).height(Length::Fixed(26.0)).center_y(Length::Fixed(26.0)).padding(pad(0.0, t::SP_25, 0.0, t::SP_25)).style(surface(None, Some(border), 999.0));
     match msg {
         Some(m) => mouse_area(c).on_press(m).into(),
         None => c.into(),
@@ -241,7 +241,7 @@ pub fn dot_el<'a>(c: Color, d: f32) -> El<'a> {
 }
 /// Ponto de estado `.cdot.pending` com halo.
 pub fn dot_halo<'a>(c: Color, halo: Color) -> El<'a> {
-    container(dot_el(c, 6.0)).padding(3).style(move |_| container::Style { background: Some(halo.into()), border: Border { radius: t::R_PILL.into(), ..Default::default() }, ..Default::default() }).into()
+    container(dot_el(c, 6.0)).padding(t::SP_1).style(move |_| container::Style { background: Some(halo.into()), border: Border { radius: t::R_PILL.into(), ..Default::default() }, ..Default::default() }).into()
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -261,7 +261,7 @@ pub fn badge<'a>(label: &str, tone: Tone) -> El<'a> {
         Tone::Err => (t::DANGER, Some(t::DANGER_SOFT), None),
         Tone::Info => (t::ACCENT, Some(t::ACCENT_SOFT), None),
     };
-    container(txf(label.to_string(), 11.0, fg, t::UI_MED).wrapping(text::Wrapping::None)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(bg, line, 999.0)).into()
+    container(txf(label.to_string(), 11.0, fg, t::UI_MED).wrapping(text::Wrapping::None)).padding(pad(t::SP_PX, t::SP_2, t::SP_PX, t::SP_2)).style(surface(bg, line, t::R_PILL)).into()
 }
 pub fn badge_ic<'a>(label: &str, tone: Tone, ic: &str) -> El<'a> {
     let fg = match tone {
@@ -279,26 +279,26 @@ pub fn badge_ic<'a>(label: &str, tone: Tone, ic: &str) -> El<'a> {
         Tone::Plain => None,
     };
     let line = if tone == Tone::Plain { Some(t::LINE2) } else { None };
-    container(row![icon(ic, 12.0, fg), txf(label.to_string(), 11.0, fg, t::UI_MED).wrapping(text::Wrapping::None)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(bg, line, 999.0)).into()
+    container(row![icon(ic, 12.0, fg), txf(label.to_string(), 11.0, fg, t::UI_MED).wrapping(text::Wrapping::None)].spacing(t::SP_1).align_y(Vertical::Center)).padding(pad(t::SP_PX, t::SP_2, t::SP_PX, t::SP_2)).style(surface(bg, line, t::R_PILL)).into()
 }
 
 pub fn kbd<'a>(s: &str) -> El<'a> {
-    container(txf(s.to_string(), 10.5, t::FG3, t::MONO)).padding(pad(1.0, 5.0, 1.0, 5.0)).style(surface(None, Some(t::LINE2), 5.0)).into()
+    container(txf(s.to_string(), 10.5, t::FG3, t::MONO)).padding(pad(t::SP_PX, t::SP_1, t::SP_PX, t::SP_1)).style(surface(None, Some(t::LINE2), 5.0)).into()
 }
 
 /// Segmentado `.seg`.
 pub fn seg<'a>(opts: &[&str], sel: usize, f: impl Fn(usize) -> Msg) -> El<'a> {
-    let mut r = row![].spacing(2);
+    let mut r = row![].spacing(t::SP_05);
     for (i, o) in opts.iter().enumerate() {
         let on = i == sel;
         let b = button(container(txi(o.to_string(), 12.5, t::UI)).center_y(Length::Fill))
             .height(Length::Fixed(28.0))
-            .padding(pad(0.0, 12.0, 0.0, 12.0))
+            .padding(pad(0.0, t::SP_3, 0.0, t::SP_3))
             .on_press(f(i))
             .style(btn_style(if on { Some(t::SEL) } else { None }, if on { Some(t::SEL) } else { None }, if on { t::FG } else { t::FG3 }, t::FG, Color::TRANSPARENT, Color::TRANSPARENT, 8.0));
         r = r.push(b);
     }
-    container(r).padding(2).style(surface(None, Some(t::LINE2), 10.0)).into()
+    container(r).padding(t::SP_05).style(surface(None, Some(t::LINE2), 10.0)).into()
 }
 
 /// Switch `.sw` (34×20).
@@ -315,21 +315,21 @@ pub fn switch<'a>(on: bool, msg: Msg) -> El<'a> {
     let track = container(thumb)
         .width(Length::Fixed(34.0))
         .height(Length::Fixed(20.0))
-        .padding(pad(2.0, 2.0, 2.0, 2.0 + off))
+        .padding(pad(t::SP_05, t::SP_05, t::SP_05, 2.0 + off))
         .style(move |_| container::Style { background: Some(if on { t::ACCENT } else { t::LINE3 }.into()), border: Border { radius: t::R_PILL.into(), ..Default::default() }, ..Default::default() });
     mouse_area(track).on_press(msg).into()
 }
 
 /// Seletor em caixa `.sel.box`.
 pub fn sel_box<'a>(label: String, min_w: f32, msg: Msg) -> El<'a> {
-    let r = row![tx(label, 13.0, t::FG), grow(), icon("chevD", 14.0, t::FG3)].spacing(6).align_y(Vertical::Center);
-    button(container(r).center_y(Length::Fill)).width(Length::Fixed(min_w)).height(Length::Fixed(32.0)).padding(pad(0.0, 8.0, 0.0, 12.0)).on_press(msg).style(btn_style(None, Some(t::HOVER), t::FG, t::FG, t::LINE2, t::LINE2, 8.0)).into()
+    let r = row![tx(label, 13.0, t::FG), grow(), icon("chevD", 14.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center);
+    button(container(r).center_y(Length::Fill)).width(Length::Fixed(min_w)).height(Length::Fixed(32.0)).padding(pad(0.0, t::SP_2, 0.0, t::SP_3)).on_press(msg).style(btn_style(None, Some(t::HOVER), t::FG, t::FG, t::LINE2, t::LINE2, 8.0)).into()
 }
 
 /// Cartão `.card` do painel da direita.
 pub fn card<'a>(title: &str, right: El<'a>, inner: El<'a>) -> El<'a> {
-    let head = row![txf(title.to_string(), 12.5, t::FG, t::UI_MED), grow(), right].align_y(Vertical::Center).padding(pad(10.0, 12.0, 10.0, 12.0));
-    container(column![head, container(inner).padding(pad(0.0, 12.0, 12.0, 12.0))]).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE), 12.0)).into()
+    let head = row![txf(title.to_string(), 12.5, t::FG, t::UI_MED), grow(), right].align_y(Vertical::Center).padding(pad(t::SP_25, t::SP_3, t::SP_25, t::SP_3));
+    container(column![head, container(inner).padding(pad(0.0, t::SP_3, t::SP_3, t::SP_3))]).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE), 12.0)).into()
 }
 
 /// Medidor `.meter` (altura 3) ou `.hbar` (altura 5).
@@ -346,11 +346,11 @@ pub fn setting<'a>(title: &str, desc: &str, ctl: El<'a>) -> El<'a> {
     setting_el(tx(crate::i18n::status(title), t::TEXT_BASE, t::FG).into(), desc, ctl)
 }
 pub fn setting_el<'a>(title: El<'a>, desc: &str, ctl: El<'a>) -> El<'a> {
-    let mut left = column![title].spacing(2).width(Length::Fill);
+    let mut left = column![title].spacing(t::SP_05).width(Length::Fill);
     if !desc.is_empty() {
         left = left.push(container(tx(desc.to_string(), 12.5, t::FG3)).max_width(430.0));
     }
-    let r = row![left, ctl].spacing(24).align_y(Vertical::Center).padding(pad(15.0, 0.0, 15.0, 0.0));
+    let r = row![left, ctl].spacing(t::SP_6).align_y(Vertical::Center).padding(pad(t::SP_4, 0.0, t::SP_4, 0.0));
     column![r, hline()].into()
 }
 
@@ -387,8 +387,8 @@ fn risk_badge<'a>(risk: &str) -> Option<El<'a>> {
 /// Corpo do cartão de aprovação: classe de risco, ferramenta e TODOS os argumentos
 /// (REGRAS.md: só se aprova o que se vê inteiro).
 pub fn approval_detail<'a>(a: &crate::data::Approval) -> El<'a> {
-    let mut col = column![].spacing(8);
-    let mut head = row![].spacing(8).align_y(Vertical::Center);
+    let mut col = column![].spacing(t::SP_2);
+    let mut head = row![].spacing(t::SP_2).align_y(Vertical::Center);
     let mut tem_cabeca = false;
     if let Some(b) = risk_badge(&a.risk) {
         head = head.push(b);
@@ -402,11 +402,11 @@ pub fn approval_detail<'a>(a: &crate::data::Approval) -> El<'a> {
         col = col.push(head);
     }
     if !a.args.is_empty() {
-        let mut linhas = column![].spacing(3);
+        let mut linhas = column![].spacing(t::SP_1);
         for (k, v) in &a.args {
-            linhas = linhas.push(row![txf(format!("{k}:"), 12.0, t::FG3, t::MONO), txf(v.clone(), 12.0, t::FG, t::MONO)].spacing(6));
+            linhas = linhas.push(row![txf(format!("{k}:"), 12.0, t::FG3, t::MONO), txf(v.clone(), 12.0, t::FG, t::MONO)].spacing(t::SP_15));
         }
-        col = col.push(container(linhas).width(Length::Fill).padding(pad(8.0, 10.0, 8.0, 10.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 8.0)));
+        col = col.push(container(linhas).width(Length::Fill).padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25)).style(surface(Some(t::RAISE), Some(t::LINE2), 8.0)));
     }
     if a.truncated {
         col = col.push(tx(crate::i18n::text("Argumentos grandes demais para mostrar inteiros: só dá para negar."), 12.5, t::DANGER));
@@ -419,8 +419,8 @@ pub fn approval_detail<'a>(a: &crate::data::Approval) -> El<'a> {
 pub fn approval_confirm<'a>(a: &crate::data::Approval, on_input: impl Fn(String) -> Msg + 'a) -> Option<El<'a>> {
     let alvo = a.confirm_text().filter(|_| !a.truncated && a.state == crate::data::ApprState::Open)?;
     let dica = format!("{} {alvo}", crate::i18n::text("Para aprovar, digite:"));
-    let campo = iced::widget::text_input(&alvo, &a.typed).on_input(on_input).size(12).font(t::MONO).padding(8);
-    Some(column![txf(dica, 12.0, t::DANGER, t::UI), campo].spacing(6).into())
+    let campo = iced::widget::text_input(&alvo, &a.typed).on_input(on_input).size(12).font(t::MONO).padding(t::SP_2);
+    Some(column![txf(dica, 12.0, t::DANGER, t::UI), campo].spacing(t::SP_15).into())
 }
 
 /// Botões do cartão. Nenhum dos dois ganha destaque de "caminho feliz": só a ação destrutiva

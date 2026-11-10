@@ -43,9 +43,9 @@ impl State {
                 checkbox(self.options.remove_data).label("Remover os dados (banco, configurações, memória)").on_toggle(Message::Data).text_size(14),
                 text("Dados removidos não voltam. Se for reinstalar, deixe desmarcado.").size(12).color(theme::FG3),
                 Space::new().height(Length::Fixed(12.0)),
-                row![button("Cancelar").on_press(Message::Close), button("Desinstalar").on_press(Message::Remove)].spacing(10),
+                row![button("Cancelar").on_press(Message::Close), button("Desinstalar").on_press(Message::Remove)].spacing(theme::SP_25),
             ]
-            .spacing(10)
+            .spacing(theme::SP_25)
             .into(),
             Some(Ok(r)) => column![
                 text("Orion removido").size(20).color(theme::OK),
@@ -53,11 +53,11 @@ impl State {
                 text(if r.kept_modified.is_empty() { String::new() } else { format!("Mantidos por terem sido alterados: {}", r.kept_modified.join(", ")) }).size(12).color(theme::FG3),
                 button("Fechar").on_press(Message::Close),
             ]
-            .spacing(10)
+            .spacing(theme::SP_25)
             .into(),
-            Some(Err(e)) => column![text("Não consegui desinstalar").size(20).color(theme::DANGER), text(e.clone()).size(13).color(theme::FG2), button("Fechar").on_press(Message::Close)].spacing(10).into(),
+            Some(Err(e)) => column![text("Não consegui desinstalar").size(20).color(theme::DANGER), text(e.clone()).size(13).color(theme::FG2), button("Fechar").on_press(Message::Close)].spacing(theme::SP_25).into(),
         };
-        container(body).padding(24).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(theme::BG.into()), ..Default::default() }).into()
+        container(body).padding(theme::SP_6).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(theme::BG.into()), ..Default::default() }).into()
     }
 }
 

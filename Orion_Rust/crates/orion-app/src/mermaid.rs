@@ -124,6 +124,7 @@ pub fn parse(lines: &[String]) -> Option<Diagram> {
         let key = lines.to_vec();
         let mut cache = cache.borrow_mut();
         if let Some(index) = cache.iter().position(|(k, _)| *k == key) {
+            // Invariante: `index` veio de `position` na mesma fila, sob a mesma trava.
             let item = cache.remove(index).unwrap();
             let result = item.1.clone(); cache.push_back(item); return result;
         }

@@ -503,6 +503,37 @@ pub struct App {
     pub news_pending: bool,
 }
 
+/// Texto digitado em campo de senha, código ou chave, a caminho do `update`.
+/// O `Debug` nunca mostra o conteúdo e a memória é zerada ao soltar
+/// (REGRAS.md: segredos nunca em log, audit ou processo filho).
+#[derive(Clone)]
+pub struct Secret(String);
+impl Secret {
+    pub fn take(mut self) -> String {
+        std::mem::take(&mut self.0)
+    }
+}
+impl From<String> for Secret {
+    fn from(s: String) -> Self {
+        Secret(s)
+    }
+}
+impl From<&str> for Secret {
+    fn from(s: &str) -> Self {
+        Secret(s.to_owned())
+    }
+}
+impl std::fmt::Debug for Secret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[conteúdo oculto]")
+    }
+}
+impl Drop for Secret {
+    fn drop(&mut self) {
+        zeroize::Zeroize::zeroize(&mut self.0);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Msg {
     Resources(crate::resources::Event),
@@ -519,7 +550,7 @@ pub enum Msg {
     Mostrar,
     MiniPos(window::Id, Option<Size>),
     // entrada
-    PwChanged(String),
+    PwChanged(Secret),
     UserChanged(String),
     Login,
     Hello,
@@ -604,7 +635,7 @@ pub enum Msg {
     ShowAll(usize),
     ChatJump(f32),
     KeyOpen(String),
-    KeyInput(String),
+    KeyInput(Secret),
     KeyCancel,
     KeySave,
     RenameClose,
@@ -687,7 +718,7 @@ pub enum Msg {
     PalRun(usize),
     QcapOpen,
     QcapClose,
-    AutoSenhaText(String),
+    AutoSenhaText(Secret),
     AutoSenhaOk,
     AutoSenhaClose,
     NuvemTrazer(usize),
@@ -767,7 +798,7 @@ pub enum Msg {
     Hover(Option<(u8, usize)>),
     L(crate::live::Lm),
     Poll,
-    ResumePw(String),
+    ResumePw(Secret),
     Noop,
 }
 
@@ -1090,7 +1121,7 @@ impl App {
                 return iced::widget::operation::focus(crate::island::password_field(crate::island::Purpose::Autonomous));
             }
             Msg::AutoSenhaText(s) => {
-                self.auto_senha = Some(s.clone());
+                if let Some(mut old) = self.auto_senha.replace(s.clone().take()) { zeroize::Zeroize::zeroize(&mut old); }
                 return Task::none();
             }
             Msg::AutoSenhaClose => {
@@ -1110,7 +1141,7 @@ impl App {
                     return Task::perform(async move { api.post("/modo/autonomo", serde_json::json!({"ativo": true, "senha": senha})).await }, |r| Msg::L(crate::live::Lm::Modo(r)));
                 }
                 self.p.auto = true;
-                self.toast("Modo autônomo ligado. Mais passos por pedido; as permissões ficam em Configurações → Ferramentas.");
+                self.toast("Modo autônomo ligado. Mais passos por pedido; as permissões ficam em Configurações › Ferramentas.");
                 return Task::none();
             }
             _ => {}
@@ -1209,16 +1240,16 @@ impl App {
             Msg::Moved(p) => { if !self.mini { self.win_pos = Some(p); } }
             Msg::Resized(s) => { self.win = s; self.sky_frame.tick(Instant::now(), s, false); if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); } },
             Msg::Hover(h) => self.hover = h,
-            Msg::PwChanged(s) => self.pw = s,
+            Msg::PwChanged(s) => { zeroize::Zeroize::zeroize(&mut self.pw); self.pw = s.take(); }
             Msg::UserChanged(s) => self.user = s,
             Msg::Onboarding(_) | Msg::Face(_) | Msg::Camera(_) | Msg::Hello | Msg::LoginCancel | Msg::Recov(_) => {},
             Msg::Login => {
                 if self.pw.trim().is_empty() {
-                    self.gate_err = "Digite a senha para entrar.".into();
+                    self.gate_err = "Digite a senha para entrar".into();
                 } else {
                     self.logged = true;
                     self.gate_err.clear();
-                    self.pw.clear();
+                    zeroize::Zeroize::zeroize(&mut self.pw);
                     self.navigate(View::Chat, Some(0));
                     self.hist.clear();
                     self.toast("git pull do vault: 3 notas novas");
@@ -1380,7 +1411,7 @@ impl App {
                 return iced::widget::operation::focus("api-key");
             }
             Msg::KeyInput(v) => {
-                if let Some(f) = self.key_form.as_mut().filter(|f| !f.busy) { f.value = v; f.error.clear(); }
+                if let Some(f) = self.key_form.as_mut().filter(|f| !f.busy) { zeroize::Zeroize::zeroize(&mut f.value); f.value = v.take(); f.error.clear(); }
             }
             Msg::KeyCancel => {
                 if self.key_form.as_ref().is_some_and(|f| !f.busy) { self.key_form = None; }
@@ -1407,8 +1438,8 @@ impl App {
                         let target = match line { Some(l) => format!("{path}:{l}"), None => path };
                         return Task::perform(async move { tokio::task::spawn_blocking(move || crate::onboarding::open_in_editor(&target)).await.ok(); }, |_| Msg::Noop);
                     }
-                    Some((path, _)) if std::path::Path::new(&path).is_absolute() => self.toast(if self.p.english { "File not found" } else { "Arquivo não encontrado" }),
-                    _ => self.toast(if self.p.english { "Relative path: open it from the project folder" } else { "Caminho relativo: abra pela pasta do projeto" }),
+                    Some((path, _)) if std::path::Path::new(&path).is_absolute() => self.toast(crate::i18n::text("Arquivo não encontrado")),
+                    _ => self.toast(crate::i18n::text("Caminho relativo: abra pela pasta do projeto")),
                 }
             }
             Msg::OpenUrl(url) => {
@@ -1416,10 +1447,10 @@ impl App {
                 if crate::md::is_web(&url) {
                     return Task::perform(async move { tokio::task::spawn_blocking(move || crate::onboarding::open_link(&url)).await.ok(); }, |_| Msg::Noop);
                 }
-                self.toast(if self.p.english { "Only web links can be opened" } else { "Só links da web podem ser abertos" });
+                self.toast(crate::i18n::text("Só links da web podem ser abertos"));
             }
             Msg::CopyText(text) => {
-                self.toast(if self.p.english { "Copied" } else { "Copiado" });
+                self.toast(crate::i18n::text("Copiado"));
                 return iced::clipboard::write(text);
             }
             Msg::RenameStart => {
@@ -1440,11 +1471,11 @@ impl App {
                 let Some(form) = self.rename_form.as_mut().filter(|f| !f.busy) else { return Task::none() };
                 let title = form.title.trim().to_string();
                 if !(1..=120).contains(&title.chars().count()) {
-                    form.error = "Use um título entre 1 e 120 caracteres.".into();
+                    form.error = "Use um título entre 1 e 120 caracteres".into();
                     return Task::none();
                 }
                 let Some(api) = self.api.clone() else {
-                    form.error = "Renomear exige conexão com o núcleo.".into();
+                    form.error = "Renomear exige conexão com o núcleo".into();
                     return Task::none();
                 };
                 self.request_id = self.request_id.wrapping_add(1);
@@ -1483,17 +1514,17 @@ impl App {
                 let Some(form) = self.project_form.as_mut().filter(|f| !f.busy) else { return Task::none() };
                 let name = form.name.trim().to_string();
                 if !(1..=120).contains(&name.chars().count()) || form.instructions.chars().count() > 16000 || form.root.chars().count() > 4096 {
-                    form.error = "Use nome de 1 a 120 caracteres, instruções de até 16000 e caminho de até 4096.".into();
+                    form.error = "Use nome de 1 a 120 caracteres, instruções de até 16000 e caminho de até 4096".into();
                     return Task::none();
                 }
                 let Some(api) = self.api.clone() else {
-                    form.error = "Criar projeto exige conexão com o núcleo.".into();
+                    form.error = "Criar projeto exige conexão com o núcleo".into();
                     return Task::none();
                 };
                 let root = form.root.trim();
                 let git_url = form.git_url.trim();
                 if !root.is_empty() && !git_url.is_empty() {
-                    form.error = "Informe a pasta local ou o repositório do GitHub, não os dois.".into();
+                    form.error = "Informe a pasta local ou o repositório do GitHub, não os dois".into();
                     return Task::none();
                 }
                 let body = serde_json::json!({"name": name, "instructions": form.instructions, "root": if root.is_empty() { None } else { Some(root) }, "git_url": if git_url.is_empty() { None } else { Some(git_url) }, "share_personal": false});
@@ -1540,7 +1571,7 @@ impl App {
                     }
                     return self.live_send(text);
                 }
-                self.toast("Não foi possível liberar o envio agora.");
+                self.toast("Não foi possível liberar o envio agora");
             }
             Msg::RepeatLastIfEmpty => {
                 if self.draft().is_empty() {
@@ -1566,7 +1597,7 @@ impl App {
                 }
             }
             Msg::EditLast(_) => {}
-            Msg::AttachPath(_) => self.toast("Arrastar e soltar só funciona com o núcleo conectado."),
+            Msg::AttachPath(_) => self.toast("Arrastar e soltar só funciona com o núcleo conectado"),
             Msg::Unattach(i) => {
                 if i < self.attach.len() {
                     self.attach.remove(i);
@@ -2078,7 +2109,7 @@ impl App {
                     self.mem.sel = None;
                 }
             }
-            Msg::ResumePw(s) => self.resume_pw = s,
+            Msg::ResumePw(s) => { zeroize::Zeroize::zeroize(&mut self.resume_pw); self.resume_pw = s.take(); }
             Msg::Poll => {}
             Msg::ToolPermission(index) => {
                 let mut values = self.p.tools.unwrap_or([false; 3]);
@@ -2219,7 +2250,7 @@ impl App {
         };
         // A mensagem volta para a conversa de origem, mesmo que o usuário esteja em outra.
         let Some(index) = self.convs.iter().position(|c| c.id == next.conversation) else {
-            self.toast("Mensagem da fila sem conversa de origem.");
+            self.toast("Mensagem da fila sem conversa de origem");
             return self.next_queued();
         };
         // O rascunho do usuário (texto e anexos) é guardado, a mensagem da fila é enviada e o rascunho volta.

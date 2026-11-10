@@ -26,44 +26,44 @@ pub fn view(app: &App, v: View) -> El<'_> {
 
 /// `.page`: largura 800, título Newsreader 32 + descrição, botão à direita.
 pub fn page<'a>(title: &str, desc: &str, action: Option<El<'a>>, body: El<'a>) -> El<'a> {
-    let mut head = row![column![txf(title.to_string(), t::TEXT_H1, t::FG, t::SERIF).line_height(text::LineHeight::Relative(1.1)), tx(desc.to_string(), t::TEXT_BASE, t::FG3)].spacing(4).width(Length::Fill)].spacing(12).align_y(Vertical::Bottom);
+    let mut head = row![column![txf(title.to_string(), t::TEXT_H1, t::FG, t::SERIF).line_height(text::LineHeight::Relative(1.1)), tx(desc.to_string(), t::TEXT_BASE, t::FG3)].spacing(t::SP_1).width(Length::Fill)].spacing(t::SP_3).align_y(Vertical::Bottom);
     if let Some(a) = action {
         head = head.push(a);
     }
-    let col = column![container(head).padding(pad(0.0, 0.0, 22.0, 0.0)), body].width(Length::Fill);
-    let inner = container(col).max_width(800.0).width(Length::Fill).padding(pad(36.0, 20.0, 72.0, 20.0));
+    let col = column![container(head).padding(pad(0.0, 0.0, t::SP_6, 0.0)), body].width(Length::Fill);
+    let inner = container(col).max_width(800.0).width(Length::Fill).padding(pad(t::SP_9, t::SP_5, t::SP_18, t::SP_5));
     scrollable(container(inner).width(Length::Fill).center_x(Length::Fill)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).width(Length::Fill).height(Length::Fill).into()
 }
 
 pub fn li<'a>(left: El<'a>, right: El<'a>) -> El<'a> {
-    column![row![container(left).width(Length::Fill), right].spacing(16).align_y(Vertical::Center).padding(pad(13.0, 4.0, 13.0, 4.0)), hline()].into()
+    column![row![container(left).width(Length::Fill), right].spacing(t::SP_4).align_y(Vertical::Center).padding(pad(t::SP_3, t::SP_1, t::SP_3, t::SP_1)), hline()].into()
 }
 fn li_title<'a>(parts: Vec<El<'a>>) -> El<'a> {
-    row(parts).spacing(8).align_y(Vertical::Center).into()
+    row(parts).spacing(t::SP_2).align_y(Vertical::Center).into()
 }
 pub(crate) fn li_desc<'a>(s: impl text::IntoFragment<'a>) -> El<'a> {
-    container(tx(s, 12.5, t::FG3)).padding(pad(1.0, 0.0, 0.0, 0.0)).into()
+    container(tx(s, 12.5, t::FG3)).padding(pad(t::SP_PX, 0.0, 0.0, 0.0)).into()
 }
 use iced::widget::text;
 fn li_right<'a>(parts: Vec<El<'a>>) -> El<'a> {
-    row(parts).spacing(8).align_y(Vertical::Center).into()
+    row(parts).spacing(t::SP_2).align_y(Vertical::Center).into()
 }
 pub fn list<'a>(rows: Vec<El<'a>>) -> El<'a> {
     column![hline(), column(rows)].into()
 }
 fn h3<'a>(s: &str, first: bool) -> El<'a> {
-    container(txf(crate::i18n::status(s), t::TEXT_EYEBROW, t::FG3, t::UI_MED)).padding(pad(if first { 0.0 } else { 26.0 }, 4.0, 8.0, 4.0)).into()
+    container(txf(crate::i18n::status(s), t::TEXT_EYEBROW, t::FG3, t::UI_MED)).padding(pad(if first { 0.0 } else { 26.0 }, t::SP_1, t::SP_2, t::SP_1)).into()
 }
 fn search_box<'a>(placeholder: &str, value: &str, on: impl Fn(String) -> Msg + 'a) -> El<'a> {
-    let input = text_input(placeholder, value).on_input(on).size(13).font(t::UI).padding(pad(8.0, 12.0, 8.0, 34.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 9.0));
-    stack![input, container(icon("search", 14.0, t::FG3)).padding(pad(10.0, 0.0, 0.0, 11.0))].into()
+    let input = text_input(placeholder, value).on_input(on).size(13).font(t::UI).padding(pad(t::SP_2, t::SP_3, t::SP_2, t::SP_8)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 9.0));
+    stack![input, container(icon("search", 14.0, t::FG3)).padding(pad(t::SP_25, 0.0, 0.0, t::SP_3))].into()
 }
 
 fn projetos(app: &App) -> El<'_> {
     let q = app.proj_q.trim().to_lowercase();
     let items: Vec<(usize, &data::Project)> = app.projects.iter().enumerate().filter(|(_, p)| q.is_empty() || format!("{}{}", p.n, p.d).to_lowercase().contains(&q)).collect();
     let card = |(i, p): (usize, &data::Project)| -> El<'static> {
-        let mut tags = row![].spacing(4);
+        let mut tags = row![].spacing(t::SP_1);
         if !p.repo.is_empty() {
             tags = tags.push(badge_ic(p.repo.split('/').nth(1).unwrap_or(""), if p.ci { Tone::Ok } else { Tone::Plain }, "branch"));
         }
@@ -77,31 +77,31 @@ fn projetos(app: &App) -> El<'_> {
         if !p.pastas.is_empty() {
             tags = tags.push(badge_ic(&ell(&p.pastas, 150.0, 11.0), Tone::Plain, "folder"));
         }
-        let body = column![txf(p.n.clone(), 20.0, t::FG, t::SERIF), tx(p.d.clone(), 13.0, t::FG2), container(tags.wrap().vertical_spacing(4)).padding(pad(2.0, 0.0, 0.0, 0.0)), container(sp_h(0.0)).height(Length::Fill), row![tx(p.pend.clone(), 12.0, t::FG3), grow(), tx(crate::i18n::formatted("Atualizado {}", format!("Atualizado {}", crate::i18n::status(&p.up))), 12.0, t::FG3)]].spacing(6);
+        let body = column![txf(p.n.clone(), 20.0, t::FG, t::SERIF), tx(p.d.clone(), 13.0, t::FG2), container(tags.wrap().vertical_spacing(4)).padding(pad(t::SP_05, 0.0, 0.0, 0.0)), container(sp_h(0.0)).height(Length::Fill), row![tx(p.pend.clone(), 12.0, t::FG3), grow(), tx(crate::i18n::formatted("Atualizado {}", format!("Atualizado {}", crate::i18n::status(&p.up))), 12.0, t::FG3)]].spacing(t::SP_15);
         button(container(body).height(Length::Fill))
             .width(Length::Fill)
             .height(Length::Fixed(164.0))
-            .padding(pad(16.0, 18.0, 16.0, 18.0))
+            .padding(pad(t::SP_4, t::SP_45, t::SP_4, t::SP_45))
             .on_press(Msg::OpenProject(i))
             .style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::RAISE.into()) } else { None }, text_color: t::FG, border: Border { color: if matches!(st, button::Status::Hovered) { t::LINE3 } else { t::LINE2 }, width: 1.0, radius: t::R_PANEL.into() }, shadow: Default::default(), snap: true })
             .into()
     };
-    let mut grid = column![].spacing(12);
+    let mut grid = column![].spacing(t::SP_3);
     let cards: Vec<El> = items.into_iter().map(card).collect();
     if cards.is_empty() {
-        grid = grid.push(tx(crate::i18n::text("Nenhum projeto encontrado."), 14.0, t::FG3));
+        grid = grid.push(tx(crate::i18n::text("Nenhum projeto encontrado"), 14.0, t::FG3));
     }
     let mut it = cards.into_iter();
     while let Some(a) = it.next() {
         let b = it.next().unwrap_or_else(|| sp_w(0.0));
-        grid = grid.push(row![container(a).width(Length::FillPortion(1)), container(b).width(Length::FillPortion(1))].spacing(12));
+        grid = grid.push(row![container(a).width(Length::FillPortion(1)), container(b).width(Length::FillPortion(1))].spacing(t::SP_3));
     }
-    let mut body = column![].spacing(12);
+    let mut body = column![].spacing(t::SP_3);
     if let Some(form) = &app.project_form {
-        let mut name = text_input(crate::i18n::text("Nome do projeto"), &form.name).id("project-name").padding(10).size(14);
-        let mut instructions = text_input(crate::i18n::text("Instruções (opcional)"), &form.instructions).padding(10).size(14);
-        let mut root = text_input(crate::i18n::text("Pasta local existente (opcional)"), &form.root).padding(10).size(14);
-        let mut git_url = text_input(crate::i18n::text("Ou URL de um repositório público do GitHub (opcional)"), &form.git_url).padding(10).size(14);
+        let mut name = text_input(crate::i18n::text("Nome do projeto"), &form.name).id("project-name").padding(t::SP_25).size(14);
+        let mut instructions = text_input(crate::i18n::text("Instruções (opcional)"), &form.instructions).padding(t::SP_25).size(14);
+        let mut root = text_input(crate::i18n::text("Pasta local existente (opcional)"), &form.root).padding(t::SP_25).size(14);
+        let mut git_url = text_input(crate::i18n::text("Ou URL de um repositório público do GitHub (opcional)"), &form.git_url).padding(t::SP_25).size(14);
         if !form.busy {
             name = name.on_input(Msg::ProjectName);
             instructions = instructions.on_input(Msg::ProjectInstructions);
@@ -110,45 +110,45 @@ fn projetos(app: &App) -> El<'_> {
         }
         let mut fields = column![
             tx(crate::i18n::text("Novo projeto"), 16.0, t::FG), name, instructions, root, git_url,
-            tx(crate::i18n::text("Cria o projeto com memória pessoal isolada e a nota dele no vault. Use uma pasta que já existe ou a URL de um repositório público do GitHub, que é clonado (pode levar um tempo)."), 12.0, t::FG3),
-            row![btn(if form.busy { crate::i18n::text("Criando…") } else { crate::i18n::text("Criar projeto") }, Kind::Primary, true, None, (!form.busy).then_some(Msg::ProjectSave)), btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, (!form.busy).then_some(Msg::ProjectClose))].spacing(8),
-        ].spacing(10);
+            tx(crate::i18n::text("Cria o projeto com memória isolada e uma nota no vault. Use uma pasta existente ou a URL de um repositório público do GitHub, que será clonado."), 12.0, t::FG3),
+            row![btn(if form.busy { crate::i18n::text("Criando…") } else { crate::i18n::text("Criar projeto") }, Kind::Primary, true, None, (!form.busy).then_some(Msg::ProjectSave)), btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, (!form.busy).then_some(Msg::ProjectClose))].spacing(t::SP_2),
+        ].spacing(t::SP_25);
         if !form.error.is_empty() { fields = fields.push(tx(crate::i18n::status(&form.error), 12.0, t::DANGER)); }
-        body = body.push(container(fields).padding(16).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE2), 12.0)));
+        body = body.push(container(fields).padding(t::SP_4).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE2), 12.0)));
     }
     body = body.push(search_box("Buscar projetos", &app.proj_q, Msg::ProjQ)).push(grid);
-    page(crate::i18n::text("Projetos"), crate::i18n::text("Conversas, instruções e pasta local de cada projeto."), Some(btn(crate::i18n::text("Novo projeto"), Kind::Primary, false, None, app.project_form.is_none().then_some(Msg::ProjectStart))), body.into())
+    page(crate::i18n::text("Projetos"), crate::i18n::text("Conversas, instruções e pasta local de cada projeto"), Some(btn(crate::i18n::text("Novo projeto"), Kind::Primary, false, None, app.project_form.is_none().then_some(Msg::ProjectStart))), body.into())
 }
 
 fn aprovacoes(app: &App) -> El<'_> {
     let pend = app.pend_list();
-    let mut col = column![h3(&format!("Aguardando você · {}", app.pend_count()), true)].spacing(10);
+    let mut col = column![h3(&format!("Aguardando você · {}", app.pend_count()), true)].spacing(t::SP_25);
     for (ci, mi) in pend {
         let c = &app.convs[ci];
         if let data::ChatMsg::Orion(o) = &c.msgs[mi] {
-            let a = o.approval.as_ref().unwrap();
-            let txt = crate::md::render(&crate::md::parse(&a.text), crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 14.0, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
+            let Some(a) = o.approval.as_ref() else { continue };
+            let txt = crate::md::render(&crate::md::cached_parse(&a.text), crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 14.0, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
             let mut acoes = approval_actions(a, Msg::Approve(ci, mi), Msg::Deny(ci, mi));
             acoes.push(btn(crate::i18n::text("Abrir conversa"), Kind::Ghost, true, None, Some(Msg::OpenConv(ci))));
             col = col.push(qcard(
-                row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(format!("{} · {}", c.title, c.proj), 12.5, t::FG3), grow(), tx(o.time.clone(), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
-                column![txt, approval_detail(a), crate::ui::approval_confirm(a, move |s| Msg::ApprType(ci, mi, s)).unwrap_or_else(|| column![].into())].spacing(8).into(),
-                iced::widget::Row::with_children(acoes).spacing(8).into(),
+                row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(format!("{} · {}", c.title, c.proj), 12.5, t::FG3), grow(), tx(o.time.clone(), 12.5, t::FG3)].spacing(t::SP_2).align_y(Vertical::Center).into(),
+                column![txt, approval_detail(a), crate::ui::approval_confirm(a, move |s| Msg::ApprType(ci, mi, s)).unwrap_or_else(|| column![].into())].spacing(t::SP_2).into(),
+                iced::widget::Row::with_children(acoes).spacing(t::SP_2).into(),
             ));
         }
     }
     if app.rot_pend {
         let txt: El = row![tx(crate::i18n::text("Mover 38 arquivos de "), 14.0, t::FG), txf("Downloads", 12.0, t::FG, t::MONO), tx(crate::i18n::text(" para "), 14.0, t::FG), txf("Downloads\\2026-10", 12.0, t::FG, t::MONO), tx(crate::i18n::text(". Nada é apagado."), 14.0, t::FG)].align_y(Vertical::Center).into();
         col = col.push(qcard(
-            row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(crate::i18n::text("Rotina “Organizar Downloads” · proposta"), 12.5, t::FG3), grow(), tx(crate::i18n::text("sábado"), 12.5, t::FG3)].spacing(8).align_y(Vertical::Center).into(),
+            row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), tx(crate::i18n::text("Rotina “Organizar Downloads” · proposta"), 12.5, t::FG3), grow(), tx(crate::i18n::text("sábado"), 12.5, t::FG3)].spacing(t::SP_2).align_y(Vertical::Center).into(),
             txt,
-            row![btn(crate::i18n::text("Aprovar"), Kind::Normal, true, None, Some(Msg::ApproveRot)), btn(crate::i18n::text("Negar"), Kind::Normal, true, None, Some(Msg::DenyRot))].spacing(8).into(),
+            row![btn(crate::i18n::text("Aprovar"), Kind::Normal, true, None, Some(Msg::ApproveRot)), btn(crate::i18n::text("Negar"), Kind::Normal, true, None, Some(Msg::DenyRot))].spacing(t::SP_2).into(),
         ));
     }
-    col = col.push(container(row![icon("send2", 14.0, t::FG3), tx(crate::i18n::text("As mesmas pendências chegam no Telegram, com botões, só para o seu ID."), 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(4.0, 4.0, 0.0, 4.0)));
+    col = col.push(container(row![icon("send2", 14.0, t::FG3), tx(crate::i18n::text("As mesmas pendências chegam no Telegram, com botões, só para o seu ID"), 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center)).padding(pad(t::SP_1, t::SP_1, 0.0, t::SP_1)));
     col = col.push(h3(crate::i18n::text("Histórico de atividade"), false));
     let opts = [crate::i18n::text("Todas"), crate::i18n::text("Aguardando"), crate::i18n::text("Negadas ou com falha"), crate::i18n::text("Concluídas")];
-    col = col.push(container(seg(&opts, app.act_filter, Msg::ActFilter)).padding(pad(0.0, 0.0, 12.0, 0.0)));
+    col = col.push(container(seg(&opts, app.act_filter, Msg::ActFilter)).padding(pad(0.0, 0.0, t::SP_3, 0.0)));
     let mut rows = vec![];
     for (i, a) in app.acts.iter().enumerate() {
         let keep = match app.act_filter {
@@ -176,22 +176,23 @@ fn aprovacoes(app: &App) -> El<'_> {
         rows.push(li(column![li_title(title), li_desc(a.when.clone())].into(), li_right(right)));
     }
     if rows.is_empty() {
-        col = col.push(container(tx(crate::i18n::text("Nada neste filtro."), 14.0, t::FG3)).padding(pad(16.0, 4.0, 16.0, 4.0)));
+        col = col.push(container(tx(crate::i18n::text("Nada neste filtro"), 14.0, t::FG3)).padding(pad(t::SP_4, t::SP_1, t::SP_4, t::SP_1)));
     } else {
         col = col.push(list(rows));
     }
     // ligar o modo autônomo não é convite desta página: fica em Configurações › Privacidade e autonomia
     // (e pede a senha). Aqui só o atalho para desligar, quando já está ligado.
     let auto = app.p.auto.then(|| btn(crate::i18n::text("Desligar modo autônomo"), Kind::Normal, true, Some("bolt"), Some(Msg::Toggle("auto"))));
-    page(crate::i18n::text("Aprovações"), crate::i18n::text("Pendências de todas as conversas e rotinas, e o histórico de tudo o que o Orion fez fora do chat."), auto, col.into())
+    page(crate::i18n::text("Aprovações"), crate::i18n::text("Pendências de conversas e rotinas, e o histórico do que o Orion fez fora do chat"), auto, col.into())
 }
 
+/// Cartão de pendência em superfície neutra: o âmbar fica só no ponto do cabeçalho, para a fila inteira não acender.
 fn qcard<'a>(head: El<'a>, body: El<'a>, actions: El<'a>) -> El<'a> {
-    container(column![head, body, actions].spacing(8)).width(Length::Fill).padding(pad(12.0, 16.0, 12.0, 16.0)).style(|_| container::Style { background: Some(t::SIGNAL_SOFT.into()), border: Border { color: t::mix(t::SIGNAL, 0.30), width: 1.0, radius: t::R_PANEL.into() }, ..Default::default() }).into()
+    container(column![head, body, actions].spacing(t::SP_2)).width(Length::Fill).padding(pad(t::SP_3, t::SP_4, t::SP_3, t::SP_4)).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, ..Default::default() }).into()
 }
 
 fn runs<'a>(r: &str) -> El<'a> {
-    let mut row_ = row![].spacing(3);
+    let mut row_ = row![].spacing(t::SP_1);
     for ch in r.chars() {
         let c = match ch {
             'f' => t::DANGER,
@@ -225,8 +226,8 @@ fn rotinas(app: &App) -> El<'_> {
                 linha = if linha.is_empty() { p } else { format!("{linha} · {p}") };
             }
         }
-        let d: El = row![tx(format!("{linha} "), 12.5, t::FG3), badge(&r.st, st_tone)].spacing(4).align_y(Vertical::Center).into();
-        let mut lc = column![li_title(title), container(d).padding(pad(1.0, 0.0, 0.0, 0.0))];
+        let d: El = row![tx(format!("{linha} "), 12.5, t::FG3), badge(&r.st, st_tone)].spacing(t::SP_1).align_y(Vertical::Center).into();
+        let mut lc = column![li_title(title), container(d).padding(pad(t::SP_PX, 0.0, 0.0, 0.0))];
         if !r.out.is_empty() {
             lc = lc.push(li_desc(format!("Saída: {}", r.out)));
         }
@@ -240,7 +241,7 @@ fn nuvem(app: &App) -> El<'_> {
     let mut rows = vec![];
     for (i, c) in app.cloud.iter().enumerate() {
         let right: Vec<El> = if c.running {
-            vec![container(row![spinner(app.spin, 10.0), txf(crate::i18n::text("rodando"), 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
+            vec![container(row![spinner(app.spin, 10.0), txf(crate::i18n::text("rodando"), 11.0, t::SIGNAL, t::UI_MED)].spacing(t::SP_1).align_y(Vertical::Center)).padding(pad(t::SP_PX, t::SP_2, t::SP_PX, t::SP_2)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
         } else if c.proj == "na_fila" {
             // F04.21: até 3 tarefas rodam juntas; a fila espera a vez e pode ser cancelada
             vec![badge(crate::i18n::text("na fila"), Tone::Info), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
@@ -256,7 +257,7 @@ fn nuvem(app: &App) -> El<'_> {
         rows.push(li(column![li_title(vec![badge(&c.svc, Tone::Info), tx(c.t.clone(), 14.0, t::FG).into()]), li_desc(desc)].into(), li_right(right)));
     }
     for (svc, t_) in &app.cloud_extra {
-        rows.push(li(column![li_title(vec![badge(svc, Tone::Info), tx(t_.clone(), 14.0, t::FG).into()]), li_desc("Orion · agora · enviada")].into(), li_right(vec![container(row![spinner(app.spin, 10.0), txf(crate::i18n::text("rodando"), 11.0, t::SIGNAL, t::UI_MED)].spacing(5).align_y(Vertical::Center)).padding(pad(1.0, 8.0, 1.0, 8.0)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()])));
+        rows.push(li(column![li_title(vec![badge(svc, Tone::Info), tx(t_.clone(), 14.0, t::FG).into()]), li_desc("Orion · agora · enviada")].into(), li_right(vec![container(row![spinner(app.spin, 10.0), txf(crate::i18n::text("rodando"), 11.0, t::SIGNAL, t::UI_MED)].spacing(t::SP_1).align_y(Vertical::Center)).padding(pad(t::SP_PX, t::SP_2, t::SP_PX, t::SP_2)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()])));
     }
     for (i, n) in app.nuvem.iter().enumerate() {
         let tone = match n.estado.as_str() {
@@ -269,7 +270,7 @@ fn nuvem(app: &App) -> El<'_> {
         rows.push(li(column![li_title(vec![badge(&n.svc, Tone::Info), tx(n.t.clone(), 14.0, t::FG).into()]), li_desc(desc)].into(), li_right(acoes)));
     }
     if rows.is_empty() {
-        rows.push(li(column![li_title(vec![tx(crate::i18n::text("Nenhuma tarefa ainda."), 14.0, t::FG3).into()]), li_desc("Peça com /tarefa: o Orion segue sozinho, só lê e propõe, e avisa quando terminar.")].into(), li_right(vec![])));
+        rows.push(li(column![li_title(vec![tx(crate::i18n::text("Nenhuma tarefa ainda"), 14.0, t::FG3).into()]), li_desc("Peça com /tarefa: o Orion segue sozinho, só lê e propõe, e avisa quando terminar.")].into(), li_right(vec![])));
     }
     page(crate::i18n::text("Segundo plano"), crate::i18n::text("Tarefas longas que o Orion faz sozinho: só lê e propõe, dentro do tempo e dos passos que você deu. Crie com /tarefa."), Some(btn(crate::i18n::text("Nova tarefa"), Kind::Normal, true, Some("cloud"), Some(Msg::CloudNew))), list(rows))
 }
@@ -284,7 +285,7 @@ pub fn fact_rows<'a>(app: &'a App, filtro: impl Fn(&crate::data::Fact) -> bool) 
     for (i, f) in app.facts.iter().enumerate().filter(|(_, f)| filtro(f)) {
         let editing = app.edit_fact.as_ref().filter(|e| e.0 == i);
         let left: El = match editing {
-            Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(5.0, 8.0, 5.0, 8.0)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 7.0)), li_desc(f.src.clone())].spacing(4).into(),
+            Some(e) => column![text_input("", &e.1).on_input(Msg::FactText).on_submit(Msg::FactSave).size(14).font(t::UI).padding(pad(t::SP_1, t::SP_2, t::SP_1, t::SP_2)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 7.0)), li_desc(f.src.clone())].spacing(t::SP_1).into(),
             None => column![tx(f.t.clone(), 14.0, t::FG), li_desc(f.src.clone())].into(),
         };
         let right: El = if editing.is_some() { btn(crate::i18n::text("Salvar"), Kind::Primary, true, None, Some(Msg::FactSave)) } else { row![tip(ib("edit", Some(Msg::FactEdit(i)), false), crate::i18n::text("Editar")), tip(ib("trash", Some(Msg::FactForget(i)), false), crate::i18n::text("Esquecer"))].into() };
@@ -302,7 +303,7 @@ fn conhecimento(app: &App) -> El<'_> {
         }
     }
     if app.facts.is_empty() {
-        col = col.push(tx(crate::i18n::text("Memória vazia."), 14.0, t::FG3));
+        col = col.push(tx(crate::i18n::text("Memória vazia"), 14.0, t::FG3));
     }
     for g in groups {
         col = col.push(h3(g, g == app.facts[0].g));
@@ -316,7 +317,7 @@ fn arquivadas(app: &App) -> El<'_> {
     for (i, a) in app.archived.iter().enumerate() {
         rows.push(li(column![tx(a.0.clone(), 14.0, t::FG), li_desc(format!("{} · {}", a.1, a.2))].into(), li_right(vec![btn(crate::i18n::text("Desarquivar"), Kind::Normal, true, None, Some(Msg::Unarchive(i))), ib("trash", Some(Msg::DeleteArchived(i)), false)])));
     }
-    let body: El = if rows.is_empty() { container(tx(crate::i18n::text("Nenhuma conversa arquivada."), 14.0, t::FG3)).padding(pad(16.0, 4.0, 16.0, 4.0)).into() } else { list(rows) };
+    let body: El = if rows.is_empty() { container(tx(crate::i18n::text("Nenhuma conversa arquivada"), 14.0, t::FG3)).padding(pad(t::SP_4, t::SP_1, t::SP_4, t::SP_1)).into() } else { list(rows) };
     page(crate::i18n::text("Conversas arquivadas"), crate::i18n::text("Só arquivam quando você pede. Desarquive para continuar ou apague de vez."), None, body)
 }
 
@@ -324,13 +325,13 @@ pub fn hbar<'a>(label: &str, pct: f32, value: &str, color: iced::Color) -> El<'a
     hbar_sz(label, pct, value, color, 13.0)
 }
 pub fn hbar_sz<'a>(label: &str, pct: f32, value: &str, color: iced::Color, vsize: f32) -> El<'a> {
-    row![container(tx(label.to_string(), 13.0, t::FG2)).width(Length::Fixed(140.0)), container(meter(pct, 5.0, color)).width(Length::Fill), container(tx(value.to_string(), vsize, t::FG3)).width(Length::Fixed(124.0)).align_x(Horizontal::Right)].spacing(12).align_y(Vertical::Center).padding(pad(6.0, 4.0, 6.0, 4.0)).into()
+    row![container(tx(label.to_string(), 13.0, t::FG2)).width(Length::Fixed(140.0)), container(meter(pct, 5.0, color)).width(Length::Fill), container(tx(value.to_string(), vsize, t::FG3)).width(Length::Fixed(124.0)).align_x(Horizontal::Right)].spacing(t::SP_3).align_y(Vertical::Center).padding(pad(t::SP_15, t::SP_1, t::SP_15, t::SP_1)).into()
 }
 
 pub fn stats<'a>(items: [(&str, &str); 4]) -> El<'a> {
     let mut r = row![].width(Length::Fill);
     for (i, (n, l)) in items.iter().enumerate() {
-        let cell = container(column![txf(n.to_string(), 30.0, t::FG, t::SERIF).line_height(text::LineHeight::Relative(1.1)), tx(l.to_string(), 12.0, t::FG3)]).width(Length::FillPortion(1)).padding(pad(16.0, 4.0, 16.0, if i == 0 { 4.0 } else { 16.0 }));
+        let cell = container(column![txf(n.to_string(), 30.0, t::FG, t::SERIF).line_height(text::LineHeight::Relative(1.1)), tx(l.to_string(), 12.0, t::FG3)]).width(Length::FillPortion(1)).padding(pad(t::SP_4, t::SP_1, t::SP_4, if i == 0 { 4.0 } else { 16.0 }));
         if i > 0 {
             r = r.push(vline(80.0));
         }
@@ -344,9 +345,8 @@ pub fn painel(app: &App) -> El<'_> {
         return painel_live(app);
     }
     // Sem servidor não há números reais: o painel fica vazio em vez de mostrar dados de exemplo (F01.28).
-    let en = app.p.english;
-    let aviso = if en { "No data yet. Connect Orion to see quotas, models and the week." } else { crate::i18n::text("Sem dados ainda. Conecte o Orion para ver cotas, modelos e a semana.") };
-    let col = column![container(tx(aviso, t::TEXT_BASE, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0))];
+    let aviso = crate::i18n::text("Sem dados ainda. Conecte o Orion para ver cotas, modelos e a semana.");
+    let col = column![container(tx(aviso, t::TEXT_BASE, t::FG3)).padding(pad(t::SP_1, t::SP_1, t::SP_1, t::SP_1))];
     painel_section(app, col.into())
 }
 
@@ -356,7 +356,7 @@ fn painel_live(app: &App) -> El<'_> {
     let mut col = column![h3(crate::i18n::text("Cotas das chamadas · semana"), true)];
     let quotas: Vec<Value> = app.budget.as_ref().and_then(|b| b.get("quotas")).and_then(|q| q.as_array()).cloned().unwrap_or_default();
     if quotas.is_empty() {
-        col = col.push(container(tx(crate::i18n::text("Nenhuma cota configurada. Defina em ORION_BUDGET ou em Configurações › Modelos."), 13.0, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+        col = col.push(container(tx(crate::i18n::text("Nenhuma cota configurada. Defina em Configurações › Modelos."), 13.0, t::FG3)).padding(pad(t::SP_1, t::SP_1, t::SP_1, t::SP_1)));
     }
     for q in &quotas {
         let pct = q.get("percent").and_then(|x| x.as_f64()).unwrap_or(0.0) as f32;
@@ -367,7 +367,7 @@ fn painel_live(app: &App) -> El<'_> {
     col = col.push(h3(crate::i18n::text("Modelos"), false));
     let eps = p["modelos"]["endpoints"].as_array().cloned().unwrap_or_default();
     if eps.is_empty() {
-        col = col.push(container(tx(if p["modelos"]["configurado"].as_bool().unwrap_or(false) { crate::i18n::text("Modelos configurados.") } else { crate::i18n::text("Nenhum modelo configurado (ORION_PROVEDORES ou ORION_GATEWAY_URL/MODEL).") }, 13.0, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+        col = col.push(container(tx(if p["modelos"]["configurado"].as_bool().unwrap_or(false) { crate::i18n::text("Modelos configurados") } else { crate::i18n::text("Nenhum modelo configurado") }, 13.0, t::FG3)).padding(pad(t::SP_1, t::SP_1, t::SP_1, t::SP_1)));
     }
     for e in &eps {
         let nome = e["nome"].as_str().or(e["name"].as_str()).unwrap_or("modelo");
@@ -395,7 +395,7 @@ fn painel_live(app: &App) -> El<'_> {
     col = col.push(h3("A semana", false));
     let up = p["uptime_s"].as_f64().unwrap_or(0.0);
     let upt = if up >= 3600.0 { format!("{} h", (up / 3600.0) as i64) } else { format!("{} min", (up / 60.0) as i64) };
-    col = col.push(container(stats([(&format!("{total:.0}"), "chamadas de modelo"), (&format!("{erros:.0}"), "com erro"), (&app.pend_count().to_string(), "aguardando você"), (&upt, "servidor no ar")])).padding(pad(0.0, 0.0, 28.0, 0.0)));
+    col = col.push(container(stats([(&format!("{total:.0}"), "chamadas de modelo"), (&format!("{erros:.0}"), "com erro"), (&app.pend_count().to_string(), "aguardando você"), (&upt, "servidor no ar")])).padding(pad(0.0, 0.0, t::SP_7, 0.0)));
     if semana.len() >= 2 {
         col = col.push(h3(crate::i18n::text("Chamadas por dia · 7 dias"), false));
         let mx = semana.iter().cloned().fold(1.0f32, f32::max);
@@ -414,7 +414,7 @@ fn painel_live(app: &App) -> El<'_> {
         col = col.push(grafico(tokens[tokens.len() - 7..].to_vec(), crate::i18n::text("7 dias atrás")));
         col = col.push(h3(crate::i18n::text("Tokens por dia · 30 dias (estimado)"), false));
         col = col.push(grafico(tokens.clone(), crate::i18n::text("30 dias atrás")));
-        col = col.push(container(tx(crate::i18n::text("Estimativa: o registro de saídas guarda bytes, não tokens (bytes ÷ 4)."), 11.5, t::FG3)).padding(pad(4.0, 4.0, 4.0, 4.0)));
+        col = col.push(container(tx(crate::i18n::text("Estimativa a partir do tamanho das respostas"), 11.5, t::FG3)).padding(pad(t::SP_1, t::SP_1, t::SP_1, t::SP_1)));
     }
     painel_section(app, col.into())
 }
@@ -422,7 +422,7 @@ fn painel_live(app: &App) -> El<'_> {
 /// Conteúdo do painel dentro da rolagem das configurações, sem outra página aninhada.
 fn painel_section<'a>(app: &'a App, body: El<'a>) -> El<'a> {
     column![
-        container(row![tx(crate::i18n::text("Cotas, modelos e a semana, direto do servidor."), 12.5, t::FG3).width(Length::Fill), btn(crate::i18n::text("Exportar o Você fez de hoje"), Kind::Normal, true, None, Some(Msg::VoceFezExportar)), btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))].spacing(12).align_y(Vertical::Center)).padding(pad(12.0, 0.0, 22.0, 0.0)),
+        container(row![tx(crate::i18n::text("Cotas, modelos e a semana, direto do servidor"), 12.5, t::FG3).width(Length::Fill), btn(crate::i18n::text("Exportar o Você fez de hoje"), Kind::Normal, true, None, Some(Msg::VoceFezExportar)), btn(crate::i18n::text("Atualizar"), Kind::Normal, true, Some("refresh"), Some(Msg::Refresh))].spacing(t::SP_3).align_y(Vertical::Center)).padding(pad(t::SP_3, 0.0, t::SP_6, 0.0)),
         weekly_block(app),
         body,
     ].into()
@@ -435,14 +435,14 @@ fn weekly_block(app: &App) -> El<'_> {
         return sp_h(0.0).into();
     }
     let label = if app.weekly_open { crate::i18n::text("Esconder o resumo semanal") } else { crate::i18n::text("Resumo semanal") };
-    let mut col = column![row![btn(label, Kind::Normal, true, None, Some(Msg::WeeklyToggle)), grow()]].spacing(10);
+    let mut col = column![row![btn(label, Kind::Normal, true, None, Some(Msg::WeeklyToggle)), grow()]].spacing(t::SP_25);
     if app.weekly_open {
         let corpo: El = match &app.weekly_text {
             Some(t) => tx(t.clone(), 12.5, t::FG2).into(),
             None => tx(crate::i18n::text("Carregando…"), 12.5, t::FG3).into(),
         };
-        col = col.push(container(corpo).padding(pad(12.0, 14.0, 12.0, 14.0)).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE2), 8.0)));
+        col = col.push(container(corpo).padding(pad(t::SP_3, t::SP_35, t::SP_3, t::SP_35)).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE2), 8.0)));
         col = col.push(row![btn(crate::i18n::text("Exportar para o vault"), Kind::Normal, app.weekly_text.is_some(), None, Some(Msg::WeeklyExport)), grow()]);
     }
-    container(col).padding(pad(0.0, 0.0, 22.0, 0.0)).width(Length::Fill).into()
+    container(col).padding(pad(0.0, 0.0, t::SP_6, 0.0)).width(Length::Fill).into()
 }

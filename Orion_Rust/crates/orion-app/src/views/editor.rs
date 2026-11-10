@@ -10,7 +10,8 @@ use iced::widget::{column, container, mouse_area, opaque, row, scrollable, text,
 use iced::{Background, Border, Length};
 
 pub fn modal(app: &App) -> El<'_> {
-    let e = app.editor.as_ref().unwrap();
+    // A camada só é montada com o estado presente; sem ele, não desenha nada em vez de derrubar o app.
+    let Some(e) = app.editor.as_ref() else { return iced::widget::Space::new().into() };
     let head = container(
         row![
             icon("file", 16.0, t::FG2),
@@ -19,20 +20,20 @@ pub fn modal(app: &App) -> El<'_> {
             btn(crate::i18n::text("Salvar e commit"), Kind::Primary, true, None, Some(Msg::EditorSave)),
             tip(ib("close", Some(Msg::EditorClose), false), crate::i18n::text("Fechar"))
         ]
-        .spacing(8)
+        .spacing(t::SP_2)
         .align_y(Vertical::Center),
     )
-    .padding(pad(10.0, 12.0, 10.0, 18.0));
+    .padding(pad(t::SP_25, t::SP_3, t::SP_25, t::SP_45));
     let ed = text_editor(&e.content)
         .on_action(Msg::EditorEdit)
         .font(t::MONO)
         .size(13)
         .line_height(text::LineHeight::Relative(1.7))
-        .padding(18)
+        .padding(t::SP_45)
         .height(Length::Fill)
         .style(|_, _| text_editor::Style { background: Background::Color(t::SIDE), border: Border::default(), placeholder: t::FG3, value: t::FG, selection: t::ACCENT_SOFT });
-    let blocks = md::parse(&e.content.text());
-    let prev = scrollable(container(md::render(&blocks, md::Style::preview())).padding(pad(18.0, 24.0, 18.0, 24.0)).width(Length::Fill)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill);
+    let blocks = md::cached_parse(&e.content.text());
+    let prev = scrollable(container(md::render(&blocks, md::Style::preview())).padding(pad(t::SP_45, t::SP_6, t::SP_45, t::SP_6)).width(Length::Fill)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill);
     let mobile = app.is_drawer_mode();
     let body: El = if mobile { column![container(ed).height(Length::FillPortion(1)), hline(), container(prev).height(Length::FillPortion(1))].into() } else { row![container(ed).width(Length::FillPortion(1)).height(Length::Fill), vline_f(), container(prev).width(Length::FillPortion(1)).height(Length::Fill)].into() };
     let (w, h) = (1100.0f32.min(app.win.width - 48.0), 760.0f32.min(app.win.height - 48.0));

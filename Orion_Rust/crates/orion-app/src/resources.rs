@@ -510,83 +510,83 @@ fn input_value(app: &App, key: &'static str) -> String {
 }
 /// F07.03: descrição curta de cada opção de Configurações (texto pt-BR; a interface traduz via catálogo).
 const DESCRIPTIONS: &[(&str, &str)] = &[
-    ("voice_enabled", "Ativa o botão de microfone para ditar mensagens."),
-    ("local_stt_model", "Modelo local que transcreve a fala neste computador."),
-    ("local_stt_gpu", "Usa a GPU na transcrição local, quando disponível."),
-    ("voice_speak", "O Orion responde em voz alta."),
-    ("voice_tts_voice", "Voz usada na resposta falada."),
-    ("voice_barge_in", "Permite interromper a fala do Orion falando por cima."),
+    ("voice_enabled", "Ativa o botão de microfone para ditar mensagens"),
+    ("local_stt_model", "Modelo local que transcreve a fala neste computador"),
+    ("local_stt_gpu", "Usa a GPU na transcrição local, quando disponível"),
+    ("voice_speak", "O Orion responde em voz alta"),
+    ("voice_tts_voice", "Voz usada na resposta falada"),
+    ("voice_barge_in", "Permite interromper a fala do Orion falando por cima"),
     ("wake_device", "Microfone da palavra de ativação. Vazio usa o padrão."),
-    ("wake_enabled", "Escuta local da palavra “Orion” para começar a falar."),
-    ("wake_model", "Arquivo do modelo validado que reconhece a palavra."),
-    ("wake_threshold", "Quanto maior, mais difícil a palavra disparar sem querer."),
-    ("wake_max_s", "Tempo máximo gravado depois da palavra."),
-    ("wake_silence_s", "Quanto silêncio encerra a fala."),
-    ("wake_max_per_hour", "Quantas ativações por hora são permitidas."),
-    ("clap_enabled", "Duas palmas abrem o Orion."),
-    ("clap_ratio", "Quanto maior, menos sensível às palmas."),
+    ("wake_enabled", "Escuta local da palavra “Orion” para começar a falar"),
+    ("wake_model", "Arquivo do modelo validado que reconhece a palavra"),
+    ("wake_threshold", "Quanto maior, mais difícil a palavra disparar sem querer"),
+    ("wake_max_s", "Tempo máximo gravado depois da palavra"),
+    ("wake_silence_s", "Quanto silêncio encerra a fala"),
+    ("wake_max_per_hour", "Quantas ativações por hora são permitidas"),
+    ("clap_enabled", "Duas palmas abrem o Orion"),
+    ("clap_ratio", "Quanto maior, menos sensível às palmas"),
     ("clap_action", "O que as palmas fazem: abrir o Orion ou rodar uma rotina (rotina:nome)."),
-    ("voice_live_enabled", "Permite conversar por voz em tempo real."),
-    ("voice_live_max_min", "Tempo máximo de uma conversa por voz ao vivo."),
-    ("vision_tools", "Permite ao Orion descrever imagens e a tela."),
-    ("camera", "A câmera só é usada quando você pede."),
-    ("camera_device", "Qual câmera usar, pelo índice (0 é a padrão)."),
-    ("camera_watch", "Guarda objetos vistos pela câmera para lembrar depois."),
-    ("object_model", "Modelo ONNX que detecta objetos nas imagens."),
-    ("presence_enabled", "Detecta se você está presente pelo computador."),
-    ("presence_away_min", "Minutos de ausência antes de pausar."),
-    ("presence_bt", "Dispositivo Bluetooth que indica a presença."),
-    ("presence_lock", "Permite bloquear o computador ao se ausentar."),
-    ("subtitles", "Mostra legenda ao vivo do áudio do computador."),
-    ("subtitle_model", "Modelo local usado nas legendas."),
-    ("subtitle_device", "Dispositivo de áudio capturado para a legenda."),
-    ("screen_memory", "Guarda o texto da tela só neste computador."),
-    ("screen_interval_s", "Intervalo entre capturas da tela, em segundos."),
-    ("screen_retention_days", "Por quantos dias a memória da tela é mantida."),
-    ("screen_exclude", "Títulos de janela que não entram na memória da tela."),
-    ("screen_exclude_apps", "Aplicativos que não entram na memória da tela."),
-    ("screen_ocr_langs", "Idiomas usados ao ler texto da tela."),
+    ("voice_live_enabled", "Permite conversar por voz em tempo real"),
+    ("voice_live_max_min", "Tempo máximo de uma conversa por voz ao vivo"),
+    ("vision_tools", "Permite ao Orion descrever imagens e a tela"),
+    ("camera", "A câmera só é usada quando você pede"),
+    ("camera_device", "Qual câmera usar, pelo índice (0 é a padrão)"),
+    ("camera_watch", "Guarda objetos vistos pela câmera para lembrar depois"),
+    ("object_model", "Modelo ONNX que detecta objetos nas imagens"),
+    ("presence_enabled", "Detecta se você está presente pelo computador"),
+    ("presence_away_min", "Minutos de ausência antes de pausar"),
+    ("presence_bt", "Dispositivo Bluetooth que indica a presença"),
+    ("presence_lock", "Permite bloquear o computador ao se ausentar"),
+    ("subtitles", "Mostra legenda ao vivo do áudio do computador"),
+    ("subtitle_model", "Modelo local usado nas legendas"),
+    ("subtitle_device", "Dispositivo de áudio capturado para a legenda"),
+    ("screen_memory", "Guarda o texto da tela só neste computador"),
+    ("screen_interval_s", "Intervalo entre capturas da tela, em segundos"),
+    ("screen_retention_days", "Por quantos dias a memória da tela é mantida"),
+    ("screen_exclude", "Títulos de janela que não entram na memória da tela"),
+    ("screen_exclude_apps", "Aplicativos que não entram na memória da tela"),
+    ("screen_ocr_langs", "Idiomas usados ao ler texto da tela"),
     ("clipboard_days", "Por quantos dias o histórico fica guardado. 0 desliga."),
-    ("command_history", "Guarda o histórico de comandos só neste computador."),
-    ("jobs_enabled", "Liga as tarefas que rodam em segundo plano."),
-    ("briefing_at", "Horário do resumo diário."),
-    ("research_at", "Horário da pesquisa noturna sobre os assuntos."),
-    ("research_topics", "Assuntos pesquisados à noite."),
-    ("sleep_at", "Horário em que a memória é revisada."),
-    ("weekly_ai", "Faz uma revisão semanal com IA."),
-    ("consolidate", "Consolida os fatos extraídos das conversas."),
-    ("diary_at", "Horário em que o diário da conversa é gravado no vault."),
-    ("weekly_review_at", "Horário da revisão semanal."),
-    ("nuvem", "Permite rodar tarefas nas CLIs de nuvem."),
-    ("codex_env", "Ambiente usado pelo Codex Cloud."),
-    ("nuvem_dir", "Pasta onde as tarefas de nuvem trabalham."),
+    ("command_history", "Guarda o histórico de comandos só neste computador"),
+    ("jobs_enabled", "Liga as tarefas que rodam em segundo plano"),
+    ("briefing_at", "Horário do resumo diário"),
+    ("research_at", "Horário da pesquisa noturna sobre os assuntos"),
+    ("research_topics", "Assuntos pesquisados à noite"),
+    ("sleep_at", "Horário em que a memória é revisada"),
+    ("weekly_ai", "Faz uma revisão semanal com IA"),
+    ("consolidate", "Consolida os fatos extraídos das conversas"),
+    ("diary_at", "Horário em que o diário da conversa é gravado no vault"),
+    ("weekly_review_at", "Horário da revisão semanal"),
+    ("nuvem", "Permite rodar tarefas nas CLIs de nuvem"),
+    ("codex_env", "Ambiente usado pelo Codex Cloud"),
+    ("nuvem_dir", "Pasta onde as tarefas de nuvem trabalham"),
     ("vault_dir", "Pasta do vault. Vale depois de reiniciar o Orion."),
     ("tone_directness", "Do mais curto e direto ao mais detalhado. O meio não muda nada."),
     ("tone_formality", "Do mais casual ao mais formal. O meio não muda nada."),
     ("tone_custom", "Até 500 caracteres. Ex.: sem preâmbulo, código completo, português técnico. Vale para todos os projetos; cada projeto pode ter instruções próprias."),
-    ("gateway_model_fast", "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado em perguntas simples. Vazio: o Orion escolhe sozinho."),
-    ("gateway_model_heavy", "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado em raciocínio e código. Vazio: o Orion escolhe sozinho."),
-    ("vision_model", "Só vale com gateway próprio (ORION_GATEWAY_URL e ORION_GATEWAY_MODEL). Usado quando há imagem ou tela. Vazio: o Orion escolhe sozinho."),
-    ("backup_dir", "Pasta onde os backups são guardados."),
-    ("backup_keep", "Quantos backups antigos manter."),
+    ("gateway_model_fast", "Só vale com gateway próprio. Usado em perguntas simples. Vazio: o Orion escolhe sozinho."),
+    ("gateway_model_heavy", "Só vale com gateway próprio. Usado em raciocínio e código. Vazio: o Orion escolhe sozinho."),
+    ("vision_model", "Só vale com gateway próprio. Usado quando há imagem ou tela. Vazio: o Orion escolhe sozinho."),
+    ("backup_dir", "Pasta onde os backups são guardados"),
+    ("backup_keep", "Quantos backups antigos manter"),
     ("subagents_max", "Quantos subagentes de leitura o Orion pode rodar ao mesmo tempo. Eles só leem (nunca escrevem nem executam) e o relatório conta como conteúdo externo. Vale na próxima abertura."),
-    ("repos", "Repositórios que o Orion pode ler."),
-    ("extra_safe_roots", "Pastas onde o Orion pode ler e escrever."),
+    ("repos", "Repositórios que o Orion pode ler"),
+    ("extra_safe_roots", "Pastas onde o Orion pode ler e escrever"),
     ("blocked_roots", "Pastas que o Orion nunca lê nem escreve, nem com autorização persistente; nada delas vai ao modelo. Vale na próxima abertura."),
-    ("rerank", "Reordena resultados de busca com um modelo local."),
+    ("rerank", "Reordena resultados de busca com um modelo local"),
     ("vault_sync", "O Orion faz pull, commit do que mudou e push do vault sozinho, com o login do Git deste computador. Arquivos com segredo ficam só locais e, em conflito, nada é sobrescrito."),
     ("memory_soft_forgetting", "Conversas antigas pesam um pouco menos na busca (no mínimo metade, depois de meses). Nada é apagado nem escondido; fatos, documentos e notas do vault não mudam."),
-    ("rerank_model_dir", "Pasta do modelo ONNX de reordenação."),
-    ("mcp_enabled", "Liga os servidores MCP configurados."),
+    ("rerank_model_dir", "Pasta do modelo ONNX de reordenação"),
+    ("mcp_enabled", "Liga os servidores MCP configurados"),
     ("water_every_min", "Lembra de beber água nesse intervalo, das 8h às 22h. 0 desliga. Não perturbe segura o aviso."),
     ("bedtime_at", "Avisa 30 minutos antes deste horário (HH:MM). Vazio desliga."),
     ("wake_pc", "Tira o PC da suspensão um minuto antes do próximo agendamento ou lembrete. Precisa dos timers de despertar permitidos no plano de energia."),
     ("telegram_events", "Tipos separados por vírgula (lembrete, agendamento, cota…); com \"-\" na frente, todos menos esse (-rotina). Vazio envia todos. Também dá para escolher em Notificações."),
-    ("mcp_config", "Arquivo com a configuração dos servidores MCP."),
-    ("skills_enabled", "Liga as skills instaladas."),
-    ("skills_dir", "Pasta onde ficam as skills."),
-    ("plugins_enabled", "Liga os plugins instalados."),
-    ("plugins_dir", "Pasta onde ficam os plugins."),
+    ("mcp_config", "Arquivo com a configuração dos servidores MCP"),
+    ("skills_enabled", "Liga as skills instaladas"),
+    ("skills_dir", "Pasta onde ficam as skills"),
+    ("plugins_enabled", "Liga os plugins instalados"),
+    ("plugins_dir", "Pasta onde ficam os plugins"),
 ];
 
 /// Descrição curta da opção, já traduzida.
@@ -608,7 +608,7 @@ fn check_vault_task(path: String) -> Task<Msg> {
     Task::perform(
         async move {
             let p = path.clone();
-            let (notice, ok) = tokio::task::spawn_blocking(move || vault_check(&p)).await.unwrap_or(("Não foi possível verificar a pasta.", false));
+            let (notice, ok) = tokio::task::spawn_blocking(move || vault_check(&p)).await.unwrap_or(("Não foi possível verificar a pasta", false));
             (path, notice, ok)
         },
         |(p, notice, ok)| Msg::Resources(Event::VaultChecked(p, notice, ok)),
@@ -623,19 +623,19 @@ fn vault_check(path: &str) -> (&'static str, bool) {
     }
     let dir = std::path::Path::new(path);
     if !dir.is_dir() {
-        return ("Pasta não encontrada.", false);
+        return ("Pasta não encontrada", false);
     }
     if dir.join("00 Inbox").is_dir() && (dir.join("claude.md").is_file() || dir.join("01 Projetos").is_dir()) {
         ("Vault válido: estrutura PARA encontrada.", true)
     } else if dir.join("claude.md").is_file() || dir.join("01 Projetos").is_dir() {
-        ("Vault encontrado, mas sem a pasta 00 Inbox da estrutura PARA.", true)
+        ("Vault encontrado, mas sem a pasta 00 Inbox da estrutura PARA", true)
     } else {
-        ("A pasta existe, mas não parece o vault (sem 00 Inbox, 01 Projetos nem claude.md).", false)
+        ("A pasta existe, mas não parece o vault (sem 00 Inbox, 01 Projetos nem claude.md)", false)
     }
 }
 
 pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
-    let mut col = column![].spacing(10);
+    let mut col = column![].spacing(t::SP_25);
     // o editor do settings.toml é opção de suporte: só aparece com "Mostrar avançado" ligado em Sistema
     if group == "storage" && app.p.advanced {
         col = col.push(tx(crate::i18n::text("settings.toml: espelho das Configurações, sem segredos. Salvar aplica na hora; editar o arquivo à mão também aplica."), 12.5, t::FG3));
@@ -645,7 +645,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 .font(t::MONO_MED)
                 .size(12.5)
                 .height(Length::Fixed(240.0))
-                .padding(10),
+                .padding(t::SP_25),
         );
         col = col.push(btn(
             crate::i18n::text("Salvar settings.toml"),
@@ -667,7 +667,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 Some(Msg::Resources(Event::Load))
             )
         ]
-        .spacing(10)
+        .spacing(t::SP_25)
         .into();
     }
     col = col.push(btn(
@@ -703,9 +703,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         let text = input_value(app, key);
         let control: El = match kind {
             Bool if key == "local_stt_gpu"
-                && !app.resources.snapshot.as_ref().unwrap()["availability"]["stt_gpu"]
-                    .as_bool()
-                    .unwrap_or(false) =>
+                && !app.resources.snapshot.as_ref().and_then(|s| s["availability"]["stt_gpu"].as_bool()).unwrap_or(false) =>
             {
                 badge(
                     crate::i18n::text("GPU de transcrição indisponível neste pacote"),
@@ -720,10 +718,10 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                 if app.resources.busy {
                     bar = iced::widget::slider(0.0_f32..=4.0, value, |_| Msg::Noop).step(1.0_f32).width(Length::Fixed(180.0));
                 }
-                row![tx(crate::i18n::text(left), 12.0, t::FG3), bar, tx(crate::i18n::text(right), 12.0, t::FG3)].spacing(8).align_y(iced::alignment::Vertical::Center).into()
+                row![tx(crate::i18n::text(left), 12.0, t::FG3), bar, tx(crate::i18n::text(right), 12.0, t::FG3)].spacing(t::SP_2).align_y(iced::alignment::Vertical::Center).into()
             }
             _ => {
-                let mut input = text_input("", &text).size(13).font(t::UI).padding(8).style(
+                let mut input = text_input("", &text).size(13).font(t::UI).padding(t::SP_2).style(
                     crate::views::login::field_style(t::RAISE, t::LINE2, t::ACCENT, 8.0),
                 );
                 if !app.resources.busy {
@@ -731,7 +729,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                         .on_input(move |text| Msg::Resources(Event::Input(key, text)))
                         .on_submit(Msg::Resources(Event::Save));
                 }
-                let mut controls = row![container(input).width(Length::Fixed(230.0))].spacing(6);
+                let mut controls = row![container(input).width(Length::Fixed(230.0))].spacing(t::SP_15);
                 if matches!(kind, File | Folder) {
                     controls = controls.push(btn(
                         crate::i18n::text("Escolher"),
@@ -749,7 +747,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         let default_value = app.resources.defaults.as_ref().and_then(|d| d.get(key));
         let differs = default_value.is_some_and(|v| value_text(v) != input_value(app, key));
         let control: El = if differs {
-            row![control, btn(crate::i18n::text("Restaurar"), Kind::Ghost, false, None, (!app.resources.busy).then_some(Msg::Resources(Event::RestoreOption(key))))].spacing(6).align_y(iced::alignment::Vertical::Center).into()
+            row![control, btn(crate::i18n::text("Restaurar"), Kind::Ghost, false, None, (!app.resources.busy).then_some(Msg::Resources(Event::RestoreOption(key))))].spacing(t::SP_15).align_y(iced::alignment::Vertical::Center).into()
         } else {
             control
         };
@@ -761,10 +759,11 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             }
         }
     }
-    let applied = app.resources.snapshot.as_ref().unwrap();
+    // Sem a foto dos recursos (ainda carregando), mostra só o que já foi montado.
+    let Some(applied) = app.resources.snapshot.as_ref() else { return col.into() };
     if applied["saved"] != applied["active"] {
         col = col.push(tx(
-            crate::i18n::text("Há alterações salvas aguardando aplicação."),
+            crate::i18n::text("Há alterações salvas aguardando aplicação"),
             13.0,
             t::SIGNAL,
         ));
@@ -831,7 +830,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                         Some(Msg::Live)
                     )
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         "camera" => {
@@ -841,7 +840,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     action("Cadastrar meu rosto", "POST", "/resources/face/enroll"),
                     action("Apagar meu rosto", "POST", "/resources/face/delete")
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             col=col.push(tx(crate::i18n::text("O cadastro tira cinco fotos e guarda somente o vetor cifrado. Este rosto serve para presença; não aprova ações."),12.5,t::FG3));
             // Face ID: entrar e confirmar pedidos de senha pelo rosto (opt-in; a senha segue valendo)
@@ -855,7 +854,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     },
                     if face_on { btn(crate::i18n::text("Desligar Face ID"), Kind::Normal, true, None, Some(Msg::Face(crate::island::FaceMsg::Disable))) } else { sp_w(0.0) }
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             col=col.push(tx(crate::i18n::text("Face ID: entra no Orion e confirma pedidos de senha (modo autônomo, sair do pânico) olhando para a câmera. Tudo roda neste computador; com câmera indisponível ou pouca luz, a senha continua valendo. Aprovar ferramentas segue sendo só por botão."),12.5,t::FG3));
             col=col.push(tx(crate::i18n::text("Para usar rosto neural, objetos e gestos com aceleração, instale a opção Visão com GPU no instalador. Cadastre o Face ID de novo: a captura guiada leva até 1 minuto; os modelos ficam prontos para acelerar a entrada."),12.5,t::FG3));
@@ -864,7 +863,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     action("Fotografar e descrever", "POST", "/camera/ver"),
                     action("Descrever a tela", "POST", "/resources/screen")
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         "automation" => {
@@ -876,7 +875,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     form("Criar rotina", FormKind::Routine),
                     form("Regras de Downloads", FormKind::Downloads)
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             col=col.push(tx(crate::i18n::text("Horários usam HH:MM; vazio desliga a agenda. Pesquisa noturna precisa do vault e de ferramentas web."),12.5,t::FG3));
         }
@@ -890,7 +889,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     ),
                     action("Ver histórico de comandos", "GET", "/comandos")
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         "storage" => {
@@ -900,7 +899,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     form("Restaurar backup", FormKind::BackupRestore),
                     form("Baixar backup do Drive", FormKind::BackupDrivePull)
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         "connectors" => {
@@ -912,14 +911,14 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
                     form("Adicionar servidor MCP", FormKind::Mcp),
                     form("Conectar conta", FormKind::Account)
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             col = col.push(
                 row![
                     form("Vincular calendário", FormKind::Calendar),
                     form("Importar plugin", FormKind::Plugin)
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
         }
         _ => {}
@@ -1289,7 +1288,7 @@ impl App {
                             })
                         })
                         .await
-                        .map_err(|_| "Não foi possível abrir o seletor.".to_string())
+                        .map_err(|_| "Não foi possível abrir o seletor".to_string())
                         .and_then(|r| r)
                     },
                     move |r| Msg::Resources(Event::Chosen(key, r)),
@@ -1327,7 +1326,7 @@ impl App {
                         for key in sent {
                             self.resources.draft.remove(key);
                         }
-                        self.toast("Recursos aplicados.");
+                        self.toast("Recursos aplicados");
                         let mut tasks = Vec::new();
                         if let Some(api) = self.api.clone() {
                             // Recarrega também o editor do settings.toml, para ele não guardar valores antigos.
@@ -1753,7 +1752,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
         return None;
     }
     let close = Msg::Resources(Event::Close);
-    let mut col = column![].spacing(12);
+    let mut col = column![].spacing(t::SP_3);
     if let Some(form) = &app.resources.form {
         let (_, title, _) = form_spec(form.kind);
         col = col.push(txf(crate::i18n::text(title), 22.0, t::FG, t::UI_SEMI));
@@ -1808,7 +1807,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
                                 Some(Msg::Resources(Event::FormBrowse(key, key == "folder")))
                             )
                         ]
-                        .spacing(8),
+                        .spacing(t::SP_2),
                     );
                 } else {
                     col = col.push(field);
@@ -1841,7 +1840,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
                         Some(Msg::Resources(Event::FormBrowse("folder", true)))
                     )
                 ]
-                .spacing(8),
+                .spacing(t::SP_2),
             );
             if form.kind == FormKind::Plugin {
                 col = col.push(setting(
@@ -1900,7 +1899,7 @@ pub fn overlay(app: &App) -> Option<El<'_>> {
     ));
     let card =
         container(col)
-            .padding(24)
+            .padding(t::SP_6)
             .width(700)
             .style(surface(Some(t::BG), Some(t::LINE2), 14.0));
     Some(opaque(
@@ -1945,8 +1944,8 @@ pub fn management<'a>(app: &'a App, group: &'static str) -> El<'a> {
             Some(Msg::Resources(Event::Manage(group)))
         )
     ]
-    .spacing(8)]
-    .spacing(8);
+    .spacing(t::SP_2)]
+    .spacing(t::SP_2);
     let action = |label: &'static str, path: String| {
         btn(
             crate::i18n::text(label),
@@ -1961,7 +1960,7 @@ pub fn management<'a>(app: &'a App, group: &'static str) -> El<'a> {
         if let Some(entries) = entries {
             if entries.is_empty() {
                 col = col.push(tx(
-                    crate::i18n::text("Nenhum item configurado."),
+                    crate::i18n::text("Nenhum item configurado"),
                     12.5,
                     t::FG3,
                 ));
@@ -1979,7 +1978,7 @@ pub fn management<'a>(app: &'a App, group: &'static str) -> El<'a> {
                     .as_str()
                     .or_else(|| item["estado"].as_str())
                     .unwrap_or("");
-                let mut controls = row![tx(format!("{label} · {status}"), 13.0, t::FG2)].spacing(6);
+                let mut controls = row![tx(format!("{label} · {status}"), 13.0, t::FG2)].spacing(t::SP_15);
                 match group {
                     "mcp" => {
                         controls = controls
@@ -2071,7 +2070,7 @@ pub fn management<'a>(app: &'a App, group: &'static str) -> El<'a> {
                     )))
                 ),
             ]
-            .spacing(6)
+            .spacing(t::SP_15)
             .wrap(),
         );
     }

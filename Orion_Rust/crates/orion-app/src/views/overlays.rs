@@ -89,46 +89,47 @@ pub fn palette(app: &App) -> El<'_> {
         .on_submit(Msg::PalRun(sel))
         .size(t::snap_size(15 as f32))
         .font(t::UI)
-        .padding(pad(15.0, 0.0, 15.0, 0.0))
+        .padding(pad(t::SP_4, 0.0, t::SP_4, 0.0))
         .style(|th, st| {
             let mut s = field_style(Color::TRANSPARENT, Color::TRANSPARENT, Color::TRANSPARENT, 0.0)(th, st);
             s.border.width = 0.0;
             s
         });
-    let head = container(row![icon("search", 16.0, t::FG3), input, kbd("Esc")].spacing(10).align_y(Vertical::Center)).padding(pad(0.0, 16.0, 0.0, 16.0));
+    let head = container(row![icon("search", 16.0, t::FG3), input, kbd("Esc")].spacing(t::SP_25).align_y(Vertical::Center)).padding(pad(0.0, t::SP_4, 0.0, t::SP_4));
     let mut list = column![].spacing(0);
     if items.is_empty() {
-        list = list.push(container(tx(crate::i18n::text("Nada encontrado"), 13.5, t::FG2)).padding(pad(8.0, 10.0, 8.0, 10.0)));
+        list = list.push(container(tx(crate::i18n::text("Nada encontrado"), 13.5, t::FG2)).padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25)));
     }
     for (i, it) in items.iter().enumerate() {
         let on = i == sel;
         list = list.push(
-            button(row![icon(it.icon, 14.0, if on { t::FG } else { t::FG2 }), container(tx(ell(&it.title, 380.0, 13.5), 13.5, if on { t::FG } else { t::FG2 })).width(Length::Fill), tx(it.group.clone(), 11.5, t::FG3)].spacing(10).align_y(Vertical::Center))
+            button(row![icon(it.icon, 14.0, if on { t::FG } else { t::FG2 }), container(tx(ell(&it.title, 380.0, 13.5), 13.5, if on { t::FG } else { t::FG2 })).width(Length::Fill), tx(it.group.clone(), 11.5, t::FG3)].spacing(t::SP_25).align_y(Vertical::Center))
                 .width(Length::Fill)
-                .padding(pad(8.0, 10.0, 8.0, 10.0))
+                .padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25))
                 .on_press(Msg::PalRun(i))
                 .style(move |_, st| button::Style { background: if on { Some(Background::Color(t::ACCENT_SOFT)) } else if matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
         );
     }
-    let body = scrollable(container(list).padding(6)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Shrink);
+    let body = scrollable(container(list).padding(t::SP_15)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Shrink);
     let boxed = container(column![head, hline(), container(body).max_height(372.0)]).width(Length::Fixed(600.0f32.min(app.win.width - 32.0))).clip(true).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     scrim_box(boxed.into(), app.win.height * 0.14, t::SCRIM, Msg::PalClose)
 }
 
 pub fn quick_capture(app: &App) -> El<'_> {
-    let q = app.qcap.as_ref().unwrap();
+    // A camada só é montada com o estado presente; sem ele, não desenha nada em vez de derrubar o app.
+    let Some(q) = app.qcap.as_ref() else { return iced::widget::Space::new().into() };
     let input = text_input(crate::i18n::text("Uma linha: tarefa, lembrete, gasto ou nota"), &q.text)
         .on_input(Msg::QcapText)
         .on_submit(Msg::QcapSave)
         .size(16)
         .font(t::UI)
-        .padding(pad(15.0, 0.0, 15.0, 0.0))
+        .padding(pad(t::SP_4, 0.0, t::SP_4, 0.0))
         .style(|th, st| {
             let mut s = field_style(Color::TRANSPARENT, Color::TRANSPARENT, Color::TRANSPARENT, 0.0)(th, st);
             s.border.width = 0.0;
             s
         });
-    let head = container(row![icon("inbox", 16.0, t::FG3), input, kbd("Enter")].spacing(10).align_y(Vertical::Center)).padding(pad(0.0, 12.0, 0.0, 12.0));
+    let head = container(row![icon("inbox", 16.0, t::FG3), input, kbd("Enter")].spacing(t::SP_25).align_y(Vertical::Center)).padding(pad(0.0, t::SP_3, 0.0, t::SP_3));
     let kinds = [crate::i18n::text("Tarefa"), crate::i18n::text("Lembrete"), crate::i18n::text("Gasto"), crate::i18n::text("Nota")];
     let cur = match q.kind {
         CapKind::Tarefa => 0,
@@ -136,27 +137,27 @@ pub fn quick_capture(app: &App) -> El<'_> {
         CapKind::Gasto => 2,
         CapKind::Nota => 3,
     };
-    let foot = container(row![seg(&kinds, cur, Msg::QcapKind), grow(), tx(crate::i18n::text("Vai para "), 12.0, t::FG3), txf("00 Inbox", 12.0, t::FG3, t::MONO), tx(" · Ctrl + Alt + O", 12.0, t::FG3)].spacing(6).align_y(Vertical::Center)).padding(pad(8.0, 12.0, 8.0, 12.0));
+    let foot = container(row![seg(&kinds, cur, Msg::QcapKind), grow(), tx(crate::i18n::text("Vai para "), 12.0, t::FG3), txf("00 Inbox", 12.0, t::FG3, t::MONO), tx(" · Ctrl + Alt + O", 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center)).padding(pad(t::SP_2, t::SP_3, t::SP_2, t::SP_3));
     let boxed = container(column![head, hline(), foot]).width(Length::Fixed(620.0f32.min(app.win.width - 32.0))).clip(true).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
-    scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.25), Msg::QcapClose)
+    scrim_box(boxed.into(), app.win.height * 0.22, t::VEIL_LIGHT, Msg::QcapClose)
 }
 
 /// Caixa central de pedido de senha (autônomo, cadastro do Face ID).
 pub fn password_modal<'a>(app: &App, corpo: El<'a>, fechar: Msg) -> El<'a> {
-    let boxed = container(corpo).padding(pad(18.0, 18.0, 18.0, 18.0)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
-    scrim_box(boxed.into(), app.win.height * 0.22, Color::from_rgba(0.0, 0.0, 0.0, 0.35), fechar)
+    let boxed = container(corpo).padding(pad(t::SP_45, t::SP_45, t::SP_45, t::SP_45)).width(Length::Fixed(440.0f32.min(app.win.width - 32.0))).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
+    scrim_box(boxed.into(), app.win.height * 0.22, t::VEIL_MID, fechar)
 }
 
 pub fn auto_senha(app: &App) -> El<'_> {
     let v = app.auto_senha.as_deref().unwrap_or("");
     let input = text_input(crate::i18n::text("Sua senha"), v)
         .id(crate::island::password_field(crate::island::Purpose::Autonomous))
-        .on_input(Msg::AutoSenhaText)
+        .on_input(|s| Msg::AutoSenhaText(s.into()))
         .on_submit(Msg::AutoSenhaOk)
         .secure(true)
         .size(t::snap_size(15 as f32))
         .font(t::UI)
-        .padding(pad(12.0, 12.0, 12.0, 12.0));
+        .padding(pad(t::SP_3, t::SP_3, t::SP_3, t::SP_3));
     let corpo = column![
         tx(crate::i18n::text("Ligar o modo autônomo"), 15.0, t::FG),
         tx(crate::i18n::text("Digite a senha de novo. Com o modo ligado o Orion segue sozinho em tarefas longas; ações que podem quebrar o PC ou o projeto continuam pedindo confirmação."), 12.0, t::FG3),
@@ -167,31 +168,32 @@ pub fn auto_senha(app: &App) -> El<'_> {
             btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::AutoSenhaClose)),
             btn(crate::i18n::text("Ligar"), Kind::Primary, !v.is_empty(), None, Some(Msg::AutoSenhaOk))
         ]
-        .spacing(8),
+        .spacing(t::SP_2),
     ]
-    .spacing(12);
+    .spacing(t::SP_3);
     password_modal(app, corpo.into(), Msg::AutoSenhaClose)
 }
 
 pub fn isso(app: &App) -> El<'_> {
-    let i = app.isso.as_ref().unwrap();
+    // A camada só é montada com o estado presente; sem ele, não desenha nada em vez de derrubar o app.
+    let Some(i) = app.isso.as_ref() else { return iced::widget::Space::new().into() };
     let (w, h) = (app.win.width, app.win.height);
     let (x, y, sw, sh) = ((w * 0.30).round(), (h * 0.28).round(), (w * 0.34).round(), (h * 0.26).round());
-    let dim = |ww: f32, hh: f32| container(sp_w(0.0)).width(Length::Fixed(ww.max(0.0))).height(Length::Fixed(hh.max(0.0))).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.25).into()), ..Default::default() });
+    let dim = |ww: f32, hh: f32| container(sp_w(0.0)).width(Length::Fixed(ww.max(0.0))).height(Length::Fixed(hh.max(0.0))).style(|_| container::Style { background: Some(t::VEIL_LIGHT.into()), ..Default::default() });
     // fora da seleção escurece mais (box-shadow 0 0 0 9999px)
     let around: El = column![dim(w, y), row![dim(x, sh), sp_w(sw), dim(w - x - sw, sh)], dim(w, h - y - sh)].into();
     let sel = container(sp_w(0.0)).width(Length::Fixed(sw)).height(Length::Fixed(sh)).style(|_| container::Style { background: Some(t::alpha(t::PRIMARY, 0.08).into()), border: Border { color: t::PRIMARY, width: 1.5, radius: 4.0.into() }, ..Default::default() });
     let sel_pos = container(sel).padding(pad(y, 0.0, 0.0, x));
-    let hint = container(container(tx(crate::i18n::text("Arraste para escolher a área · Esc cancela · Ctrl + Alt + I"), 12.5, t::FG2)).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE2), 999.0))).width(Length::Fill).center_x(Length::Fill).padding(pad(18.0, 0.0, 0.0, 0.0));
-    let input = text_input(crate::i18n::text("O que é isso? (Enter pergunta)"), &i.q).on_input(Msg::IssoQ).on_submit(Msg::IssoAsk).size(t::snap_size(13.5 as f32)).font(t::UI).padding(pad(8.0, 10.0, 8.0, 10.0)).style(field_style(t::BG, t::FIELD_LINE, t::ACCENT, 9.0));
-    let mut ask = column![input].spacing(8);
+    let hint = container(container(tx(crate::i18n::text("Arraste para escolher a área · Esc cancela · Ctrl + Alt + I"), 12.5, t::FG2)).padding(pad(t::SP_15, t::SP_3, t::SP_15, t::SP_3)).style(surface(Some(t::RAISE), Some(t::LINE2), 999.0))).width(Length::Fill).center_x(Length::Fill).padding(pad(t::SP_45, 0.0, 0.0, 0.0));
+    let input = text_input(crate::i18n::text("O que é isso? (Enter pergunta)"), &i.q).on_input(Msg::IssoQ).on_submit(Msg::IssoAsk).size(t::snap_size(13.5 as f32)).font(t::UI).padding(pad(t::SP_2, t::SP_25, t::SP_2, t::SP_25)).style(field_style(t::BG, t::FIELD_LINE, t::ACCENT, 9.0));
+    let mut ask = column![input].spacing(t::SP_2);
     if i.answered {
         ask = ask.push(txf(crate::i18n::text("É o painel de RAM do Orion: 296 MB em uso, com o índice vetorial em mmap ocupando a maior parte. Nada fora do normal."), 15.0, t::FG, t::SERIF).line_height(iced::widget::text::LineHeight::Relative(1.55)));
     }
-    ask = ask.push(row![grow(), btn(crate::i18n::text("Fechar"), Kind::Ghost, true, None, Some(Msg::IssoClose)), btn(crate::i18n::text("Levar para o chat"), Kind::Normal, true, None, Some(Msg::Toast(crate::i18n::text("Captura anexada a uma conversa nova (simulado)").into())))].spacing(6));
-    let ask_box = container(ask).width(Length::Fixed(420.0f32.min(w - 32.0))).padding(10).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
+    ask = ask.push(row![grow(), btn(crate::i18n::text("Fechar"), Kind::Ghost, true, None, Some(Msg::IssoClose)), btn(crate::i18n::text("Levar para o chat"), Kind::Normal, true, None, Some(Msg::Toast(crate::i18n::text("Captura anexada a uma conversa nova (simulado)").into())))].spacing(t::SP_15));
+    let ask_box = container(ask).width(Length::Fixed(420.0f32.min(w - 32.0))).padding(t::SP_25).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     let ask_pos = container(ask_box).padding(pad((y + sh + 10.0).min(h - 170.0), 0.0, 0.0, x.min(w - 436.0)));
-    let base = container(sp_w(0.0)).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.45).into()), ..Default::default() });
+    let base = container(sp_w(0.0)).width(Length::Fill).height(Length::Fill).style(|_| container::Style { background: Some(t::VEIL_STRONG.into()), ..Default::default() });
     opaque(stack![base, around, sel_pos, hint, ask_pos])
 }
 
@@ -211,16 +213,16 @@ impl canvas::Program<Msg> for IslandSky {
 
 pub fn island(app: &App) -> El<'_> {
     let status=app.resources.audio.as_ref().map(|v|format!("{} · {}",crate::i18n::text(match v["status"].as_str().unwrap_or(""){"recording"=>"Gravando…","transcribing"=>"Transcrevendo…","thinking"=>"Pensando…","speaking"=>"Falando…",_=>"Voz"}),v["reply"].as_str().or_else(||v["transcript"].as_str()).unwrap_or(""))).unwrap_or_default();
-    let pill = container(row![cv(IslandSky).width(72).height(32), tx(status, 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(12).align_y(Vertical::Center))
+    let pill = container(row![cv(IslandSky).width(72).height(32), tx(status, 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(t::SP_3).align_y(Vertical::Center))
         .height(Length::Fixed(44.0))
-        .padding(pad(0.0, 8.0, 0.0, 10.0))
+        .padding(pad(0.0, t::SP_2, 0.0, t::SP_25))
         .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PILL.into() }, shadow: shadow(), ..Default::default() });
-    container(pill).width(Length::Fill).center_x(Length::Fill).padding(pad(10.0, 0.0, 0.0, 0.0)).into()
+    container(pill).width(Length::Fill).center_x(Length::Fill).padding(pad(t::SP_25, 0.0, 0.0, 0.0)).into()
 }
 
 pub fn caption<'a>(lines:&[String]) -> El<'a> {
-    let c = container(tx(lines.iter().rev().take(2).rev().cloned().collect::<Vec<_>>().join("\n"),16.0,Color::WHITE)).padding(pad(8.0, 16.0, 8.0, 16.0)).style(|_| container::Style { background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.78).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, ..Default::default() });
-    container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 28.0, 0.0)).into()
+    let c = container(tx(lines.iter().rev().take(2).rev().cloned().collect::<Vec<_>>().join("\n"),16.0,t::ON_VEIL)).padding(pad(t::SP_2, t::SP_4, t::SP_2, t::SP_4)).style(|_| container::Style { background: Some(t::VEIL_CAPTION.into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, ..Default::default() });
+    container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, t::SP_7, 0.0)).into()
 }
 
 /// F07.06: a seção de Configurações que resolve o aviso (cota, modelo/chave, ferramentas, vault).
@@ -244,11 +246,11 @@ pub fn toast<'a>(msg: String) -> El<'a> {
     let target = config_target(&msg);
     let msg = crate::i18n::status(&msg);
     let p = crate::anim::TOAST.get();
-    let mut toast_row = row![tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))].spacing(10).align_y(Vertical::Center);
+    let mut toast_row = row![tx(msg, 13.0, t::alpha(t::PRIMARY_INK, p))].spacing(t::SP_25).align_y(Vertical::Center);
     if let Some(sec) = target {
         toast_row = toast_row.push(btn(crate::i18n::text("Abrir configurações"), Kind::Ghost, true, None, Some(Msg::OpenSettings(Some(sec)))));
     }
-    let c = container(toast_row).padding(pad(8.0, 12.0, 8.0, 12.0)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
+    let c = container(toast_row).padding(pad(t::SP_2, t::SP_3, t::SP_2, t::SP_3)).style(move |_| container::Style { background: Some(t::alpha(t::PRIMARY, p).into()), border: Border { radius: t::R_CARD.into(), ..Default::default() }, shadow: shadow(), ..Default::default() });
     container(c).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 20.0 - 6.0 * (1.0 - p), 0.0)).into()
 }
 

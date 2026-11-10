@@ -20,8 +20,7 @@ use std::f32::consts::{PI, TAU};
 
 /// Mistura linear de duas cores.
 fn lerp(a: Color, b: Color, k: f32) -> Color {
-    let k = k.clamp(0.0, 1.0);
-    Color { r: a.r + (b.r - a.r) * k, g: a.g + (b.g - a.g) * k, b: a.b + (b.b - a.b) * k, a: a.a + (b.a - a.a) * k }
+    t::lerp(a, b, k.clamp(0.0, 1.0))
 }
 
 /// Estrela no estilo da mini barra de voz: halo de alfa baixo e núcleo.
@@ -154,16 +153,16 @@ pub fn view(app: &App) -> El<'_> {
     let k = ((p - 0.35) / 0.65).clamp(0.0, 1.0);
     let lines = |a: String, b: String, color_b: Color| column![tx(a, 13.0, t::alpha(t::FG, k)), tx(b, 12.0, t::alpha(color_b, k))].spacing(0).width(Length::Fill);
     let content: El = match i.phase {
-        Phase::Standby => row![glyph, tx(crate::i18n::text("Face ID"), 12.0, t::FG2)].spacing(8).align_y(Vertical::Center).into(),
+        Phase::Standby => row![glyph, tx(crate::i18n::text("Face ID"), 12.0, t::FG2)].spacing(t::SP_2).align_y(Vertical::Center).into(),
         Phase::Reading | Phase::Enrolling => {
             let title = if i.phase == Phase::Enrolling {
                 if let Some(progress) = i.preview.as_ref().and_then(|(p, _)| p.enrollment) {
                     crate::i18n::formatted("Cadastro do rosto: {v}/{v}", format!("Cadastro do rosto: {}/{}", progress.accepted, progress.total))
                 } else {
-                    crate::i18n::text("A cadastrar o seu rosto…").to_string()
+                    crate::i18n::text("Cadastrando seu rosto…").to_string()
                 }
             } else {
-                crate::i18n::formatted("A verificar {v}…", format!("A verificar {name}…"))
+                crate::i18n::formatted("Verificando {v}…", format!("Verificando {name}…"))
             };
             let request = match (i.phase, i.purpose) {
                 (Phase::Enrolling, _) => {
@@ -193,22 +192,22 @@ pub fn view(app: &App) -> El<'_> {
             let request = if i.phase == Phase::Reading && i.purpose != Purpose::Login && i.hint == FaceHint::LowLight { crate::i18n::text(hint_text(i.hint)) } else { request };
             let close_label = if i.phase == Phase::Enrolling { "Cancelar" } else { "Usar a senha" };
             let close_btn = tip(ib("close", Some(Msg::Face(FaceMsg::Cancel)), false), crate::i18n::text(close_label));
-            row![glyph, lines(title, request.into(), t::FG3), close_btn].spacing(12).align_y(Vertical::Center).into()
+            row![glyph, lines(title, request.into(), t::FG3), close_btn].spacing(t::SP_3).align_y(Vertical::Center).into()
         }
         Phase::Success => {
             let (a, b) = match i.purpose {
-                Purpose::Login => (crate::i18n::formatted("Olá, {v}", format!("Olá, {name}")), crate::i18n::text("A abrir o Orion").to_string()),
+                Purpose::Login => (crate::i18n::formatted("Olá, {v}", format!("Olá, {name}")), crate::i18n::text("Abrindo o Orion").to_string()),
                 _ => (crate::i18n::text("Confirmado").to_string(), crate::i18n::text("Rosto conferido").to_string()),
             };
-            row![glyph, lines(a, b, t::OK)].spacing(12).align_y(Vertical::Center).into()
+            row![glyph, lines(a, b, t::OK)].spacing(t::SP_3).align_y(Vertical::Center).into()
         }
         Phase::Gesture => {
             let (name, what) = i.gesture.unwrap_or(("Gesto", ""));
-            row![glyph, lines(crate::i18n::text(name).into(), crate::i18n::text(what).into(), t::ACCENT)].spacing(12).align_y(Vertical::Center).into()
+            row![glyph, lines(crate::i18n::text(name).into(), crate::i18n::text(what).into(), t::ACCENT)].spacing(t::SP_3).align_y(Vertical::Center).into()
         }
         Phase::Error => {
             let reason = i.failure.as_ref().map(crate::island::failure_text).unwrap_or("Rosto não reconhecido");
-            row![glyph, lines(crate::i18n::text(reason).into(), crate::i18n::text("Digite a senha mestre").into(), t::DANGER)].spacing(12).align_y(Vertical::Center).into()
+            row![glyph, lines(crate::i18n::text(reason).into(), crate::i18n::text("Digite a senha mestre").into(), t::DANGER)].spacing(t::SP_3).align_y(Vertical::Center).into()
         }
     };
 
@@ -255,7 +254,7 @@ pub fn view(app: &App) -> El<'_> {
         }
         _ => sp_h(0.0),
     };
-    container(column![island_el, hud].spacing(10).align_x(iced::alignment::Horizontal::Center))
+    container(column![island_el, hud].spacing(t::SP_25).align_x(iced::alignment::Horizontal::Center))
         .width(Length::Fill)
         .center_x(Length::Fill)
         .padding(pad(top, 0.0, 0.0, 0.0))
@@ -267,18 +266,18 @@ pub fn enroll_password_modal(app: &App) -> El<'_> {
     let v = app.island.enroll_password.as_deref().unwrap_or("");
     let input = iced::widget::text_input(crate::i18n::text("Sua senha"), v)
         .id("faceid-password")
-        .on_input(|s| Msg::Face(FaceMsg::EnrollPassword(s)))
+        .on_input(|s| Msg::Face(FaceMsg::EnrollPassword(s.into())))
         .on_submit(Msg::Face(FaceMsg::EnrollSubmit))
         .secure(true)
         .size(t::snap_size(15.0))
         .font(t::UI)
-        .padding(pad(12.0, 12.0, 12.0, 12.0));
+        .padding(pad(t::SP_3, t::SP_3, t::SP_3, t::SP_3));
     let body = column![
         tx(crate::i18n::text("Ativar o Face ID"), 15.0, t::FG),
-        tx(crate::i18n::text("Digite a senha. O cadastro leva de 25 segundos a 1 minuto e orienta cinco posições da cabeça. Mantenha boa iluminação e siga as orientações; só capturas nítidas e estáveis contam. O reconhecimento é conferido antes de salvar. Tudo fica cifrado neste computador. A webcam não mede profundidade e uma foto boa pode enganar o reconhecimento."), 12.0, t::FG3),
+        tx(crate::i18n::text("Digite a senha. O cadastro leva até 1 minuto e pede cinco posições da cabeça, com boa luz. Tudo fica cifrado neste computador. A webcam não mede profundidade: uma foto boa pode enganar o reconhecimento."), 12.0, t::FG3),
         input,
-        row![grow(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::Face(FaceMsg::EnrollClose))), btn(crate::i18n::text("Cadastrar"), Kind::Primary, !v.is_empty(), None, Some(Msg::Face(FaceMsg::EnrollSubmit)))].spacing(8),
+        row![grow(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::Face(FaceMsg::EnrollClose))), btn(crate::i18n::text("Cadastrar"), Kind::Primary, !v.is_empty(), None, Some(Msg::Face(FaceMsg::EnrollSubmit)))].spacing(t::SP_2),
     ]
-    .spacing(12);
+    .spacing(t::SP_3);
     crate::views::overlays::password_modal(app, body.into(), Msg::Face(FaceMsg::EnrollClose))
 }

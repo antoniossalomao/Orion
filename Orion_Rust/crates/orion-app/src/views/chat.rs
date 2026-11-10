@@ -40,7 +40,7 @@ fn minimapa<'a>(app: &'a App, c: &'a crate::data::Conv, primeira: usize) -> El<'
     // só as mensagens montadas: o deslocamento da rolagem é relativo a elas, não à conversa inteira
     let total: f32 = c.msgs.iter().enumerate().skip(primeira).map(|(index, _)| peso(index) as f32).sum::<f32>().max(1.0);
     let (ini, tam) = app.chat_vp;
-    let mut col = column![].spacing(1).width(Length::Fixed(6.0)).height(Length::Fill);
+    let mut col = column![].spacing(t::SP_PX).width(Length::Fixed(6.0)).height(Length::Fill);
     let mut acc = 0.0f32;
     for (index, m) in c.msgs.iter().enumerate().skip(primeira) {
         let w = peso(index);
@@ -54,7 +54,7 @@ fn minimapa<'a>(app: &'a App, c: &'a crate::data::Conv, primeira: usize) -> El<'
             button(sp_w(0.0)).padding(0).width(Length::Fill).height(Length::FillPortion(w)).on_press(Msg::ChatJump(alvo)).style(move |_, _| button::Style { background: Some(cor.into()), border: Border { radius: 2.0.into(), ..Default::default() }, ..Default::default() }),
         );
     }
-    container(col).height(Length::Fill).padding(pad(10.0, 4.0, 12.0, 4.0)).into()
+    container(col).height(Length::Fill).padding(pad(t::SP_25, t::SP_1, t::SP_3, t::SP_1)).into()
 }
 
 pub fn view(app: &App) -> El<'_> {
@@ -65,7 +65,7 @@ pub fn view(app: &App) -> El<'_> {
 
     let thread: El = if c.msgs.is_empty() {
         container(
-            column![belt_fg(true), txf(crate::i18n::text("Conversa antiga"), 28.0, t::FG, t::SERIF), tx(crate::i18n::text("Conversa antiga. O resumo está no vault; escreva para continuar."), 14.0, t::FG3)].spacing(12).align_x(Horizontal::Center),
+            column![belt_fg(true), txf(crate::i18n::text("Conversa antiga"), 28.0, t::FG, t::SERIF), tx(crate::i18n::text("Conversa antiga. O resumo está no vault; escreva para continuar."), 14.0, t::FG3)].spacing(t::SP_3).align_x(Horizontal::Center),
         )
         .width(Length::Fill)
         .height(Length::Fill)
@@ -73,9 +73,9 @@ pub fn view(app: &App) -> El<'_> {
         .center_y(Length::Fill)
         .into()
     } else {
-        let mut col = column![].spacing(30).width(Length::Fixed(content_w));
+        let mut col = column![].spacing(t::SP_8).width(Length::Fixed(content_w));
         if let Some(p) = c.pin.clone() {
-            col = col.push(dashed(container(row![icon("pin", 16.0, t::FG3), tx(crate::i18n::formatted("Fixado: {p}", format!("Fixado: {p}")), 12.5, t::FG2)].spacing(8).align_y(Vertical::Center)).width(Length::Fill).padding(pad(8.0, 12.0, 8.0, 12.0)), 10.0, t::LINE2));
+            col = col.push(dashed(container(row![icon("pin", 16.0, t::FG3), tx(crate::i18n::formatted("Fixado: {p}", format!("Fixado: {p}")), 12.5, t::FG2)].spacing(t::SP_2).align_y(Vertical::Center)).width(Length::Fill).padding(pad(t::SP_2, t::SP_3, t::SP_2, t::SP_3)), 10.0, t::LINE2));
         }
         let last_orion = c.msgs.iter().rposition(|m| matches!(m, ChatMsg::Orion(_)));
         // Janela virtual: só as mensagens perto da tela são montadas (ver ChatScrolled); as mais antigas voltam ao rolar para cima.
@@ -97,35 +97,35 @@ pub fn view(app: &App) -> El<'_> {
                 .on_show(move |size| Msg::MessageSize(session.clone(), mi, size.height))
                 .on_resize(move |size| Msg::MessageSize(resized_session.clone(), mi, size.height)));
         }
-        let body = container(col).width(Length::Fill).center_x(Length::Fill).padding(pad(28.0, 0.0, 36.0, 0.0));
+        let body = container(col).width(Length::Fill).center_x(Length::Fill).padding(pad(t::SP_7, 0.0, t::SP_9, 0.0));
         let lista = scrollable(body).id("chat-scroll").on_scroll(Msg::ChatScrolled).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).anchor_bottom().height(Length::Fill);
         // O Scrollable fica sempre na mesma posição da árvore (dentro do stack): trocar de tipo recriaria o widget e
         // perderia a posição de rolagem. Só a camada do botão aparece e some.
         let fim: El = if app.chat_end {
             sp_w(0.0)
         } else {
-            container(btn(crate::i18n::text("Ir ao fim"), Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, 12.0, 0.0)).into()
+            container(btn(crate::i18n::text("Ir ao fim"), Kind::Normal, true, Some("chevD"), Some(Msg::ChatEnd))).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).align_y(Vertical::Bottom).padding(pad(0.0, 0.0, t::SP_3, 0.0)).into()
         };
         let mapa: El = if c.msgs.len() - primeira >= 8 { container(minimapa(app, c, primeira)).width(Length::Fill).height(Length::Fill).align_x(Horizontal::Right).into() } else { sp_w(0.0) };
         iced::widget::stack![lista, fim, mapa].into()
     };
 
-    let mut tail = column![].spacing(6).width(Length::Fixed((width - 32.0).min(app.win.width - 64.0))).align_x(Horizontal::Center);
+    let mut tail = column![].spacing(t::SP_15).width(Length::Fixed((width - 32.0).min(app.win.width - 64.0))).align_x(Horizontal::Center);
     if let Some(form) = app.rename_form.as_ref().filter(|f| f.session_id == c.id) {
-        let mut input = text_input(crate::i18n::text("Título da conversa"), &form.title).id("conversation-title").padding(10).size(14);
+        let mut input = text_input(crate::i18n::text("Título da conversa"), &form.title).id("conversation-title").padding(t::SP_25).size(14);
         if !form.busy { input = input.on_input(Msg::RenameText).on_submit(Msg::RenameSave); }
         let mut rename = column![
             tx(crate::i18n::text("Renomear conversa"), 13.0, t::FG2),
-            row![input, btn(if form.busy { crate::i18n::text("Salvando…") } else { crate::i18n::text("Salvar") }, Kind::Primary, true, None, (!form.busy).then_some(Msg::RenameSave)), btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, (!form.busy).then_some(Msg::RenameClose))].spacing(8),
-        ].spacing(6);
+            row![input, btn(if form.busy { crate::i18n::text("Salvando…") } else { crate::i18n::text("Salvar") }, Kind::Primary, true, None, (!form.busy).then_some(Msg::RenameSave)), btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, (!form.busy).then_some(Msg::RenameClose))].spacing(t::SP_2),
+        ].spacing(t::SP_15);
         if !form.error.is_empty() { rename = rename.push(tx(crate::i18n::status(&form.error), 12.0, t::DANGER)); }
         tail = tail.push(rename);
     }
     if let Some(b) = c.banner.clone() {
         tail = tail.push(
-            container(row![dot_el(t::SIGNAL, 6.0), tx(b.clone(), 12.5, t::FG2), grow(), icon("close", 14.0, t::FG3)].spacing(8).align_y(Vertical::Center))
+            container(row![dot_el(t::SIGNAL, 6.0), tx(b.clone(), 12.5, t::FG2), grow(), icon("close", 14.0, t::FG3)].spacing(t::SP_2).align_y(Vertical::Center))
                 .width(Length::Fill)
-                .padding(pad(6.0, 12.0, 6.0, 12.0))
+                .padding(pad(t::SP_15, t::SP_3, t::SP_15, t::SP_3))
                 .style(surface(Some(t::RAISE), Some(t::LINE), 9.0)),
         );
     }
@@ -135,20 +135,20 @@ pub fn view(app: &App) -> El<'_> {
             btn(crate::i18n::text("Enviar mesmo assim"), Kind::Primary, true, None, Some(Msg::ConfirmPrivate)),
             btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::CancelPrivate)),
         ]
-        .spacing(10)
+        .spacing(t::SP_25)
         .align_y(Vertical::Center);
-        tail = tail.push(container(card).width(Length::Fill).padding(pad(6.0, 12.0, 6.0, 12.0)).style(surface(Some(t::RAISE), Some(t::LINE), 9.0)));
+        tail = tail.push(container(card).width(Length::Fill).padding(pad(t::SP_15, t::SP_3, t::SP_15, t::SP_3)).style(surface(Some(t::RAISE), Some(t::LINE), 9.0)));
     }
     if !app.queued.is_empty() {
         tail = tail.push(tx(crate::i18n::text("Na fila: será enviada quando a resposta terminar."), 12.0, t::FG3));
     }
     tail = tail.push(crate::views::composer::view(app, false));
-    let tail = container(tail).width(Length::Fill).center_x(Length::Fill).padding(pad(0.0, 16.0, 12.0, 16.0));
+    let tail = container(tail).width(Length::Fill).center_x(Length::Fill).padding(pad(0.0, t::SP_4, t::SP_3, t::SP_4));
     column![thread, tail].height(Length::Fill).into()
 }
 
 fn user_msg<'a>(app: &'a App, mi: usize, s: String, content_w: f32) -> El<'a> {
-    let bubble = container(txf(s.clone(), 15.0, t::FG, t::UI)).padding(pad(10.0, 15.0, 10.0, 15.0)).max_width(content_w * 0.8).style(surface(Some(t::RAISE2), None, t::RADIUS_MAX));
+    let bubble = container(txf(s.clone(), 15.0, t::FG, t::UI)).padding(pad(t::SP_25, t::SP_4, t::SP_25, t::SP_4)).max_width(content_w * 0.8).style(surface(Some(t::RAISE2), None, t::RADIUS_MAX));
     let show = app.hover == Some((2, mi));
     let acts: El = if show {
         if app.is_live() {
@@ -163,14 +163,14 @@ fn user_msg<'a>(app: &'a App, mi: usize, s: String, content_w: f32) -> El<'a> {
     } else {
         container(sp_w(0.0)).height(Length::Fixed(26.0)).into()
     };
-    let col = column![bubble, acts].spacing(4).align_x(Horizontal::Right);
+    let col = column![bubble, acts].spacing(t::SP_1).align_x(Horizontal::Right);
     let r = row![grow(), mouse_area(col).on_enter(Msg::Hover(Some((2, mi)))).on_exit(Msg::Hover(None))];
     r.into()
 }
 
 fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: bool, content_w: f32) -> El<'a> {
     let streaming = app.streaming.as_ref().filter(|s| s.conv == ci && is_last);
-    let mut col = column![].spacing(12).width(Length::Fill);
+    let mut col = column![].spacing(t::SP_3).width(Length::Fill);
     if !o.tools.is_empty() && streaming.is_none() {
         // Cartões inline, um por chamada (como no Claude Code): estado, ferramenta e o que ela fez.
         // Com mais de 6 chamadas, o resumo recolhe a lista; o resto aparece direto.
@@ -178,14 +178,14 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         let open = !many || app.tools_open.contains(&(ci, mi));
         if many {
             col = col.push(
-                button(row![tx(o.tools_label.clone(), 13.0, t::FG3), crate::icons::icon_rot("chevR", 16.0, t::FG3, { let p = if app.at.tools.is_some() { crate::anim::TOOLS.get() } else { 1.0 }; 90.0 * if open { p } else { 1.0 - p } })].spacing(6).align_y(Vertical::Center))
+                button(row![tx(o.tools_label.clone(), 13.0, t::FG3), crate::icons::icon_rot("chevR", 16.0, t::FG3, { let p = if app.at.tools.is_some() { crate::anim::TOOLS.get() } else { 1.0 }; 90.0 * if open { p } else { 1.0 - p } })].spacing(t::SP_15).align_y(Vertical::Center))
                     .padding(0)
                     .on_press(Msg::ToggleTools(ci, mi))
                     .style(|_, _| button::Style { text_color: t::FG3, ..Default::default() }),
             );
         }
         if open {
-            let mut list = column![].spacing(6);
+            let mut list = column![].spacing(t::SP_15);
             for tl in &o.tools {
                 let (glyph, cor): (&str, iced::Color) = match tl.time.as_str() {
                     "ok" => ("check", t::OK),
@@ -207,10 +207,10 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
                             container(txf(ell(&tl.value, content_w - 260.0, 12.0), 12.0, t::FG3, t::MONO)).width(Length::Fill),
                             tx(estado, 11.5, t::FG3)
                         ]
-                        .spacing(8)
+                        .spacing(t::SP_2)
                         .align_y(Vertical::Center),
                     )
-                    .padding(pad(6.0, 10.0, 6.0, 10.0))
+                    .padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25))
                     .width(Length::Fill)
                     .style(surface(Some(t::RAISE), Some(line), 8.0)),
                 );
@@ -230,7 +230,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
     // Enquanto responde: o que o Orion está fazendo (ferramentas em andamento) ou "Pensando…", no lugar do cursor.
     if streaming.is_some() {
         let fase = (app.now.saturating_duration_since(app.t0).as_millis() / 400 % 4) as usize;
-        let mut passos = column![].spacing(4);
+        let mut passos = column![].spacing(t::SP_1);
         // Enxame: uma estrela por ferramenta do turno (as mais recentes), pulsando enquanto roda.
         let estrelas: Vec<crate::sky::SwarmState> = o.tools.iter().rev().take(crate::sky::SWARM_MAX).rev().map(|tl| match tl.time.as_str() {
             "falhou" | "negada" => crate::sky::SwarmState::Failed,
@@ -251,7 +251,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
                     container(txf(ell(&tl.value, content_w - 220.0, 12.0), 12.0, t::FG3, t::MONO)).width(Length::Fill),
                     if andando && tl.time != "rodando" { tx(tl.time.clone(), 11.5, t::FG3) } else { tx(String::new(), 11.5, t::FG3) },
                 ]
-                .spacing(8)
+                .spacing(t::SP_2)
                 .align_y(Vertical::Center),
             );
         }
@@ -279,18 +279,18 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         if is_last && !app.is_live() {
             acts = acts.push(tip(ib_sz("retry", 28.0, 16.0, Some(Msg::Toast(crate::i18n::text("Gerando de novo…").into())), false), crate::i18n::text("Gerar de novo")));
         }
-        acts = acts.push(container(tx(o.time.clone(), 11.5, t::FG3)).padding(pad(0.0, 0.0, 0.0, 6.0)));
+        acts = acts.push(container(tx(o.time.clone(), 11.5, t::FG3)).padding(pad(0.0, 0.0, 0.0, t::SP_15)));
         let via_txt = if o.via.is_empty() { None } else { Some(o.via.clone()) };
         if let Some(v) = via_txt {
-            let mut vr = row![tx(v.clone(), 11.5, t::FG3)].spacing(4).align_y(Vertical::Center);
+            let mut vr = row![tx(v.clone(), 11.5, t::FG3)].spacing(t::SP_1).align_y(Vertical::Center);
             if !o.out.is_empty() {
                 vr = vr.push(icon("out", 12.0, t::FG3));
             }
             let msg = if o.out.is_empty() { crate::i18n::formatted("{v} · nada saiu do computador", format!("{v} · nada saiu do computador")) } else { crate::i18n::formatted("{v} · saiu do PC: {}", format!("{v} · saiu do PC: {}", o.out)) };
-            acts = acts.push(container(button(vr).padding(pad(2.0, 6.0, 2.0, 6.0)).on_press(Msg::Toast(msg)).style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::HOVER.into()) } else { None }, text_color: if matches!(st, button::Status::Hovered) { t::FG2 } else { t::FG3 }, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, ..Default::default() })).padding(pad(0.0, 0.0, 0.0, 8.0)));
+            acts = acts.push(container(button(vr).padding(pad(t::SP_05, t::SP_15, t::SP_05, t::SP_15)).on_press(Msg::Toast(msg)).style(|_, st| button::Style { background: if matches!(st, button::Status::Hovered) { Some(t::HOVER.into()) } else { None }, text_color: if matches!(st, button::Status::Hovered) { t::FG2 } else { t::FG3 }, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, ..Default::default() })).padding(pad(0.0, 0.0, 0.0, t::SP_2)));
         }
         if o.saved {
-            col = col.push(container(acts.push(container(row![icon("check", 12.0, t::FG3), tx("Salvo no vault", 11.5, t::FG3)].spacing(4).align_y(Vertical::Center)).padding(pad(0.0, 0.0, 0.0, 8.0)))).padding(pad(0.0, 0.0, 0.0, 0.0)));
+            col = col.push(container(acts.push(container(row![icon("check", 12.0, t::FG3), tx("Salvo no vault", 11.5, t::FG3)].spacing(t::SP_1).align_y(Vertical::Center)).padding(pad(0.0, 0.0, 0.0, t::SP_2)))).padding(pad(0.0, 0.0, 0.0, 0.0)));
         } else {
             col = col.push(acts);
         }
@@ -303,23 +303,23 @@ fn approval<'a>(a: &'a crate::data::Approval, ci: usize, mi: usize) -> El<'a> {
     let txt = md::render(&md::cached_parse(&a.text), md::Style { font: t::UI, bold: t::UI_SEMI, size: 13.5, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
     match &a.state {
         ApprState::Open => {
-            let mut btns = iced::widget::Row::with_children(approval_actions(a, Msg::Approve(ci, mi), Msg::Deny(ci, mi))).spacing(8);
+            let mut btns = iced::widget::Row::with_children(approval_actions(a, Msg::Approve(ci, mi), Msg::Deny(ci, mi))).spacing(t::SP_2);
             if a.diff_button {
                 btns = btns.push(btn(crate::i18n::text("Ver o diff"), Kind::Ghost, true, None, Some(Msg::ShowDiff)));
             }
-            container(column![row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), txf(crate::i18n::text("Aguardando sua aprovação"), 13.0, t::SIGNAL, t::UI_MED)].spacing(8).align_y(Vertical::Center), container(txt).padding(pad(0.0, 0.0, 0.0, 0.0)), approval_detail(a), crate::ui::approval_confirm(a, move |s| Msg::ApprType(ci, mi, s)).unwrap_or_else(|| column![].into()), container(btns).padding(pad(2.0, 0.0, 0.0, 0.0))].spacing(8))
+            container(column![row![dot_halo(t::SIGNAL, t::SIGNAL_SOFT), txf(crate::i18n::text("Aguardando sua aprovação"), 13.0, t::SIGNAL, t::UI_MED)].spacing(t::SP_2).align_y(Vertical::Center), container(txt).padding(pad(0.0, 0.0, 0.0, 0.0)), approval_detail(a), crate::ui::approval_confirm(a, move |s| Msg::ApprType(ci, mi, s)).unwrap_or_else(|| column![].into()), container(btns).padding(pad(t::SP_05, 0.0, 0.0, 0.0))].spacing(t::SP_2))
                 .width(Length::Fill)
                 .max_width(640.0)
-                .padding(pad(12.0, 16.0, 12.0, 16.0))
+                .padding(pad(t::SP_3, t::SP_4, t::SP_3, t::SP_4))
                 .style(|_| container::Style { background: Some(t::SIGNAL_SOFT.into()), border: Border { color: t::mix(t::SIGNAL, 0.34), width: 1.0, radius: t::R_PANEL.into() }, ..Default::default() })
                 .into()
         }
         ApprState::Approved(m) | ApprState::Denied(m) => {
             let ok = matches!(a.state, ApprState::Approved(_));
-            container(row![dot_el(if ok { t::OK } else { t::FG3 }, 6.0), tx(m.clone(), 13.0, t::FG2)].spacing(8).align_y(Vertical::Center))
+            container(row![dot_el(if ok { t::OK } else { t::FG3 }, 6.0), tx(m.clone(), 13.0, t::FG2)].spacing(t::SP_2).align_y(Vertical::Center))
                 .width(Length::Fill)
                 .max_width(640.0)
-                .padding(pad(10.0, 12.0, 10.0, 12.0))
+                .padding(pad(t::SP_25, t::SP_3, t::SP_25, t::SP_3))
                 .style(surface(None, Some(t::LINE), 14.0))
                 .into()
         }

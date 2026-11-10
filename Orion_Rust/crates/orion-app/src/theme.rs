@@ -12,6 +12,14 @@ pub const fn rgba(r: u8, g: u8, b: u8, a: f32) -> Color {
 pub fn alpha(c: Color, a: f32) -> Color {
     Color { a: c.a * a, ..c }
 }
+/// Clareia a cor multiplicando os canais por `k` (realce de hover do botão principal).
+pub fn lighten(c: Color, k: f32) -> Color {
+    Color { r: (c.r * k).min(1.0), g: (c.g * k).min(1.0), b: (c.b * k).min(1.0), a: 1.0 }
+}
+/// Interpola duas cores, canal a canal.
+pub fn lerp(a: Color, b: Color, k: f32) -> Color {
+    Color { r: a.r + (b.r - a.r) * k, g: a.g + (b.g - a.g) * k, b: a.b + (b.b - a.b) * k, a: a.a + (b.a - a.a) * k }
+}
 /// `color-mix(in srgb, c p%, transparent)`.
 pub fn mix(c: Color, p: f32) -> Color {
     alpha(c, p)
@@ -33,6 +41,30 @@ pub const R_CTRL: f32 = 8.0;
 pub const R_CARD: f32 = 12.0;
 pub const R_PANEL: f32 = 14.0;
 pub const R_PILL: f32 = 999.0;
+/// Etiqueta e código em linha (5 px no protótipo).
+pub const R_TAG: f32 = 5.0;
+/// Escala de espaçamento, ajustada ao protótipo (que usa 2, 6, 10 e 14 além da grade de 4).
+/// `SP_PX` é o fio de 1 px; zero fica literal. Medidas de componente (larguras, alturas) não entram aqui.
+pub const SP_PX: f32 = 1.0;
+pub const SP_05: f32 = 2.0;
+pub const SP_1: f32 = 4.0;
+pub const SP_15: f32 = 6.0;
+pub const SP_2: f32 = 8.0;
+pub const SP_25: f32 = 10.0;
+pub const SP_3: f32 = 12.0;
+pub const SP_35: f32 = 14.0;
+pub const SP_4: f32 = 16.0;
+pub const SP_45: f32 = 18.0;
+pub const SP_5: f32 = 20.0;
+pub const SP_6: f32 = 24.0;
+pub const SP_7: f32 = 28.0;
+pub const SP_8: f32 = 32.0;
+pub const SP_9: f32 = 36.0;
+pub const SP_10: f32 = 40.0;
+pub const SP_11: f32 = 44.0;
+pub const SP_12: f32 = 48.0;
+pub const SP_14: f32 = 56.0;
+pub const SP_18: f32 = 72.0;
 /// Escala de tipo da interface: 11/12/13/14/16/18/20/24. Meios-passos caem no vizinho.
 pub fn snap_size(s: f32) -> f32 {
     match (s * 2.0).round() as i32 {
@@ -67,6 +99,23 @@ pub const TERM_BG: Color = rgb(0x0b, 0x0c, 0x0d);
 pub const TERM_FG: Color = rgb(0xcf, 0xd2, 0xd8);
 pub const ISLAND_BG: Color = rgb(0x0b, 0x0c, 0x10);
 pub const GRAPH_ARESTA: Color = rgb(0x9a, 0xa3, 0xc0);
+/// Céu do grafo: centro do degradê (a borda é `ISLAND_BG`), fundo do rótulo e a névoa azul da distância.
+pub const GRAPH_SKY_CORE: Color = rgb(0x15, 0x19, 0x2a);
+pub const GRAPH_PILL: Color = rgb(0x0c, 0x0e, 0x13);
+pub const ATMOS: Color = rgb(140, 168, 250);
+/// Estrelas de fundo: fria e quente (a neutra é `ON_VEIL`).
+pub const STAR_COOL: Color = rgb(184, 204, 255);
+pub const STAR_WARM: Color = rgb(255, 230, 199);
+/// Halo do núcleo do grafo, de fora (azul) para dentro (quente).
+pub const GRAPH_HALO: [Color; 5] = [rgb(140, 168, 255), rgb(158, 184, 255), rgb(217, 217, 255), rgb(255, 237, 204), rgb(255, 242, 217)];
+/// Véus pretos sobre a janela: captura rápida, pedido de senha, recorte de tela e legenda ao vivo.
+pub const VEIL_LIGHT: Color = rgba(0, 0, 0, 0.25);
+pub const VEIL_MID: Color = rgba(0, 0, 0, 0.35);
+pub const VEIL_STRONG: Color = rgba(0, 0, 0, 0.45);
+pub const VEIL_CAPTION: Color = rgba(0, 0, 0, 0.78);
+pub const ON_VEIL: Color = rgb(0xff, 0xff, 0xff);
+/// Fim do degradê do painel do login (tom dentro do mesmo neutro de `SIDE`).
+pub const LOGIN_PANEL: Color = rgb(19, 20, 24);
 
 /// Cores por tipo de nota (§4.2), na ordem de `TIPOS`.
 pub const N_PROJETO: Color = rgb(0xe9, 0xb4, 0x67);

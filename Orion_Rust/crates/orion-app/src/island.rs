@@ -138,7 +138,7 @@ pub enum FaceMsg {
     Cancel,
     // cadastro (Configurações › Câmera)
     EnrollAsk,
-    EnrollPassword(String),
+    EnrollPassword(crate::app::Secret),
     EnrollClose,
     EnrollSubmit,
     Enrolled(u64, Result<usize, String>),
@@ -302,7 +302,7 @@ impl App {
                 iced::widget::operation::focus("faceid-password")
             }
             FaceMsg::EnrollPassword(s) => {
-                self.island.enroll_password = Some(s);
+                if let Some(mut old) = self.island.enroll_password.replace(s.take()) { zeroize::Zeroize::zeroize(&mut old); }
                 Task::none()
             }
             FaceMsg::EnrollClose => {

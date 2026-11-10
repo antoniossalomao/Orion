@@ -27,11 +27,11 @@ pub fn view(app: &App) -> El<'_> {
         grow(),
         tip(ib("close", Some(Msg::Camera(CameraMsg::Close)), false), crate::i18n::text("Desligar a câmera"))
     ]
-    .spacing(8)
+    .spacing(t::SP_2)
     .align_y(Vertical::Center);
 
     let body: El = match (&cam.snapshot, &cam.error) {
-        (_, Some(e)) => container(tx(crate::i18n::status(e), 12.5, t::DANGER)).padding(pad(18.0, 4.0, 18.0, 4.0)).into(),
+        (_, Some(e)) => container(tx(crate::i18n::status(e), 12.5, t::DANGER)).padding(pad(t::SP_45, t::SP_1, t::SP_45, t::SP_1)).into(),
         (Some((snap, handle)), None) if snap.w > 0 => {
             let gesture = cam.last_gesture.as_ref().filter(|(_, at)| now.saturating_duration_since(*at) < GESTURE_SHOWN).map(|(g, _)| g.clone());
             let state = match (&gesture, snap.hand.is_some(), snap.awake, snap.accel.is_some()) {
@@ -52,17 +52,17 @@ pub fn view(app: &App) -> El<'_> {
             }
             let tone = if gesture.is_some() { t::ACCENT } else { t::FG2 };
             let hud = camera_hud::frame(Hud { w: snap.w, h: snap.h, handle, face: snap.face, hand: snap.hand.clone(), landmarks: snap.face_landmarks.clone(), objects: snap.objects.clone(), tone, tag: None, telemetry, t_phase: elapsed, reduced: app.p.reduced, width: PANEL_W - 16.0 });
-            let mut col = column![hud].spacing(8);
+            let mut col = column![hud].spacing(t::SP_2);
             if let Some(note) = &snap.note {
                 for line in note.split(" · ") { col = col.push(tx(crate::i18n::status(line), 11.5, t::FG3)); }
             }
             col.into()
         }
-        _ => container(tx(crate::i18n::text("Ligando a câmera…"), 12.5, t::FG3)).padding(pad(18.0, 4.0, 18.0, 4.0)).into(),
+        _ => container(tx(crate::i18n::text("Ligando a câmera…"), 12.5, t::FG3)).padding(pad(t::SP_45, t::SP_1, t::SP_45, t::SP_1)).into(),
     };
 
-    let panel = container(column![head, body].spacing(8))
-        .padding(pad(8.0, 8.0, 8.0, 8.0))
+    let panel = container(column![head, body].spacing(t::SP_2))
+        .padding(pad(t::SP_2, t::SP_2, t::SP_2, t::SP_2))
         .width(Length::Fixed(PANEL_W.min(app.win.width - 32.0)))
         .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PANEL.into() }, shadow: shadow(), ..Default::default() });
     let p = crate::anim::progress(Some(cam.opened_at), now, 320, app.p.reduced);
@@ -71,6 +71,6 @@ pub fn view(app: &App) -> El<'_> {
         .height(Length::Fill)
         .align_right(Length::Fill)
         .align_bottom(Length::Fill)
-        .padding(pad(0.0, 16.0, 16.0, 0.0))
+        .padding(pad(0.0, t::SP_4, t::SP_4, 0.0))
         .into()
 }

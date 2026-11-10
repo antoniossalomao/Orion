@@ -17,7 +17,7 @@ fn entrada_exige_senha_e_abre_o_chat_da_ram() {
     let mut a = App::new();
     a.update(Msg::Login);
     assert!(!a.logged);
-    assert_eq!(a.gate_err, "Digite a senha para entrar.");
+    assert_eq!(a.gate_err, "Digite a senha para entrar");
     a.update(Msg::PwChanged("qualquer".into()));
     a.update(Msg::Login);
     assert!(a.logged);

@@ -4,7 +4,7 @@ ui-0002 = { "Default" }
 ui-0003 = { "Medium" }
 ui-0004 = { "go to end" }
 ui-0005 = { "Autonomous mode enabled. Actions that could damage the PC or project still require confirmation." }
-ui-0006 = { "Enter your password to sign in." }
+ui-0006 = { "Enter your password to sign in" }
 ui-0007 = { "vault git pull: 3 new notes" }
 ui-0008 = { "user folder is unknown" }
 ui-0009 = { "file names exhausted" }
@@ -15,10 +15,10 @@ ui-0013 = { "git pull: already up to date" }
 ui-0014 = { "File not found" }
 ui-0015 = { "Relative path: open it from the project folder" }
 ui-0016 = { "Only web links can be opened" }
-ui-0017 = { "Use a title between 1 and 120 characters." }
-ui-0018 = { "Renaming requires a connection to the core." }
-ui-0019 = { "Use a name of 1–120 characters, instructions up to 16000, and a path up to 4096." }
-ui-0020 = { "Creating a project requires a connection to the core." }
+ui-0017 = { "Use a title between 1 and 120 characters" }
+ui-0018 = { "Renaming requires a connection to the core" }
+ui-0019 = { "Use a name of 1–120 characters, instructions up to 16000, and a path up to 4096" }
+ui-0020 = { "Creating a project requires a connection to the core" }
 ui-0021 = { "Up to 20 MB per file. For larger files, place them in a folder and share the path." }
 ui-0022 = { "Recording… click again to send" }
 ui-0023 = { "Conversation pinned" }
@@ -50,28 +50,26 @@ ui-0048 = { $v0 }{ " days ago" }
 ui-0049 = { "not granted" }
 ui-0050 = { "action" }
 ui-0051 = { "completed" }
-ui-0052 = { "Enter your Orion password to open." }
+ui-0052 = { "Enter your Orion password to open" }
 ui-0053 = { "Connecting to the server…" }
 ui-0054 = { "Invalid file name" }
-ui-0055 = { "Document is empty or larger than 6 MB." }
 ui-0056 = { "The vault editor is not connected to the core yet. No note was changed." }
 ui-0057 = { "Undo is not available on this screen yet. No action was reverted." }
 ui-0058 = { "Run in a terminal, in a repository clone: " }{ $v0 }
 ui-0059 = { "Codex diff applied to the project folder" }
 ui-0060 = { "Removed from the list; use the task link to stop execution" }
 ui-0061 = { "did not respond" }
-ui-0062 = { "Paste your API key." }
 ui-0063 = { "Saved to 00 Inbox · committed to main" }
-ui-0064 = { "Wait for the document to finish attaching." }
-ui-0065 = { "Artifact version saved." }
+ui-0064 = { "Wait for the document to finish attaching" }
+ui-0065 = { "Artifact version saved" }
 ui-0066 = { "Document attached. Its text will be sent with your next message." }
 ui-0067 = { "Connecting to the core…" }
-ui-0068 = { "Enter the code sent to your Telegram." }
+ui-0068 = { "Enter the code sent to your Telegram" }
 ui-0070 = { "Unexpected response. Check the project list before trying again." }
 ui-0071 = { $v0 }{ " key stored in the vault. Reopen Orion to use this integration." }
-ui-0072 = { $v0 }{ " key stored in the vault and ready to use." }
-ui-0073 = { "Conversation renamed." }
-ui-0074 = { "The core did not confirm the new title." }
+ui-0072 = { $v0 }{ " key stored in the vault and ready to use" }
+ui-0073 = { "Conversation renamed" }
+ui-0074 = { "The core did not confirm the new title" }
 ui-0075 = { "Your session expired. Sign in again." }
 ui-0076 = { "waiting for approval" }
 ui-0077 = { "database is not locked" }
@@ -83,8 +81,8 @@ ui-0082 = { "Incorrect username or password." }
 ui-0083 = { "Too many failed attempts. Wait before trying again." }
 ui-0084 = { "No password is set yet: run \"orion set-password\" on the Orion computer." }
 ui-0085 = { "Access denied: sign in with your password." }
-ui-0086 = { "Resource not found on this server." }
-ui-0087 = { "This action has already been handled." }
+ui-0086 = { "Resource not found on this server" }
+ui-0087 = { "This action has already been handled" }
 ui-0088 = { "models not configured" }
 ui-0089 = { "No model configured. Open Settings › Models and add an API key, or sign in with a CLI (Claude, Codex, or Gemini)." }
 ui-0090 = { "only in the app with the embedded core" }
@@ -93,21 +91,21 @@ ui-0092 = { "Windows Hello is only available in the native app" }
 ui-0093 = { "first use is only available in the native app" }
 ui-0094 = { "testing is only available in the native app" }
 ui-0095 = { "panic is only available in the app with the embedded core" }
-ui-0096 = { "The Orion core did not respond." }
-ui-0097 = { "Orion server unavailable at " }{ $v0 }{ "." }
+ui-0096 = { "The Orion core did not respond" }
+ui-0097 = { "Orion server unavailable at " }{ $v0 }
 ui-0098 = { "Orion updated to " }{ $v0 }{ ". See Settings › System › About." }
 ui-0099 = { "FirstUse([content hidden])" }
-ui-0100 = { "Enter a username and how Orion should address you." }
-ui-0101 = { "Use a password between 12 and 256 characters." }
-ui-0102 = { "Passwords do not match." }
+ui-0100 = { "Enter a username and how Orion should address you" }
+ui-0101 = { "Use a password between 12 and 256 characters" }
+ui-0102 = { "Passwords do not match" }
 ui-0103 = { "This version does not include database encryption. Install the full package or explicitly clear the option." }
-ui-0104 = { "To use 2FA, enter the bot token and your Telegram ID." }
-ui-0105 = { "The preview does not create accounts or write files." }
+ui-0104 = { "To use 2FA, enter the bot token and your Telegram ID" }
+ui-0105 = { "The preview does not create accounts or write files" }
 ui-0106 = { "Creating your account…" }
 ui-0107 = { "All set. Your Orion is configured." }
-ui-0108 = { "Orion is ready, but some keys must be added in Settings." }
+ui-0108 = { "Orion is ready, but some keys must be added in Settings" }
 ui-0109 = { "Connection verified" }
-ui-0110 = { "Could not open the picker." }
+ui-0110 = { "Could not open the picker" }
 ui-0111 = { "Could not open the picker; enter the full path." }
 ui-0112 = { "Enter the full path. The native picker is available on Windows." }
 ui-0113 = { "Destructive action" }
@@ -123,9 +121,6 @@ ui-0122 = { "Edit and resend (coming soon)" }
 ui-0123 = { "Copy" }
 ui-0124 = { "Pin as context (coming soon)" }
 ui-0125 = { "Reading aloud (simulated)" }
-ui-0126 = { "Listen (coming soon)" }
-ui-0127 = { "Regenerate…" }
-ui-0128 = { "Regenerate (coming soon)" }
 ui-0129 = { $v0 }{ " · nothing left the computer" }
 ui-0130 = { $v0 }{ " · sent from the PC: " }{ $v1 }
 ui-0131 = { "Waiting for your approval" }
@@ -146,7 +141,7 @@ ui-0145 = { "Task sent to the cloud" }
 ui-0146 = { "Generating an image with Gemini (simulated). It stays in the conversation and in 03 Recursos/Orion/Imagens." }
 ui-0147 = { "Files" }
 ui-0148 = { "Open note" }
-ui-0149 = { "This conversation's note is saved after each round." }
+ui-0149 = { "This conversation's note is saved after each round" }
 ui-0150 = { $v0 }{ " thousand of 200 thousand tokens" }
 ui-0151 = { "Changes" }
 ui-0152 = { "Open PR" }
@@ -176,14 +171,13 @@ ui-0175 = { "Password" }
 ui-0176 = { "Sign in with Windows Hello" }
 ui-0177 = { "Back to password" }
 ui-0178 = { "Your password protects Orion and your backups" }
-ui-0179 = { "Local graph: only the note and its neighbors (depth 1)" }
 ui-0180 = { "Your memory is empty" }
 ui-0181 = { "Notes from your Obsidian vault appear here as a map. Choose the vault folder in Settings › Memory." }
 ui-0182 = { "Open memory settings" }
 ui-0183 = { $v0 }{ " of " }{ $v1 }{ " notes" }
 ui-0184 = { " · git pull at 09:41" }
 ui-0185 = { "until " }{ $v0 }
-ui-0186 = { "Nothing matching “" }{ $v0 }{ "”." }
+ui-0186 = { "Nothing matching “" }{ $v0 }{ "”" }
 ui-0187 = { "Open and edit" }
 ui-0188 = { "Chooses by task type" }
 ui-0189 = { "Free APIs; order and quotas in settings" }
@@ -195,16 +189,16 @@ ui-0194 = { "No linked note. Automatic saving is not available yet." }
 ui-0195 = { "Open Orion" }
 ui-0196 = { $v0 }{ " · " }{ $v1 }{ " of " }{ $v2 }
 ui-0197 = { "Usage: no quotas configured" }
-ui-0198 = { "Only on this computer." }
+ui-0198 = { "Only on this computer" }
 ui-0199 = { "How should I address you?" }
 ui-0200 = { "Start with Windows (minimized to tray)" }
 ui-0201 = { "Language" }
 ui-0202 = { "Português" }
 ui-0203 = { "Sign in with Windows Hello" }
-ui-0204 = { "Your password is stored in the Windows vault and released after Hello." }
-ui-0205 = { "Windows Hello is unavailable on this computer." }
+ui-0204 = { "Your password is stored in the Windows vault and released after Hello" }
+ui-0205 = { "Windows Hello is unavailable on this computer" }
 ui-0206 = { "Security" }
-ui-0207 = { "One password opens your account and data." }
+ui-0207 = { "One password opens your account and data" }
 ui-0208 = { "Encrypt my database with this password" }
 ui-0209 = { "This version does not include encryption; clear the option to continue." }
 ui-0210 = { "Recovery code copy (optional)" }
@@ -228,13 +222,13 @@ ui-0227 = { "Encrypted with your password · latest 7 copies" }
 ui-0228 = { "Bring what already exists. Nothing is executed or activated." }
 ui-0229 = { "History" }
 ui-0230 = { "Choose what to import" }
-ui-0231 = { "Keep your recovery code safe." }
+ui-0231 = { "Keep your recovery code safe" }
 ui-0232 = { "It opens your data if you forget the password. Write it down or store it outside this computer — it will not be shown again." }
 ui-0233 = { "Some keys were not saved; add them later in Settings." }
 ui-0234 = { "Get started" }
 ui-0235 = { "Next" }
 ui-0236 = { "Your Orion is configured" }
-ui-0237 = { "You can skip — adjust later in Settings" }
+ui-0237 = { "You can skip this and adjust it later in Settings" }
 ui-0238 = { "Back" }
 ui-0239 = { "Conversation · " }{ $v0 }
 ui-0240 = { "Action" }
@@ -256,42 +250,40 @@ ui-0255 = { "This is Orion's RAM panel: 296 MB in use, mostly the memory-mapped 
 ui-0256 = { "Take to chat" }
 ui-0257 = { "Capture attached to a new conversation (simulated)" }
 ui-0258 = { "Stop listening" }
-ui-0259 = { "— Orion, how much RAM is the app using now?" }
 ui-0260 = { "Project name" }
 ui-0261 = { "Instructions (optional)" }
 ui-0262 = { "New project" }
-ui-0264 = { "Each project's conversations, instructions, and local folder." }
+ui-0264 = { "Each project's conversations, instructions, and local folder" }
 ui-0265 = { "Waiting for you · " }{ $v0 }
 ui-0266 = { "Open conversation" }
 ui-0267 = { "Move 38 files from " }
 ui-0268 = { " to " }
 ui-0269 = { ". Nothing is deleted." }
 ui-0270 = { "Saturday" }
-ui-0271 = { "The same pending requests arrive on Telegram, with buttons, only for your ID." }
+ui-0271 = { "The same pending requests arrive on Telegram, with buttons, only for your ID" }
 ui-0272 = { "Activity history" }
 ui-0273 = { "Denied or failed" }
 ui-0274 = { "Completed" }
-ui-0275 = { "Pending requests from all conversations and routines, and the history of everything Orion did outside the chat." }
+ui-0275 = { "Pending items from chats and routines, and the history of what Orion did outside the chat" }
 ui-0276 = { "next " }{ $v0 }
 ui-0277 = { "last " }{ $v0 }
 ui-0278 = { "Output: " }{ $v0 }
 ui-0279 = { "Create through chat (“send my briefing daily at 8am”), /rotina, or here. Critical routines run in Claude's cloud if the PC is off." }
 ui-0280 = { "New routine" }
 ui-0281 = { "Form: name, time, prompt, project, model, output" }
-ui-0282 = { "Content worth keeping, with versions and sources." }
 ui-0283 = { "completed" }
 ui-0284 = { "Ask with /tarefa: Orion works on its own, only reads and proposes, and notifies you when done." }
 ui-0285 = { "Long tasks Orion handles on its own: only reads and proposes, within your time and step limits. Create with /tarefa." }
 ui-0286 = { "New task" }
 ui-0287 = { "Only enabled sources are read. Disabled ones are not accessed." }
-ui-0288 = { "Memory is empty." }
+ui-0288 = { "Memory is empty" }
 ui-0289 = { "Facts Orion learned, each with its source. Correcting or forgetting updates the vault note." }
 ui-0290 = { "Only archived when you ask. Unarchive to continue or delete permanently." }
-ui-0291 = { "No data yet. Connect Orion to see quotas, models, and the week." }
-ui-0292 = { "Quotas, models, and the week, directly from the server." }
-ui-0293 = { "No quota configured. Set ORION_BUDGET or open Settings › Models." }
+ui-0291 = { "No data yet. Connect Orion to see quotas, models and the week." }
+ui-0292 = { "Quotas, models, and the week, directly from the server" }
+ui-0293 = { "No quota configured. Set one in Settings › Models." }
 ui-0294 = { "Models" }
-ui-0295 = { "Configured models." }
+ui-0295 = { "Configured models" }
 ui-0296 = { "model calls" }
 ui-0297 = { "with errors" }
 ui-0298 = { "waiting for you" }
@@ -309,9 +301,8 @@ ui-0309 = { "Local models" }
 ui-0310 = { "Voice" }
 ui-0311 = { "Camera" }
 ui-0312 = { "presence where I left face captions objects" }
-ui-0313 = { "Portuguese and English from the first version." }
 ui-0314 = { "Interface scale" }
-ui-0315 = { "Also with Ctrl + and Ctrl −." }
+ui-0315 = { "Also with Ctrl + and Ctrl −" }
 ui-0316 = { "Comfortable" }
 ui-0317 = { "Subtle animations. Reduced motion disables live text and graph rotation." }
 ui-0318 = { "Conversation" }
@@ -319,12 +310,11 @@ ui-0319 = { "System font" }
 ui-0320 = { "Serif, like a page" }
 ui-0321 = { "Sans serif, like the interface" }
 ui-0322 = { "Chat font" }
-ui-0323 = { "Used in Orion's responses." }
+ui-0323 = { "Used in Orion's responses" }
 ui-0324 = { "Text size" }
 ui-0325 = { "Transcript width" }
 ui-0326 = { "Applies to all projects; each project can have its own instructions." }
 ui-0327 = { "E.g. no preamble, complete code, technical English" }
-ui-0328 = { "Windows notifications" }
 ui-0329 = { "Pending approval" }
 ui-0330 = { "Routine completed" }
 ui-0331 = { "Background task finished" }
@@ -333,16 +323,13 @@ ui-0333 = { "Response ready (window unfocused)" }
 ui-0334 = { "Voice activation" }
 ui-0335 = { "Do not disturb" }
 ui-0336 = { "Silences notifications and sounds. Routines and Telegram continue." }
-ui-0337 = { "With the window closed, alerts also arrive on Telegram and through a dot on the tray icon." }
+ui-0337 = { "With the window closed, alerts also arrive on Telegram and through a dot on the tray icon" }
 ui-0338 = { "Full name" }
-ui-0339 = { "Appears in the greeting and sidebar." }
+ui-0339 = { "Appears in the greeting and sidebar" }
 ui-0340 = { "Password for this computer" }
-ui-0341 = { "Required when opening Orion and when Windows is locked (Win + L)." }
-ui-0342 = { "Changing passwords is not part of the prototype" }
 ui-0343 = { "Session" }
-ui-0344 = { "Asks for the password again to sign in." }
+ui-0344 = { "Asks for the password again to sign in" }
 ui-0345 = { "Autonomous mode" }
-ui-0346 = { "When enabled, Orion acts without asking for approval. It still asks for anything that could damage the PC or project: deleting, changing the system, force-pushing, rewriting history, or uninstalling." }
 ui-0347 = { "Always without approval" }
 ui-0348 = { "Read files in trusted folders" }
 ui-0349 = { "Web search without personal data" }
@@ -351,7 +338,7 @@ ui-0351 = { "Never leaves the computer" }
 ui-0352 = { "Passwords and keys (filtered before sending)" }
 ui-0353 = { "Each response using an external API shows a subtle icon; click it to see what was sent and to which provider." }
 ui-0354 = { "Password to resume" }
-ui-0355 = { "Cuts off write, network, and execution tools until you resume." }
+ui-0355 = { "Cuts off write, network, and execution tools until you resume" }
 ui-0356 = { "Delete conversation history" }
 ui-0357 = { $v0 }{ " of " }{ $v1 }
 ui-0358 = { "930 of 1,500" }
@@ -362,7 +349,6 @@ ui-0362 = { "90 of 1,000" }
 ui-0363 = { "Chat selector" }
 ui-0364 = { "Auto, Claude, Codex, Gemini, and Orion. Claude, Codex, and Gemini use subscriptions through official CLIs, with model and effort." }
 ui-0365 = { "Default for new conversations" }
-ui-0366 = { "Subtle, alongside each response's time." }
 ui-0367 = { "When one quota runs out, it switches to the next. If all run out or there is no internet, it uses the local model." }
 ui-0368 = { "No model configured. Save a provider key below to use it immediately, or sign in with a CLI (Claude, Codex, or Gemini)." }
 ui-0369 = { "paused after failures" }
@@ -370,7 +356,7 @@ ui-0370 = { "API keys" }
 ui-0371 = { "Stored in the system vault (Credential Manager). New model keys take effect immediately." }
 ui-0372 = { "Paste your API key" }
 ui-0373 = { $v0 }{ " key. It is never displayed or logged." }
-ui-0374 = { "Key stored in the system vault." }
+ui-0374 = { "Key stored in the system vault" }
 ui-0375 = { "No key. Get one at " }{ $v0 }
 ui-0376 = { "Weekly quota exhausted" }
 ui-0377 = { $v0 }{ "% of weekly quota used" }
@@ -380,91 +366,81 @@ ui-0380 = { "Offline fallback. Managed in Local models." }
 ui-0381 = { "Vault memory" }
 ui-0382 = { "The vault is the memory: " }{ $v0 }{ " notes linked by " }{ $v1 }{ " wikilinks." }
 ui-0383 = { "Use memory in responses" }
-ui-0384 = { "When disabled, each conversation starts from scratch." }
 ui-0385 = { "Orion notes folder" }
-ui-0386 = { "All conversations become summaries here, without asking." }
 ui-0387 = { "Daily summary of trivial conversations" }
-ui-0388 = { "One note per day in Memória/Diário, generated at 23:59. What you did shows up in Você fez." }
-ui-0389 = { "Each saved note becomes a commit straight on the vault main branch, no PR." }
 ui-0390 = { "automatic" }
 ui-0391 = { "Vault git pull" }
-ui-0392 = { "When opening the app, at each new conversation, before saving a note, and when opening Memory." }
 ui-0393 = { "If you edited the same note in Obsidian" }
 ui-0394 = { "Orion asks in chat and shows both versions." }
-ui-0395 = { "3D in the final app, like Obsidian, over the original front-end sky." }
 ui-0396 = { "Open" }
 ui-0397 = { "Only enabled sources are read." }
 ui-0398 = { "Via a local command (stdio) or URL (HTTP), defined in mcp.json in the Orion folder. Tools appear in chat with the server name." }
-ui-0399 = { "Create mcp.json in the Orion folder and restart." }
 ui-0400 = { $v0 }{ " · " }{ $v1 }{ " tools · permission per tool: ask" }
 ui-0401 = { "Server command or URL (simulated)" }
-ui-0402 = { "Folders with SKILL.md, using the Claude skills format." }
+ui-0402 = { "Folders with SKILL.md, using the Claude skills format" }
 ui-0403 = { "Rust/WASM plugins" }
-ui-0404 = { "Isolated sandboxed code with declared permissions." }
+ui-0404 = { "Isolated sandboxed code with declared permissions" }
 ui-0405 = { "From Claude and Codex" }
-ui-0406 = { "Reads mcp.json, configs, and skills already installed on this PC." }
+ui-0406 = { "Reads mcp.json, configs, and skills already installed on this PC" }
 ui-0407 = { "RAM" }
-ui-0408 = { "in use now · lower is better" }
+ui-0408 = { "in use now" }
 ui-0409 = { "Usage over the last 18 h" }
 ui-0410 = { "Optimization applied" }
 ui-0411 = { "Core and interface" }
-ui-0412 = { "Vector index (mmap)" }
+ui-0412 = { "Vector index" }
 ui-0413 = { "Embedding cache" }
 ui-0414 = { "Voice and graph (unloaded)" }
 ui-0415 = { "Global shortcut Ctrl + Alt + Space" }
 ui-0416 = { "Opens the mini bar from any app. Ctrl + Alt + O: quick capture · Ctrl + Alt + I: What is this? · Ctrl + Alt + P: panic." }
-ui-0417 = { "Windows 11 transparency in the sidebar." }
+ui-0417 = { "Windows 11 transparency in the sidebar" }
 ui-0418 = { "Start with Windows" }
 ui-0419 = { "Starts minimized to the tray, with no window until called. Closing the window also sends it to the tray." }
 ui-0420 = { "Trusted folders" }
-ui-0421 = { "Orion can read and write in these folders and their subfolders." }
+ui-0421 = { "Orion can read and write in these folders and their subfolders" }
 ui-0422 = { "Database sync" }
 ui-0423 = { "The main PC leads; the notebook replicates over Tailscale when both are on." }
 ui-0424 = { "notebook up to date · 09:10" }
 ui-0425 = { "Updates and backup" }
 ui-0426 = { "Updates" }
-ui-0427 = { "Downloads from GitHub Releases in the background, notifies you, and installs when closing." }
+ui-0427 = { "Downloads from GitHub Releases in the background, notifies you, and installs when closing" }
 ui-0428 = { "0.6.0 · up to date" }
-ui-0429 = { "Database and settings, encrypted." }
-ui-0430 = { "To switch computers." }
-ui-0431 = { "The installer updates the app using a signed feed (minisign). Manually: `orion update`." }
+ui-0429 = { "Database and settings, encrypted" }
+ui-0430 = { "To switch computers" }
+ui-0431 = { "The installer updates the app from the signed feed. Manually: `orion update`." }
 ui-0432 = { "Advanced" }
 ui-0433 = { "Show advanced" }
-ui-0434 = { "Dangerous or support options. Hidden by default." }
+ui-0434 = { "Dangerous or support options" }
 ui-0435 = { "Debug logs" }
-ui-0436 = { "Writes detailed log files for support." }
+ui-0436 = { "Writes detailed log files for support" }
 ui-0437 = { "Open logs folder" }
-ui-0438 = { "Deletes local history. Cannot be undone." }
-ui-0439 = { "Version " }{ $v0 }{ ". One executable, no Python, no open port." }
-ui-0440 = { "Release notes have not been written yet." }
 ui-0441 = { "What's new" }
-ui-0442 = { "All rights reserved. Private source code; see the repository LICENSE file." }
+ui-0442 = { "All rights reserved. Private source code; see the LICENSE file in the repository." }
 ui-0443 = { "License" }
 ui-0444 = { "proprietary" }
-ui-0445 = { "llama.cpp runs in a separate process that releases memory when done. Models load only when used." }
+ui-0445 = { "Models load only when used and free their memory when done" }
 ui-0446 = { "in use" }
 ui-0447 = { "Try again" }
 ui-0448 = { $v0 }{ " · not downloaded" }
-ui-0449 = { "Coming soon: voice arrives with phase F15. These settings are saved for when it is available." }
+ui-0449 = { "Coming soon. The settings below are already saved" }
 ui-0450 = { "Activation" }
 ui-0451 = { "Listens locally. Brings the window into focus." }
-ui-0452 = { "Also brings the window into focus. Being calibrated on the notebook." }
-ui-0453 = { "Floating bar at the top of the screen while you speak." }
-ui-0454 = { "Only when the request was made by voice." }
+ui-0452 = { "Also brings the window to the front" }
+ui-0453 = { "Floating bar at the top of the screen while you speak" }
+ui-0454 = { "Only when the request was made by voice" }
 ui-0455 = { "voice only" }
 ui-0456 = { "Português (Brasil)" }
 ui-0457 = { "Fast" }
-ui-0458 = { "Coming soon: camera arrives with phase F18. Nothing is captured until then." }
+ui-0458 = { "Coming soon. Nothing is captured until then" }
 ui-0459 = { "“Look at this”: takes a photo and replies." }
 ui-0460 = { "Continuous presence" }
 ui-0461 = { "Local, without storing images. When you leave: pauses voice and locks Orion. When you return: greets you with what happened." }
-ui-0462 = { "With the camera active, a red dot appears in the title bar and tray icon." }
+ui-0462 = { "With the camera active, a red dot appears in the title bar and tray icon" }
 ui-0463 = { "What Orion does with the camera" }
 ui-0464 = { "Stores only labels (object, location, time), indefinitely. A few KB per year." }
 ui-0465 = { "Recognize you" }
-ui-0466 = { "Local owner face recognition." }
+ui-0466 = { "Local owner face recognition" }
 ui-0467 = { "Live captions" }
-ui-0468 = { "Floating bar at the bottom of the screen." }
+ui-0468 = { "Floating bar at the bottom of the screen" }
 ui-0469 = { "Show the window from anywhere (mini bar)" }
 ui-0470 = { "Ctrl Alt Space" }
 ui-0471 = { "Panic: cut off everything" }
@@ -472,7 +448,7 @@ ui-0472 = { "New line" }
 ui-0473 = { "Reference a vault note" }
 ui-0474 = { "Close settings" }
 ui-0475 = { "No conversations yet. Start a new one." }
-ui-0476 = { "No conversations matching “" }{ $v0 }{ "”." }
+ui-0476 = { "No conversations matching “" }{ $v0 }{ "”" }
 ui-0477 = { "Settings (Ctrl ,)" }
 ui-0478 = { "Open menu" }
 ui-0479 = { "Open sidebar" }
@@ -488,7 +464,7 @@ ui-0488 = { "Add key" }
 ui-0489 = { "Add server" }
 ui-0490 = { "Now" }
 ui-0491 = { "Waiting for Google…" }
-ui-0492 = { "Row height in the sidebar and lists." }
+ui-0492 = { "Row height in the sidebar and lists" }
 ui-0493 = { "Environment" }
 ui-0494 = { "When hearing “Orion” or two claps." }
 ui-0495 = { "Delete…" }
@@ -504,7 +480,6 @@ ui-0504 = { "Download model" }
 ui-0505 = { "Loading model status…" }
 ui-0506 = { "Load more (" }{ $v0 }{ " earlier)" }
 ui-0507 = { "Key" }
-ui-0508 = { "Save to GitHub" }
 ui-0509 = { "How Orion should address you" }
 ui-0510 = { "Compact" }
 ui-0511 = { "Concise" }
@@ -517,7 +492,7 @@ ui-0517 = { "Context" }
 ui-0518 = { "Density" }
 ui-0519 = { "Undo" }
 ui-0520 = { "Detailed" }
-ui-0521 = { "From Hugging Face, GGUF format." }
+ui-0521 = { "From Hugging Face, GGUF format" }
 ui-0522 = { "Drive connected" }
 ui-0523 = { "Two claps" }
 ui-0524 = { "Coming soon" }
@@ -543,17 +518,15 @@ ui-0543 = { "Linked to · " }{ $v0 }
 ui-0544 = { "Older" }
 ui-0545 = { "Minimize" }
 ui-0546 = { "Show" }
-ui-0547 = { "Show who replied" }
 ui-0548 = { "Motion" }
 ui-0549 = { "Nothing found" }
-ui-0550 = { "Nothing found." }
-ui-0551 = { "Nothing matches this filter." }
+ui-0551 = { "Nothing matches this filter" }
 ui-0552 = { "Deny" }
-ui-0553 = { "No model configured (ORION_PROVEDORES or ORION_GATEWAY_URL/MODEL)." }
-ui-0554 = { "No projects found." }
+ui-0553 = { "No model configured" }
+ui-0554 = { "No projects found" }
 ui-0555 = { "No server configured" }
-ui-0556 = { "No archived conversations." }
-ui-0557 = { "No quota configured." }
+ui-0556 = { "No archived conversations" }
+ui-0557 = { "No quota configured" }
 ui-0558 = { "No skill installed" }
 ui-0559 = { "Yesterday" }
 ui-0560 = { "Listening" }
@@ -572,7 +545,6 @@ ui-0572 = { "Providers" }
 ui-0573 = { "Reduced" }
 ui-0574 = { "Removes conversations from this computer. Vault notes are kept." }
 ui-0575 = { "Remove" }
-ui-0576 = { "Reset database" }
 ui-0577 = { "Spoken response" }
 ui-0578 = { "Results" }
 ui-0579 = { "Resume" }
@@ -611,18 +583,14 @@ ui-0611 = { $v0 }{ " routine" }{ $v1 }
 ui-0612 = { $v0 }{ " · " }{ $v1 }{ " tools" }
 ui-0613 = { "“Where did I leave it?”" }
 ui-0614 = { "General" }
-ui-0615 = { "Appearance" }
 ui-0616 = { "Sign in" }
 ui-0617 = { "Delete" }
 ui-0618 = { "Search" }
 ui-0619 = { "Tools" }
 ui-0620 = { "Servers" }
-ui-0621 = { "Permissions" }
-ui-0622 = { "Ask" }
 ui-0623 = { "Question" }
 ui-0624 = { "None" }
 ui-0625 = { "None" }
-ui-0626 = { "Correction" }
 ui-0627 = { "Correct" }
 ui-0628 = { "Forget" }
 ui-0629 = { "Archive" }
@@ -631,14 +599,9 @@ ui-0631 = { "Pin" }
 ui-0632 = { "Unpin" }
 ui-0633 = { "Rename" }
 ui-0634 = { "Connect" }
-ui-0635 = { "Disconnect" }
-ui-0636 = { "Select" }
-ui-0637 = { "Select" }
 ui-0638 = { "Ready" }
-ui-0639 = { "Ready" }
 ui-0640 = { "Create" }
 ui-0641 = { "Continue" }
-ui-0642 = { "Cancel execution" }
 ui-0643 = { "Thinking…" }
 ui-0644 = { "Loading…" }
 ui-0645 = { "Opening…" }
@@ -668,16 +631,13 @@ ui-0668 = { "Report" }
 ui-0669 = { "Quota" }
 ui-0670 = { "Quotas" }
 ui-0671 = { "No data" }
-ui-0672 = { "Details" }
 ui-0673 = { "Error" }
 ui-0674 = { "Space" }
-ui-0675 = { "Usage dashboard" }
 ui-0676 = { "Mini bar" }
 ui-0677 = { "Panic" }
 ui-0678 = { " · Main PC" }
 ui-0679 = { "1 vault note" }
 ui-0680 = { "12 characters or more" }
-ui-0681 = { "Would open in Obsidian" }
 ui-0682 = { "Add object" }
 ui-0683 = { "Zoom out" }
 ui-0684 = { "Delete conversation" }
@@ -686,7 +646,7 @@ ui-0686 = { "Zoom in" }
 ui-0687 = { "Shortcuts" }
 ui-0688 = { "Updated " }{ $v0 }
 ui-0689 = { "Search notes, tags, or folders" }
-ui-0690 = { "Each test contacts only the chosen provider." }
+ui-0690 = { "Each test contacts only the chosen provider" }
 ui-0691 = { "Paste key (simulated)" }
 ui-0692 = { "How Orion should respond (optional)" }
 ui-0693 = { "Connected" }
@@ -713,11 +673,9 @@ ui-0713 = { "Import" }
 ui-0714 = { "Import (simulated)" }
 ui-0715 = { "Enable" }
 ui-0716 = { "More" }
-ui-0717 = { "No tasks yet." }
+ui-0717 = { "No tasks yet" }
 ui-0718 = { "Notes and projects" }
 ui-0719 = { "Get ↗" }
-ui-0720 = { "Listening… say “Orion” or clap twice" }
-ui-0721 = { "Main PC · notebook synced" }
 ui-0722 = { "PR open" }
 ui-0723 = { "Projects folder" }
 ui-0724 = { "Paused" }
@@ -737,10 +695,10 @@ ui-0737 = { "Your account" }
 ui-0738 = { "Telegram and backup" }
 ui-0739 = { "Testing…" }
 ui-0740 = { "Bring back" }
-ui-0741 = { "All optional." }
+ui-0741 = { "All optional" }
 ui-0742 = { "All set" }
 ui-0743 = { "status" }
-ui-0744 = { "for this process now · lower is better" }
+ui-0744 = { "by this process now" }
 ui-0745 = { "items" }
 ui-0746 = { "running" }
 ui-0747 = { $v0 }{ " vault notes" }
@@ -754,7 +712,6 @@ ui-0754 = { "Good evening" }
 ui-0755 = { $v0 }{ " notes" }
 ui-0756 = { "Open mini bar" }
 ui-0757 = { "Quick capture (Ctrl+Alt+O)" }
-ui-0758 = { "What is this? (Ctrl+Alt+I)" }
 ui-0759 = { "Budget and routines" }
 ui-0760 = { "Panic — cut off everything" }
 ui-0761 = { "Quit Orion" }
@@ -772,17 +729,12 @@ ui-0772 = { "Too many attempts. Wait before trying again." }
 ui-0773 = { "invalid language" }
 ui-0774 = { "profile not configured" }
 ui-0775 = { "Language updated." }
-ui-0776 = { "Language updated." }
 ui-0777 = { "Signing in…" }
 ui-0778 = { "Checking password…" }
 ui-0779 = { "Open" }
-ui-0780 = { "Closed" }
 ui-0781 = { "Pending" }
 ui-0782 = { "Summary" }
-ui-0783 = { "Reset" }
 ui-0784 = { "Completed" }
-ui-0785 = { "Offline" }
-ui-0786 = { "Nothing was sent" }
 ui-0787 = { "Untitled" }
 ui-0788 = { "Waiting" }
 ui-0789 = { "Subscriptions" }
@@ -808,8 +760,6 @@ ui-0808 = { "Stop" }
 ui-0809 = { "Profile" }
 ui-0810 = { "Reconnect" }
 ui-0811 = { "MCP servers" }
-ui-0812 = { "Your results" }
-ui-0813 = { "Subtle sounds" }
 ui-0814 = { "Task" }
 ui-0815 = { "All" }
 ui-0816 = { "now" }
@@ -825,7 +775,7 @@ ui-0825 = { $v0 }{ " · " }{ $v1 }
 ui-0826 = { $v0 }{ " · " }{ $v1 }{ " links" }{ $v2 }
 ui-0827 = { "Task canceled" }
 ui-0828 = { "Download model (example)" }
-ui-0829 = { "Choose a file." }
+ui-0829 = { "Choose a file" }
 ui-0830 = { $v0 }{ " · diagram (no preview for this type yet; the code is below)" }
 ui-0831 = { $v0 }{ " · formula" }
 ui-0832 = { $v0 }{ " · formula (could not render; the code is below)" }
@@ -843,8 +793,8 @@ ui-0843 = { "Codex (subscription)" }
 ui-0844 = { "Search conversations and notes" }
 ui-0845 = { " · Routine" }
 ui-0846 = { " · via Telegram" }
-ui-0847 = { "Invalid upload response." }
-ui-0848 = { "Could not extract the document." }
+ui-0847 = { "Invalid upload response" }
+ui-0848 = { "Could not extract the document" }
 ui-0849 = { "The document is still being processed. Try attaching it again shortly." }
 ui-0850 = { "Model: " }{ $v0 }{ " · Last error: " }{ $v1 }
 ui-0851 = { "Model: " }{ $v0 }
@@ -884,7 +834,7 @@ ui-0884 = { "All commands" }
 ui-0885 = { "Recent projects" }
 ui-0886 = { "Text editing" }
 ui-0887 = { "Navigate the list" }
-ui-0888 = { "Your vault note and Orion's new version differ." }
+ui-0888 = { "Your vault note and Orion's new version differ" }
 ui-0889 = { "In the vault (your version)" }
 ui-0890 = { "Orion's new version" }
 ui-0891 = { "Final text" }
@@ -895,12 +845,12 @@ ui-0895 = { "Save final text" }
 ui-0896 = { "Your version stays as it is and the new one becomes a proposal. Compare both here and choose." }
 ui-0897 = { "no conflicts" }
 ui-0898 = { "review" }
-ui-0899 = { "Conflict pending in the vault." }
+ui-0899 = { "Conflict pending in the vault" }
 ui-0900 = { "Compare" }
 ui-0901 = { "Tokens per day · 7 days (estimated)" }
 ui-0902 = { "Tokens per day · 30 days (estimated)" }
 ui-0903 = { "30 days ago" }
-ui-0904 = { "Estimate: the outbound log stores bytes, not tokens (bytes ÷ 4)." }
+ui-0904 = { "Estimated from response size" }
 ui-0905 = { "Export today's \"You did\" report" }
 ui-0906 = { "Reload settings" }
 ui-0907 = { "Re-reads the .env and applies what it can without restarting: models, keys, injection guard and diary. Anything else is flagged as needing a restart." }
@@ -913,17 +863,17 @@ ui-0913 = { "Proposal discarded. The vault note was left as it was." }
 ui-0914 = { "Image attached. It goes with your next message and is not stored." }
 ui-0915 = { "Attachment ready. The text will be sent with your next message." }
 ui-0916 = { "Unsupported file type. Use text, Markdown, PDF, an image (PNG, JPEG, WebP) or audio." }
-ui-0917 = { "File is empty or larger than " }{ $v0 }{ " MB." }
-ui-0918 = { "The file is not a valid PNG, JPEG or WebP image." }
-ui-0919 = { "Could not open the image." }
+ui-0917 = { "File is empty or larger than " }{ $v0 }{ " MB" }
+ui-0918 = { "The file is not a valid PNG, JPEG or WebP image" }
+ui-0919 = { "Could not open the image" }
 ui-0920 = { "The attachment is still being processed. Try attaching it again in a moment." }
-ui-0921 = { "Up to 4 images per message." }
+ui-0921 = { "Up to 4 images per message" }
 ui-0922 = { "Or the URL of a public GitHub repository (optional)" }
-ui-0923 = { "Creates the project with isolated personal memory and its note in the vault. Use an existing folder or the URL of a public GitHub repository, which gets cloned (this can take a while)." }
+ui-0923 = { "Creates the project with isolated memory and a note in the vault. Use an existing folder or the URL of a public GitHub repository, which will be cloned." }
 ui-0924 = { "Vault note" }
-ui-0925 = { "Provide the local folder or the GitHub repository, not both." }
+ui-0925 = { "Provide the local folder or the GitHub repository, not both" }
 ui-0926 = { "Project created. The project note already existed in the vault and was left unchanged." }
-ui-0927 = { "Project created and note saved to the vault." }
+ui-0927 = { "Project created and note saved to the vault" }
 ui-0928 = { "Project created, but the note was not saved to the vault. Check the vault folder in Settings › Memory." }
 ui-0929 = { "This audio will leave your computer and be sent to " }{ $v0 }{ " to be transcribed. Send it?" }
 ui-0930 = { "Audio transcription is not set up. Turn on local Whisper or set the transcription key." }
@@ -935,629 +885,314 @@ ui-0935 = { "Regenerate" }
 ui-0936 = { "Reading aloud" }
 ui-0937 = { "Listen" }
 ui-0938 = { "Move up" }
-
 ui-0939 = { "permissions computer web open apps confirmation authorization" }
-
-ui-0940 = { "Authorize once on this computer. Your choice is saved and can be changed here at any time." }
-
-ui-0941 = { "Without per-action confirmations, Orion can open apps, run commands, change or delete files and use the web, including after reading external documents." }
-
+ui-0940 = { "Authorize once on this computer. You can change it here later." }
+ui-0941 = { "Without per-action confirmations, Orion can open apps, run commands, change or delete files and use the web, including after reading external documents" }
 ui-0942 = { "Disable all tools" }
-
 ui-0943 = { "Authorize all tools" }
-
 ui-0944 = { "Loading permissions…" }
-
 ui-0945 = { "Computer tools" }
-
-ui-0946 = { "Files, applications, commands and computer automation." }
-
+ui-0946 = { "Files, applications, commands and computer automation" }
 ui-0947 = { "Web tools" }
-
-ui-0948 = { "Search and web access with configured services." }
-
+ui-0948 = { "Search and web access with configured services" }
 ui-0949 = { "Without confirming each action" }
-
 ui-0950 = { "Uses the saved authorization. When off, actions requiring approval ask for confirmation again." }
-
 ui-0951 = { "Changes take effect immediately. Voice, camera, continuous capture and integrations still need their own setup. Panic and action logs stay active." }
-
-ui-0952 = { "Changing Orion’s own code still requires specific approval." }
-
+ui-0952 = { "Changing Orion’s own code still requires specific approval" }
 ui-0953 = { "Allows more steps per request. Authorization to act without confirmation is in Tools." }
-
 ui-0954 = { "Tools and import" }
-
 ui-0955 = { "Choose once; change it later in Settings." }
-
 ui-0956 = { "Authorize all tools without confirming each action" }
-
-ui-0957 = { "Allows opening apps, running commands, reading sensitive files, changing or deleting files and using the web, including after reading external content. Applies on this computer until you turn it off in Settings → Tools." }
-
+ui-0957 = { "Allows opening apps, running commands, reading sensitive files, changing or deleting files and using the web, including after reading external content. Applies on this computer until you turn it off in Settings › Tools." }
 ui-0958 = { "Does not turn on voice, camera, continuous capture or unconfigured integrations. Panic and action logs stay active." }
-
-ui-0959 = { "Autonomous mode on. More steps per request; permissions are in Settings → Tools." }
-
+ui-0959 = { "Autonomous mode on. More steps per request; permissions are in Settings › Tools." }
 ui-0069 = { "Project created. The vault note and GitHub link have not been configured yet." }
-
 ui-0263 = { "Creates a project with isolated personal memory. The folder must exist. Vault notes and GitHub links are not available here yet." }
-
 resource-000 = { "Push-to-talk voice" }
-
 resource-001 = { "Local Whisper model" }
-
 resource-002 = { "GPU for local transcription" }
-
 resource-003 = { "TTS voice" }
-
 resource-004 = { "Interrupt speech while talking" }
-
 resource-005 = { "Microphone name (empty: default)" }
-
 resource-006 = { "Validated Orion wake-word bundle" }
-
 resource-007 = { "Wake-word sensitivity" }
-
 resource-008 = { "Maximum recording duration (seconds)" }
-
 resource-009 = { "Silence before ending speech (seconds)" }
-
 resource-010 = { "Activations per hour" }
-
 resource-011 = { "Clap sensitivity" }
-
 resource-012 = { "Clap action (abrir or rotina:name)" }
-
 resource-013 = { "Live voice conversation" }
-
 resource-014 = { "Maximum live duration (minutes)" }
-
 resource-015 = { "Describe images and screen" }
-
 resource-016 = { "Camera on request" }
-
 resource-017 = { "Camera index" }
-
 resource-018 = { "Remember objects seen by the camera" }
-
 resource-019 = { "YOLO ONNX model (CPU)" }
-
 resource-020 = { "Presence detection" }
-
 resource-021 = { "Absence before pausing (minutes)" }
-
 resource-022 = { "Bluetooth presence device" }
-
 resource-023 = { "Allow locking when away" }
-
 resource-024 = { "Local caption model" }
-
 resource-025 = { "Caption audio device" }
-
 resource-026 = { "Local screen memory" }
-
 resource-027 = { "Screen memory interval (seconds)" }
-
 resource-028 = { "Screen memory retention (days)" }
-
 resource-029 = { "Excluded titles (separated by semicolons)" }
-
 resource-030 = { "Excluded apps" }
-
 resource-031 = { "OCR languages" }
-
 resource-032 = { "Clipboard history (days; 0 disables)" }
-
 resource-033 = { "Local command history" }
-
 resource-034 = { "Background jobs" }
-
 resource-035 = { "Briefing time" }
-
 resource-036 = { "Night research time" }
-
 resource-037 = { "Research topics (separated by semicolons)" }
-
 resource-038 = { "Memory review time" }
-
 resource-039 = { "Weekly AI review" }
-
 resource-040 = { "Consolidate conversation facts" }
-
 resource-041 = { "Diary time" }
-
 resource-042 = { "Weekly review time" }
-
 resource-043 = { "Tasks using cloud CLIs" }
-
 resource-044 = { "Codex Cloud environment" }
-
 resource-045 = { "Task working directory" }
-
 resource-046 = { "Backup folder" }
-
 resource-047 = { "Backups to keep" }
-
 resource-048 = { "Repositories (one path per line)" }
-
 resource-049 = { "Trusted folders (one path per line)" }
-
 resource-050 = { "Rerank results with a local model (CPU)" }
-
 resource-051 = { "ONNX reranker folder" }
-
 resource-052 = { "Enable MCP servers" }
-
 resource-053 = { "MCP servers file" }
-
 resource-054 = { "Enable skills" }
-
 resource-055 = { "Skills folder" }
-
 resource-056 = { "Enable plugins" }
-
 resource-057 = { "Plugins folder" }
-
 resource-058 = { "Choices are saved on this computer. Use Save and apply to update resources." }
-
 resource-059 = { "Loading resources…" }
-
-resource-060 = { "Saved changes are waiting to be applied." }
-
+resource-060 = { "Saved changes are waiting to be applied" }
 resource-061 = { "Transcription" }
-
 resource-062 = { "Wake word" }
-
 resource-063 = { "Camera description" }
-
 resource-064 = { "Schedules" }
-
 resource-065 = { "Night research" }
-
 resource-066 = { "Available" }
-
 resource-067 = { "Setup required" }
-
 resource-068 = { "Transcription requires local Whisper or configured Groq fallback. The Orion wake word requires a validated bundle. Speech uses a Windows voice or edge-tts." }
-
 resource-069 = { "Test microphone" }
-
 resource-070 = { "Live conversation" }
-
 resource-071 = { "Take photo and describe" }
-
 resource-072 = { "Describe screen" }
-
 resource-073 = { "Create routine" }
-
 resource-074 = { "Downloads rules" }
-
 resource-075 = { "Times use HH:MM; leave empty to disable a schedule. Night research requires a vault and web tools." }
-
 resource-076 = { "View clipboard history" }
-
 resource-077 = { "View command history" }
-
 resource-078 = { "Export backup" }
-
 resource-079 = { "Restore backup" }
-
 resource-080 = { "Add MCP server" }
-
 resource-081 = { "Connect account" }
-
 resource-082 = { "Link calendar" }
-
 resource-083 = { "Import plugin" }
-
 resource-084 = { "Applying…" }
-
 resource-085 = { "Save and apply" }
-
-resource-086 = { "Resources applied." }
-
+resource-086 = { "Resources applied" }
 resource-087 = { "Load existing file" }
-
 resource-088 = { "Saving revokes the previous grant. Review and grant the automation before running it." }
-
 resource-089 = { "Review before saving. Enabled connections may start local processes or access the given address." }
-
 resource-090 = { "Backup file" }
-
 resource-091 = { "New data folder" }
-
 resource-092 = { "Password or recovery key" }
-
 resource-093 = { "New password" }
-
 resource-094 = { "Use recovery key" }
-
 resource-095 = { "Connected accounts" }
-
 resource-096 = { "Linked calendars" }
-
 resource-097 = { "Installed plugins" }
-
-resource-098 = { "No configured items." }
-
+resource-098 = { "No configured items" }
 resource-099 = { "Authorize" }
-
 resource-100 = { "Revoke" }
-
 resource-101 = { "Review and activate" }
-
 resource-102 = { "Grant" }
-
 resource-103 = { "Preview" }
-
 resource-104 = { "Undo last" }
-
 resource-105 = { "Enroll my face" }
-
 resource-106 = { "Delete my face" }
-
 resource-107 = { "Enrollment takes five photos and stores only an encrypted vector. Face recognition is used for presence and cannot approve actions." }
-
 resource-108 = { "Automation and research" }
-
 resource-109 = { "Use facts in responses" }
-
 resource-110 = { "Use previous conversations" }
-
-
 resource-111 = { "Repositories (separated by semicolons)" }
-
 resource-112 = { "Trusted folders (separated by semicolons)" }
-
 resource-113 = { "Transcription GPU unavailable in this package" }
-
 resource-114 = { "Edit and enable" }
-
-resource-115 = { "Use Add MCP server to configure and enable the connection." }
-
-resource-116 = { "Only enabled sources are used in memory search and related tools." }
-
+resource-115 = { "Use Add MCP server to configure and enable the connection" }
+resource-116 = { "Only enabled sources are used in memory search and related tools" }
 resource-117 = { "Recording…" }
-
 resource-118 = { "Transcribing…" }
-
 resource-119 = { "Speaking…" }
-
 resource-120 = { "Update existing plugin" }
-
 resource-121 = { "Connectors" }
-
 resource-122 = { "Usage" }
-
 resource-123 = { "This computer" }
-
 resource-124 = { "Restores to a new folder. The current password opens the backup; the new password protects the restored profile." }
-
 resource-125 = { "Exports an encrypted database and profile. Accounts, tokens and this computer’s permissions are excluded." }
-
 ui-0960 = { "Saved" }
-
 ui-0961 = { "Undo last change" }
-
 ui-0962 = { "Vault folder saved. Restart Orion to use the new folder." }
-
 ui-0964 = { "Restore section defaults" }
-
 ui-0965 = { "Open settings" }
-
 ui-0966 = { "settings.toml: a mirror of the settings without secrets. Saving applies right away; editing the file by hand also applies." }
-
 ui-0967 = { "Save settings.toml" }
-
 ui-0968 = { "Free plan: may use data to improve Google products. Paid plan: no." }
-
-ui-0969 = { "Does not train on API data (confirm on the site)." }
-
 ui-0970 = { "Free plan: trains by default. Turn it off in Admin Console > Privacy." }
-
-ui-0971 = { "Depends on the routed provider. Set your account not to train." }
-
 ui-0972 = { "Not verified." }
-
 ui-0973 = { "Training" }
-
 ui-0974 = { "Queued: sent when the reply finishes." }
-
-ui-0975 = { "Turns on the microphone button to dictate messages." }
-
-ui-0976 = { "Local model that transcribes speech on this computer." }
-
-ui-0977 = { "Uses the GPU for local transcription when available." }
-
-ui-0978 = { "Orion answers out loud." }
-
-ui-0979 = { "Voice used for spoken replies." }
-
-ui-0980 = { "Lets you interrupt Orion's speech by talking over it." }
-
+ui-0975 = { "Turns on the microphone button to dictate messages" }
+ui-0976 = { "Local model that transcribes speech on this computer" }
+ui-0977 = { "Uses the GPU for local transcription when available" }
+ui-0978 = { "Orion answers out loud" }
+ui-0979 = { "Voice used for spoken replies" }
+ui-0980 = { "Lets you interrupt Orion's speech by talking over it" }
 ui-0981 = { "Microphone for the wake word. Empty uses the default." }
-
-ui-0982 = { "Listens locally for the word “Orion” to start talking." }
-
-ui-0983 = { "Validated model file that recognizes the word." }
-
-ui-0984 = { "The higher, the harder the word triggers by accident." }
-
-ui-0985 = { "Maximum recording time after the word." }
-
-ui-0986 = { "How much silence ends the speech." }
-
-ui-0987 = { "How many activations per hour are allowed." }
-
-ui-0988 = { "Two claps open Orion." }
-
-ui-0989 = { "The higher, the less sensitive to claps." }
-
+ui-0982 = { "Listens locally for the word “Orion” to start talking" }
+ui-0983 = { "Validated model file that recognizes the word" }
+ui-0984 = { "The higher, the harder the word triggers by accident" }
+ui-0985 = { "Maximum recording time after the word" }
+ui-0986 = { "How much silence ends the speech" }
+ui-0987 = { "How many activations per hour are allowed" }
+ui-0988 = { "Two claps open Orion" }
+ui-0989 = { "The higher, the less sensitive to claps" }
 ui-0990 = { "What claps do: open Orion or run a routine (routine:name)." }
-
-ui-0991 = { "Lets you talk by voice in real time." }
-
-ui-0992 = { "Maximum length of a live voice conversation." }
-
-ui-0993 = { "Lets Orion describe images and the screen." }
-
-ui-0994 = { "The camera is used only when you ask." }
-
-ui-0995 = { "Which camera to use, by index (0 is the default)." }
-
-ui-0996 = { "Remembers objects seen by the camera for later." }
-
-ui-0997 = { "ONNX model that detects objects in images." }
-
-ui-0998 = { "Detects whether you are present at the computer." }
-
-ui-0999 = { "Minutes away before pausing." }
-
-ui-1000 = { "Bluetooth device that indicates presence." }
-
-ui-1001 = { "Lets the computer lock when you step away." }
-
-ui-1002 = { "Shows live captions for the computer's audio." }
-
-ui-1003 = { "Local model used for captions." }
-
-ui-1004 = { "Audio device captured for captions." }
-
-ui-1005 = { "Keeps screen text on this computer only." }
-
-ui-1006 = { "Interval between screen captures, in seconds." }
-
-ui-1007 = { "How many days screen memory is kept." }
-
-ui-1008 = { "Window titles that stay out of screen memory." }
-
-ui-1009 = { "Apps that stay out of screen memory." }
-
-ui-1010 = { "Languages used to read text on screen." }
-
+ui-0991 = { "Lets you talk by voice in real time" }
+ui-0992 = { "Maximum length of a live voice conversation" }
+ui-0993 = { "Lets Orion describe images and the screen" }
+ui-0994 = { "The camera is used only when you ask" }
+ui-0995 = { "Which camera to use, by index (0 is the default)" }
+ui-0996 = { "Remembers objects seen by the camera for later" }
+ui-0997 = { "ONNX model that detects objects in images" }
+ui-0998 = { "Detects whether you are present at the computer" }
+ui-0999 = { "Minutes away before pausing" }
+ui-1000 = { "Bluetooth device that indicates presence" }
+ui-1001 = { "Lets the computer lock when you step away" }
+ui-1002 = { "Shows live captions for the computer's audio" }
+ui-1003 = { "Local model used for captions" }
+ui-1004 = { "Audio device captured for captions" }
+ui-1005 = { "Keeps screen text on this computer only" }
+ui-1006 = { "Interval between screen captures, in seconds" }
+ui-1007 = { "How many days screen memory is kept" }
+ui-1008 = { "Window titles that stay out of screen memory" }
+ui-1009 = { "Apps that stay out of screen memory" }
+ui-1010 = { "Languages used to read text on screen" }
 ui-1011 = { "How many days history is kept. 0 turns it off." }
-
-ui-1012 = { "Keeps command history on this computer only." }
-
-ui-1013 = { "Turns on tasks that run in the background." }
-
-ui-1014 = { "Time of the daily summary." }
-
-ui-1015 = { "Time of the overnight research on the topics." }
-
-ui-1016 = { "Topics researched overnight." }
-
-ui-1017 = { "Time when memory is reviewed." }
-
-ui-1018 = { "Does a weekly review with AI." }
-
-ui-1019 = { "Consolidates facts extracted from conversations." }
-
-ui-1020 = { "Time the conversation diary is written to the vault." }
-
-ui-1021 = { "Time of the weekly review." }
-
-ui-1022 = { "Lets tasks run in the cloud CLIs." }
-
-ui-1023 = { "Environment used by Codex Cloud." }
-
-ui-1024 = { "Folder where cloud tasks work." }
-
+ui-1012 = { "Keeps command history on this computer only" }
+ui-1013 = { "Turns on tasks that run in the background" }
+ui-1014 = { "Time of the daily summary" }
+ui-1015 = { "Time of the overnight research on the topics" }
+ui-1016 = { "Topics researched overnight" }
+ui-1017 = { "Time when memory is reviewed" }
+ui-1018 = { "Does a weekly review with AI" }
+ui-1019 = { "Consolidates facts extracted from conversations" }
+ui-1020 = { "Time the conversation diary is written to the vault" }
+ui-1022 = { "Lets tasks run in the cloud CLIs" }
+ui-1023 = { "Environment used by Codex Cloud" }
+ui-1024 = { "Folder where cloud tasks work" }
 ui-1025 = { "Obsidian vault folder. Applies after restarting Orion." }
-
-ui-1026 = { "Folder where backups are stored." }
-
-ui-1027 = { "How many old backups to keep." }
-
-ui-1028 = { "Repositories Orion can read." }
-
-ui-1029 = { "Folders where Orion can read and write." }
-
-ui-1030 = { "Reorders search results with a local model." }
-
-ui-1031 = { "Folder of the ONNX reranking model." }
-
-ui-1032 = { "Turns on the configured MCP servers." }
-
-ui-1033 = { "File with the MCP server settings." }
-
-ui-1034 = { "Turns on installed skills." }
-
-ui-1035 = { "Folder where skills live." }
-
-ui-1036 = { "Turns on installed plugins." }
-
-ui-1037 = { "Folder where plugins live." }
-
-ui-1038 = { "Queued message has no source conversation." }
-
+ui-1026 = { "Folder where backups are stored" }
+ui-1027 = { "How many old backups to keep" }
+ui-1028 = { "Repositories Orion can read" }
+ui-1029 = { "Folders where Orion can read and write" }
+ui-1030 = { "Reorders search results with a local model" }
+ui-1031 = { "Folder of the ONNX reranking model" }
+ui-1032 = { "Turns on the configured MCP servers" }
+ui-1033 = { "File with the MCP server settings" }
+ui-1034 = { "Turns on installed skills" }
+ui-1035 = { "Folder where skills live" }
+ui-1036 = { "Turns on installed plugins" }
+ui-1037 = { "Folder where plugins live" }
+ui-1038 = { "Queued message has no source conversation" }
 ui-1039 = { "Only providers that train on data are available. This content is private. Send anyway?" }
-
 ui-1040 = { "Send anyway" }
-
-ui-1041 = { "Could not allow sending right now." }
-
+ui-1041 = { "Could not allow sending right now" }
 ui-1042 = { "Free plan: Google uses data to improve products (official docs). Paid plan: no." }
-
 ui-1043 = { "Official docs don't mention training; they only say no retention by default. Not confirmed." }
-
 ui-1044 = { "Vibe and Studio free mode train by default, with opt-out. Pay-as-you-go: not stated." }
-
 ui-1045 = { "OpenRouter uses data only if you opt in. Training depends on the routed provider; routing control not confirmed." }
-
 ui-1046 = { "Not confirmed: the policy does not mention the API directly." }
-
 ui-1047 = { "Not confirmed. The official page says the service was retired on 2026-07-30." }
-
 ui-1048 = { "Not confirmed: I did not find the data policy in the official pages checked." }
-
 ui-1049 = { "Not confirmed: I did not find the policy in the official pages checked." }
-
 ui-1050 = { "Queries are not used for training. Results depend on the plan." }
-
 ui-1051 = { "Opening Orion" }
-
 ui-1052 = { "Enrolling your face…" }
-
 ui-1053 = { "Turn on Face ID" }
-
 ui-1054 = { "Turn on Face ID" }
-
 ui-1055 = { "Enroll Face ID again" }
-
 ui-1056 = { "Enroll" }
-
 ui-1057 = { "Confirmed" }
-
 ui-1058 = { "Confirm: turn on autonomous mode" }
-
 ui-1059 = { "Confirm: leave panic mode" }
-
 ui-1060 = { "Turn off Face ID" }
-
 ui-1061 = { "Type the master password" }
-
 ui-1062 = { "Type your password. Then look at the camera for a few seconds. Your face becomes only an encrypted vector on this computer; the password stays in the system vault and Face ID releases it when it recognizes you. A good photo of your face can fool a regular camera: use it where only you have access." }
-
 ui-1063 = { "Sign in with Face ID" }
-
 ui-1064 = { "Face ID" }
-
 ui-1065 = { "Face ID: signs in to Orion and confirms password requests (autonomous mode, leaving panic) by looking at the camera. Everything runs on this computer; with no camera or low light, the password still works. Approving tools is still button-only." }
-
 ui-1066 = { "Enrollment takes five photos and keeps only the encrypted vector. This face is used for presence; it does not approve actions." }
-
 ui-1067 = { "Face verified" }
-
 ui-1068 = { "Use Face ID" }
-
 ui-1069 = { "Use the password" }
-
-ui-1070 = { "Turn your face slowly" }
-
 ui-1071 = { "Turning on the camera…" }
-
 ui-1072 = { "Look at the camera" }
-
 ui-1073 = { "Low light: move closer to a light" }
-
 ui-1074 = { "Hold your face still" }
-
 ui-1075 = { "Camera unavailable" }
-
 ui-1076 = { "Not enough light for Face ID" }
-
 ui-1077 = { "Face not recognized" }
-
 ui-1078 = { "Face ID locked: use the password" }
-
 ui-1079 = { "Face ID is not turned on" }
-
 ui-1080 = { "Face ID unavailable right now" }
-
 ui-1081 = { "Opening Orion…" }
-
 ui-1082 = { "Face ID turned on. Signing in and confirming password requests now accept your face; the password still works." }
-
 ui-1083 = { "Face ID turned off. The face model and the credential were deleted." }
-
 ui-1084 = { "Face ID unavailable" }
-
 ui-1085 = { "Face ID only in the native app" }
-
 ui-1086 = { "wrong password" }
-
 ui-1087 = { "enrollment cancelled" }
-
 ui-1088 = { "sign in to Orion first" }
-
 ui-1089 = { "panic mode is on" }
-
 ui-1090 = { "Face ID credential not found; use your password" }
-
 ui-1091 = { "password changed; sign in with the password and enroll Face ID again" }
-
 ui-1092 = { "Face ID belongs to another profile" }
-
 ui-1093 = { "could not store the credential in the system vault" }
-
 ui-1094 = { "could not turn off Face ID" }
-
 ui-1095 = { "Face ID enrollment failed" }
-
 ui-1096 = { "not enough light to read the face" }
-
 ui-1097 = { "no face found" }
-
 ui-1098 = { "Checking " }{ $v0 }{ "…" }
-
 ui-1099 = { "Hi, " }{ $v0 }
-
 ui-1100 = { "Turn off the camera" }
-
 ui-1101 = { "Open the camera" }
-
 ui-1102 = { "Open the camera (gestures)" }
-
 ui-1103 = { "Open palm" }
-
 ui-1104 = { "Peace" }
-
 ui-1105 = { "Point" }
-
 ui-1106 = { "Command palette" }
-
 ui-1107 = { "Thumbs up" }
-
 ui-1108 = { "OK" }
-
 ui-1109 = { "Fist" }
-
 ui-1110 = { "Voice paused" }
-
 ui-1111 = { "Nothing to pause" }
-
 ui-1112 = { "Swipe left" }
-
 ui-1113 = { "Swipe right" }
-
 ui-1114 = { "Gesture" }
-
-ui-1115 = { "Face ID is using the camera right now." }
-
+ui-1115 = { "Face ID is using the camera right now" }
 ui-1116 = { "Face ID is using the camera right now" }
-
 ui-1117 = { "close the camera module to use Face ID" }
-
-ui-1118 = { "Gestures off: install the AI engine with the installer (Hand gestures option)" }
-
 ui-1119 = { "gesture engine folder unavailable" }
-
 ui-1120 = { "failed to open the camera" }
 ui-1121 = { "To approve, type:" }
 ui-1122 = { "I reached the limit of " }{ $v0 }{ " steps for this request. Want me to continue? Reply " }{ "\"" }{ "continue" }{ "\"" }{ " and I will pick up where I stopped." }
 ui-1123 = { "Vault backup" }
-ui-1124 = { "Creates a zip of the vault in the backups folder, without .git." }
+ui-1124 = { "Creates a zip of the vault in the backups folder, without .git" }
 ui-1125 = { "Create zip" }
 ui-1126 = { "Vault backup: " }{ $v0 }{ " (" }{ $v1 }{ " files)" }
 ui-1127 = { "Vault backup created (simulated)" }
@@ -1567,7 +1202,7 @@ ui-1130 = { "unknown version" }
 ui-1131 = { "queued" }
 ui-1132 = { "About you" }
 ui-1133 = { "Facts Orion knows about you" }
-ui-1134 = { "Load the list to edit or forget." }
+ui-1134 = { "Load the list to edit or forget" }
 ui-1135 = { "Load" }
 ui-1136 = { "Notices sent to Telegram" }
 ui-1137 = { "Comma-separated types (lembrete, agendamento, cota, briefing, rotina…). Empty sends all. Applies after restart." }
@@ -1575,7 +1210,7 @@ ui-1138 = { "Water reminder (minutes)" }
 ui-1139 = { "Bedtime" }
 ui-1140 = { "Reminds you to drink water at this interval, 8am to 10pm. 0 turns it off. Do not disturb holds the notice." }
 ui-1141 = { "Notifies 30 minutes before this time (HH:MM). Empty turns it off." }
-ui-1142 = { "Type the exact command to approve this destructive action." }
+ui-1142 = { "Type the exact command to approve this destructive action" }
 ui-1143 = { "Note saved to the vault: " }{ $v0 }
 ui-1144 = { "Timer" }
 ui-1145 = { "Event" }
@@ -1611,7 +1246,7 @@ ui-1174 = { "Turn slightly to your left" }
 ui-1175 = { "Turn slightly to your right" }
 ui-1176 = { "Raise your chin slightly" }
 ui-1177 = { "Lower your chin slightly" }
-ui-1178 = { "Enter your password. Enrollment takes 25 seconds to 1 minute and guides you through five head positions. Use good lighting and follow the prompts; only sharp, stable captures count. Recognition is checked before saving. Everything stays encrypted on this computer. The webcam does not measure depth and a good photo can fool recognition." }
+ui-1178 = { "Enter your password. Enrollment takes up to 1 minute and asks for five head positions in good light. Everything stays encrypted on this computer. The webcam does not measure depth: a good photo can fool recognition." }
 ui-1179 = { "To use accelerated face recognition, objects and gestures, install GPU vision in Setup. Enroll Face ID again: the guided capture takes up to 1 minute; models stay ready for faster sign-in." }
 ui-1180 = { "Vision resources are unavailable; use your password" }
 ui-1181 = { "Gestures unavailable: install vision resources in Setup" }
@@ -1631,7 +1266,7 @@ ui-1194 = { "Link distance" }
 ui-1195 = { "Ideal length of each link" }
 ui-1196 = { "Drag a note: its neighbors follow." }
 ui-1197 = { "No folder: Orion tries to detect the vault open in Obsidian." }
-ui-1198 = { "Folder not found." }
+ui-1198 = { "Folder not found" }
 ui-1199 = { "Valid vault: PARA structure found." }
 ui-1200 = { "Obsidian vault, but without the PARA 00 Inbox folder." }
 ui-1201 = { "The folder exists, but does not look like an Obsidian vault (no .obsidian)." }
@@ -1659,15 +1294,15 @@ ui-1222 = { "{} cannot be a global shortcut: use a letter, number, F1–F12 or S
 ui-1223 = { "{} was not registered: {}" }
 ui-1224 = { "combination in use by another app" }
 ui-1225 = { "unsupported combination" }
-ui-1226 = { "Could not check the folder." }
-ui-1227 = { "Only applies with your own gateway (ORION_GATEWAY_URL and ORION_GATEWAY_MODEL). Used for simple questions. Empty: Orion chooses on its own." }
-ui-1228 = { "Only applies with your own gateway (ORION_GATEWAY_URL and ORION_GATEWAY_MODEL). Used for reasoning and code. Empty: Orion chooses on its own." }
-ui-1229 = { "Only applies with your own gateway (ORION_GATEWAY_URL and ORION_GATEWAY_MODEL). Used when there is an image or screen. Empty: Orion chooses on its own." }
-ui-1230 = { "Drag and drop only works when the core is connected." }
-ui-1231 = { "Wait for the reply to finish before editing." }
+ui-1226 = { "Could not check the folder" }
+ui-1227 = { "Only applies with your own gateway. Used for simple questions. Empty: Orion chooses." }
+ui-1228 = { "Only applies with your own gateway. Used for reasoning and code. Empty: Orion chooses." }
+ui-1229 = { "Only applies with your own gateway. Used when there is an image or the screen. Empty: Orion chooses." }
+ui-1230 = { "Drag and drop only works when the core is connected" }
+ui-1231 = { "Wait for the reply to finish before editing" }
 ui-1232 = { "Edit and send: the reply is redone as a new version of the request." }
-ui-1233 = { "Request not found in the history." }
-ui-1234 = { "Remove the attachments before editing the message." }
+ui-1233 = { "Request not found in the history" }
+ui-1234 = { "Remove the attachments before editing the message" }
 ui-1235 = { "Download backup from Drive" }
 ui-1236 = { "Downloads the latest encrypted copy from Google Drive to the chosen folder. Nothing is restored on its own: use Restore backup afterwards." }
 ui-1237 = { "Edit and send: the original message's attachments are not sent again." }
@@ -1701,27 +1336,27 @@ ui-1264 = { "Hide the weekly summary" }
 ui-1265 = { "Export to the vault" }
 ui-1266 = { "Unlinked" }
 ui-1267 = { "Notes with no outgoing or incoming links" }
-ui-1268 = { "No loose notes." }
+ui-1268 = { "No loose notes" }
 ui-1269 = { "This week's summary was already in the vault; nothing was overwritten." }
 ui-1270 = { "Vault (second brain)" }
 ui-1271 = { "Your vault notes appear here as a map. Choose the vault folder in Settings › Memory." }
 ui-1272 = { "If you edited the same note outside Orion" }
 ui-1273 = { "Vault folder. Takes effect after restarting Orion." }
 ui-1274 = { "No folder: Orion tries to detect the vault on its own." }
-ui-1275 = { "Vault found, but without the 00 Inbox folder of the PARA structure." }
-ui-1276 = { "The folder exists, but it does not look like the vault (no 00 Inbox, 01 Projetos or claude.md)." }
-ui-1277 = { "Second brain, PARA structure." }
+ui-1275 = { "Vault found, but without the 00 Inbox folder of the PARA structure" }
+ui-1276 = { "The folder exists, but it does not look like the vault (no 00 Inbox, 01 Projetos or claude.md)" }
+ui-1277 = { "Second brain, PARA structure" }
 ui-1278 = { "Vault: second brain" }
 ui-1279 = { "Vault" }
 ui-1280 = { "Search facts" }
 ui-1281 = { "All" }
-ui-1282 = { "No facts match this filter." }
+ui-1282 = { "No facts match this filter" }
 ui-1283 = { "What I saw" }
 ui-1284 = { "Searches the text that was on screen in the last 30 days. It only has results if screen memory is on." }
 ui-1285 = { "E.g.: credit card bill" }
-ui-1286 = { "Type at least 2 letters to search." }
+ui-1286 = { "Type at least 2 letters to search" }
 ui-1287 = { "Weekly summary saved to the vault: " }{ $v0 }
-ui-1288 = { "Resolve the pending approvals before editing the message." }
+ui-1288 = { "Resolve the pending approvals before editing the message" }
 resource-126 = { "Soft forgetting of conversations" }
 ui-1289 = { "Older conversations weigh a little less in search (never below half, after months). Nothing is deleted or hidden; facts, documents and vault notes do not change." }
 resource-127 = { "Sync the vault with GitHub" }
@@ -1740,18 +1375,18 @@ ui-1301 = { "Print code" }
 ui-1302 = { "Sign in with the new password" }
 ui-1303 = { "Recovering…" }
 ui-1304 = { "The old code is no longer valid. Keep this one off this computer: it won't be shown again." }
-ui-1305 = { "Enter the recovery code." }
+ui-1305 = { "Enter the recovery code" }
 ui-1306 = { "Incorrect recovery code." }
-ui-1307 = { "The new password must be between 12 and 256 characters." }
+ui-1307 = { "The new password must be between 12 and 256 characters" }
 ui-1308 = { "Testing the model…" }
 ui-1309 = { "Pausing the download" }
 ui-1310 = { $v0 }{ " · paused at " }{ $v1 }{ "%" }
 ui-1311 = { "Test ok: the file is intact." }
 ui-1312 = { "Test: the file is intact, but it does not fit the 30% RAM cap or the free memory right now." }
 ui-1313 = { "Test failed: the file was changed or is corrupted." }
-ui-1314 = { "Invalid code for printing." }
-ui-1315 = { "Could not prepare the print page." }
-ui-1316 = { "Could not open the browser to print." }
+ui-1314 = { "Invalid code for printing" }
+ui-1315 = { "Could not prepare the print page" }
+ui-1316 = { "Could not open the browser to print" }
 ui-1317 = { "Orion recovery code" }
 ui-1318 = { "Keep this sheet away from the computer. It opens your data if you forget the password and works only once: after it is used, Orion generates another." }
 ui-1319 = { "Blocked folders (separated by semicolons)" }
@@ -1761,3 +1396,4 @@ ui-1322 = { "How many read-only subagents Orion can run at the same time. They o
 ui-1323 = { "Continue the task that was interrupted" }
 ui-1324 = { "No interrupted task in this conversation to resume." }
 ui-1325 = { "Vault sync suspended: a blocked folder is inside it (or it is inside a blocked folder). Remove the block to sync." }
+ui-1326 = { "Copied" }

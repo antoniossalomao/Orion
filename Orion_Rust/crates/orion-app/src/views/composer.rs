@@ -60,7 +60,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
         .font(t::UI)
         .size(t::snap_size(15 as f32))
         .line_height(text::LineHeight::Relative(1.55))
-        .padding(pad(16.0, 18.0, 4.0, 18.0))
+        .padding(pad(t::SP_4, t::SP_45, t::SP_1, t::SP_45))
         .height(Length::Fixed(h))
         .key_binding(move |kp| {
             use iced::keyboard::{key::Named, Key};
@@ -79,13 +79,13 @@ pub fn view(app: &App, home: bool) -> El<'_> {
         })
         .style(|_, _| text_editor::Style { background: Background::Color(iced::Color::TRANSPARENT), border: Border::default(), placeholder: t::FG3, value: t::FG, selection: t::ACCENT_SOFT });
 
-    let mut foot = row![tip(ib("plus", Some(Msg::Attach), false), crate::i18n::text("Anexar documento (6 MB), imagem (10 MB) ou áudio (20 MB)"))].spacing(2).align_y(Vertical::Center);
+    let mut foot = row![tip(ib("plus", Some(Msg::Attach), false), crate::i18n::text("Anexar documento (6 MB), imagem (10 MB) ou áudio (20 MB)"))].spacing(t::SP_05).align_y(Vertical::Center);
     for (i, a) in app.attach.iter().enumerate() {
         foot = foot.push(
-            container(row![anexo_icone(app, i), tx(a.0.clone(), 12.0, t::FG2), tx(a.1.clone(), 12.0, t::FG3), button(icon("close", 14.0, t::FG3)).padding(0).on_press(Msg::Unattach(i)).style(|_, _| button::Style::default())].spacing(6).align_y(Vertical::Center))
+            container(row![anexo_icone(app, i), tx(a.0.clone(), 12.0, t::FG2), tx(a.1.clone(), 12.0, t::FG3), button(icon("close", 14.0, t::FG3)).padding(0).on_press(Msg::Unattach(i)).style(|_, _| button::Style::default())].spacing(t::SP_15).align_y(Vertical::Center))
                 .height(Length::Fixed(26.0))
                 .center_y(Length::Fixed(26.0))
-                .padding(pad(0.0, 6.0, 0.0, 8.0))
+                .padding(pad(0.0, t::SP_15, 0.0, t::SP_2))
                 .style(surface(Some(t::RAISE2), None, 7.0)),
         );
     }
@@ -98,9 +98,9 @@ pub fn view(app: &App, home: bool) -> El<'_> {
     } else {
         send_btn(icon("up", 16.0, if has_text { t::PRIMARY_INK } else { t::FG4 }).into(), if has_text { Some(Msg::Send) } else { None }, has_text)
     };
-    foot = foot.push(container(send).padding(pad(0.0, 0.0, 0.0, 4.0)));
+    foot = foot.push(container(send).padding(pad(0.0, 0.0, 0.0, t::SP_1)));
 
-    let boxed = container(column![editor, container(foot).padding(pad(6.0, 8.0, 8.0, 8.0))])
+    let boxed = container(column![editor, container(foot).padding(pad(t::SP_15, t::SP_2, t::SP_2, t::SP_2))])
         .width(Length::Fill)
         .style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::RADIUS_MAX.into() }, ..Default::default() });
 
@@ -110,23 +110,23 @@ pub fn view(app: &App, home: bool) -> El<'_> {
         for (i, (ins, label, desc)) in sugs.iter().enumerate() {
             let mono = ins.starts_with('/');
             let hl = i == app.sug_sel.min(sugs.len() - 1);
-            let l: El = if mono { txf(label.clone(), 12.5, t::FG, t::MONO_MED).into() } else { row![icon("file", 14.0, t::FG2), tx(label.clone(), 13.0, t::FG)].spacing(10).into() };
+            let l: El = if mono { txf(label.clone(), 12.5, t::FG, t::MONO_MED).into() } else { row![icon("file", 14.0, t::FG2), tx(label.clone(), 13.0, t::FG)].spacing(t::SP_25).into() };
             c = c.push(
-                button(row![l, grow(), tx(ell(desc, width * 0.5, 12.0), 12.0, t::FG3)].spacing(10).align_y(Vertical::Center))
+                button(row![l, grow(), tx(ell(desc, width * 0.5, 12.0), 12.0, t::FG3)].spacing(t::SP_25).align_y(Vertical::Center))
                     .width(Length::Fill)
-                    .padding(pad(6.0, 10.0, 6.0, 10.0))
+                    .padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25))
                     .on_press(Msg::Sugg(ins.clone()))
                     .style(move |_, st| button::Style { background: if hl || matches!(st, button::Status::Hovered) { Some(Background::Color(t::HOVER)) } else { None }, text_color: t::FG, border: Border { radius: t::R_CTRL.into(), ..Default::default() }, shadow: Default::default(), snap: true }),
             );
         }
-        container(iced::widget::scrollable(c).direction(iced::widget::scrollable::Direction::Vertical(thin_bar())).style(thin_scroll)).max_height(260.0).width(Length::Fixed(width - 16.0)).padding(4).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() }).into()
+        container(iced::widget::scrollable(c).direction(iced::widget::scrollable::Direction::Vertical(thin_bar())).style(thin_scroll)).max_height(260.0).width(Length::Fixed(width - 16.0)).padding(t::SP_1).style(|_| container::Style { background: Some(t::RAISE.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_CARD.into() }, shadow: shadow(), ..Default::default() }).into()
     } else {
         sp_w(0.0)
     };
     let boxed: El = Popover::new(boxed, sug_el, sug_open).above(!home).offset_x(8.0).on_dismiss(Msg::ClosePop).into();
 
     // metadados
-    let mut meta = row![].spacing(2).align_y(Vertical::Center).padding(pad(0.0, 6.0, 0.0, 6.0));
+    let mut meta = row![].spacing(t::SP_05).align_y(Vertical::Center).padding(pad(0.0, t::SP_15, 0.0, t::SP_15));
     if home {
         let chip_proj = chip(app.projects.get(app.p.proj).map(|p| p.n.clone()).unwrap_or_else(|| "Sem projeto".into()), None, Some("folder"), true, Msg::Pop(Pop::Project));
         let pr: El = Popover::new(chip_proj, menus::project_menu(app), app.pop == Some(Pop::Project)).on_dismiss(Msg::ClosePop).into();
@@ -137,7 +137,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
     let chip_model = chip(app.p.model_label(), soft, None, true, Msg::Pop(Pop::Model));
     let mm: El = Popover::new(chip_model, menus::model_menu(app), app.pop == Some(Pop::Model)).side(Side::Right).on_dismiss(Msg::ClosePop).into();
     meta = meta.push(mm);
-    column![boxed, meta].spacing(4).width(Length::Fixed(width)).into()
+    column![boxed, meta].spacing(t::SP_1).width(Length::Fixed(width)).into()
 }
 
 /// Miniatura da imagem anexada (F05.11) ou o ícone de arquivo.

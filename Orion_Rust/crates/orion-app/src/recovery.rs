@@ -40,9 +40,9 @@ impl Drop for Form {
 pub enum Event {
     Open,
     Close,
-    Code(String),
-    Pw(String),
-    Pw2(String),
+    Code(crate::app::Secret),
+    Pw(crate::app::Secret),
+    Pw2(crate::app::Secret),
     Submit,
     Done(Result<String, String>),
     Print,
@@ -65,19 +65,22 @@ impl App {
             }
             Event::Code(s) => {
                 if let Some(f) = self.recov.as_mut() {
-                    f.code = s.chars().take(80).collect();
+                    f.code.zeroize();
+                    f.code = s.take().chars().take(80).collect();
                     f.err.clear();
                 }
             }
             Event::Pw(s) => {
                 if let Some(f) = self.recov.as_mut() {
-                    f.pw = s.chars().take(SENHA_MAX + 1).collect();
+                    f.pw.zeroize();
+                    f.pw = s.take().chars().take(SENHA_MAX + 1).collect();
                     f.err.clear();
                 }
             }
             Event::Pw2(s) => {
                 if let Some(f) = self.recov.as_mut() {
-                    f.pw2 = s.chars().take(SENHA_MAX + 1).collect();
+                    f.pw2.zeroize();
+                    f.pw2 = s.take().chars().take(SENHA_MAX + 1).collect();
                     f.err.clear();
                 }
             }
@@ -88,15 +91,15 @@ impl App {
                     return Task::none();
                 }
                 if f.code.trim().is_empty() {
-                    f.err = "Digite o código de recuperação.".into();
+                    f.err = "Digite o código de recuperação".into();
                     return Task::none();
                 }
                 if !(SENHA_MIN..=SENHA_MAX).contains(&f.pw.chars().count()) {
-                    f.err = "A nova senha precisa ter entre 12 e 256 caracteres.".into();
+                    f.err = "A nova senha precisa ter entre 12 e 256 caracteres".into();
                     return Task::none();
                 }
                 if f.pw != f.pw2 {
-                    f.err = "As senhas não coincidem.".into();
+                    f.err = "As senhas não coincidem".into();
                     return Task::none();
                 }
                 f.busy = true;
@@ -170,7 +173,7 @@ pub fn limpar_restos() {
 /// fecha ou na próxima abertura do app, o que vier primeiro.
 pub fn print(code: &str, english: Option<bool>) -> Result<(), String> {
     if code.is_empty() || !code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-        return Err("Código inválido para impressão.".into());
+        return Err("Código inválido para impressão".into());
     }
     let path = std::env::temp_dir().join(format!("{PREFIXO}{}.html", std::process::id()));
     // textos pelo catálogo Fluent, no idioma pedido (o da interface, ou o escolhido no primeiro uso)
@@ -202,8 +205,8 @@ pub fn print(code: &str, english: Option<bool>) -> Result<(), String> {
             use std::os::unix::fs::OpenOptionsExt;
             opt.mode(0o600);
         }
-        let mut file = opt.open(&path).map_err(|_| "Não consegui preparar a página de impressão.".to_string())?;
-        file.write_all(html.as_bytes()).map_err(|_| "Não consegui preparar a página de impressão.".to_string())?;
+        let mut file = opt.open(&path).map_err(|_| "Não foi possível preparar a página de impressão".to_string())?;
+        file.write_all(html.as_bytes()).map_err(|_| "Não foi possível preparar a página de impressão".to_string())?;
     }
     #[cfg(windows)]
     let aberto = std::process::Command::new("cmd").args(["/C", "start", ""]).arg(&path).spawn();
@@ -219,7 +222,7 @@ pub fn print(code: &str, english: Option<bool>) -> Result<(), String> {
     });
     aberto.map(|_| ()).map_err(|_| {
         let _ = std::fs::remove_file(&path);
-        "Não consegui abrir o navegador para imprimir.".to_string()
+        "Não foi possível abrir o navegador para imprimir".to_string()
     })
 }
 
@@ -229,12 +232,12 @@ fn campo<'a>(rotulo: &'static str, v: &str, f: fn(String) -> Msg, secure: bool, 
         .secure(secure)
         .size(14)
         .font(t::UI)
-        .padding(pad(12.0, 12.0, 12.0, 12.0))
+        .padding(pad(t::SP_3, t::SP_3, t::SP_3, t::SP_3))
         .style(crate::views::login::field_style(t::alpha(t::BG, 0.55), t::FIELD_LINE, t::ACCENT, 10.0));
     if submit {
         entrada = entrada.on_submit(Msg::Recov(Event::Submit));
     }
-    column![tx(crate::i18n::text(rotulo), 12.0, t::FG2), entrada].spacing(6).into()
+    column![tx(crate::i18n::text(rotulo), 12.0, t::FG2), entrada].spacing(t::SP_15).into()
 }
 
 /// Conteúdo do cartão de entrada enquanto a recuperação está aberta.
@@ -242,17 +245,17 @@ pub fn view<'a>(f: &'a Form, cab: El<'a>) -> El<'a> {
     if let Some(novo) = f.new_code.as_deref() {
         return column![
             cab,
-            sp_h(10.0),
+            sp_h(t::SP_25),
             tx(crate::i18n::text("Acesso recuperado"), 14.0, t::FG),
             container(txf(novo.to_string(), 17.0, t::FG, t::MONO))
-                .padding(pad(16.0, 14.0, 16.0, 14.0))
+                .padding(pad(t::SP_4, t::SP_35, t::SP_4, t::SP_35))
                 .width(Length::Fill)
                 .style(surface(Some(t::alpha(t::BG, 0.6)), Some(t::LINE2), 12.0)),
             tx(crate::i18n::text("O código antigo deixou de valer. Guarde este fora do computador: ele não será mostrado de novo."), 12.0, t::FG3),
             btn(crate::i18n::text("Imprimir código"), Kind::Normal, false, None, Some(Msg::Recov(Event::Print))),
             btn(crate::i18n::text("Entrar com a nova senha"), Kind::Primary, false, None, Some(Msg::Recov(Event::Close))),
         ]
-        .spacing(10)
+        .spacing(t::SP_25)
         .align_x(Horizontal::Center)
         .width(Length::Fill)
         .into();
@@ -260,15 +263,15 @@ pub fn view<'a>(f: &'a Form, cab: El<'a>) -> El<'a> {
     let aviso = container(tx(if f.busy { crate::i18n::text("Recuperando…").to_string() } else { crate::i18n::status(&f.err) }, 12.0, if f.err.is_empty() { t::FG3 } else { t::DANGER })).height(Length::Fixed(16.0));
     column![
         cab,
-        sp_h(10.0),
-        campo("Código de recuperação", &f.code, |s| Msg::Recov(Event::Code(s)), false, false),
-        campo("Nova senha", &f.pw, |s| Msg::Recov(Event::Pw(s)), true, false),
-        campo("Confirme a nova senha", &f.pw2, |s| Msg::Recov(Event::Pw2(s)), true, true),
+        sp_h(t::SP_25),
+        campo("Código de recuperação", &f.code, |s| Msg::Recov(Event::Code(s.into())), false, false),
+        campo("Nova senha", &f.pw, |s| Msg::Recov(Event::Pw(s.into())), true, false),
+        campo("Confirme a nova senha", &f.pw2, |s| Msg::Recov(Event::Pw2(s.into())), true, true),
         aviso,
         btn(crate::i18n::text("Recuperar acesso"), Kind::Primary, false, None, if f.busy { None } else { Some(Msg::Recov(Event::Submit)) }),
         btn(crate::i18n::text("Voltar ao login"), Kind::Ghost, true, None, if f.busy { None } else { Some(Msg::Recov(Event::Close)) }),
     ]
-    .spacing(10)
+    .spacing(t::SP_25)
     .align_x(Horizontal::Center)
     .width(Length::Fill)
     .into()

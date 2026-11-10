@@ -293,17 +293,17 @@ impl Form {
     pub fn validate_step(&self, step: usize) -> Result<(), String> {
         match step {
             0 if self.user.trim().is_empty() || self.name.trim().is_empty() => {
-                Err("Preencha o usuário e como o Orion deve chamar você.".into())
+                Err("Preencha o usuário e como o Orion deve chamar você".into())
             }
-            1 if !(12..=256).contains(&self.password.chars().count()) => Err("Use uma senha de 12 a 256 caracteres.".into()),
-            1 if self.password != self.confirmation => Err("As senhas não coincidem.".into()),
+            1 if !(12..=256).contains(&self.password.chars().count()) => Err("Use uma senha de 12 a 256 caracteres".into()),
+            1 if self.password != self.confirmation => Err("As senhas não coincidem".into()),
             1 if self.encrypted && !self.cipher_available => {
                 Err("Esta versão não inclui cifra do banco. Instale o pacote completo ou desmarque a opção explicitamente.".into())
             }
             4 if self.telegram_2fa
                 && (self.telegram_users.trim().is_empty() || self.get(Field::Secret("ORION_TELEGRAM_TOKEN")).is_empty()) =>
             {
-                Err("Para usar 2FA, preencha o token do bot e seu ID do Telegram.".into())
+                Err("Para usar 2FA, preencha o token do bot e seu ID do Telegram".into())
             }
             _ => Ok(()),
         }
@@ -433,7 +433,7 @@ impl crate::app::App {
                     return Task::none();
                 }
                 let Some(api) = self.api.clone() else {
-                    form.error = "A prévia não cria contas nem grava arquivos.".into();
+                    form.error = "A prévia não cria contas nem grava arquivos".into();
                     return Task::none();
                 };
                 form.busy = true;
@@ -465,7 +465,7 @@ impl crate::app::App {
                 self.onboarding = None;
                 self.logged = true;
                 self.gate_err.clear();
-                self.toast(if avisos == 0 { "Tudo pronto. Seu Orion está configurado." } else { "Orion pronto, mas algumas chaves precisam ser cadastradas em Configurações." });
+                self.toast(if avisos == 0 { "Tudo pronto. Seu Orion está configurado." } else { "Orion pronto, mas algumas chaves precisam ser cadastradas em Configurações" });
                 if let Some(api) = self.api.clone() {
                     return crate::live::pull_basic(&api);
                 }
@@ -518,7 +518,7 @@ impl crate::app::App {
                     async move {
                         tokio::task::spawn_blocking(move || choose(selector))
                             .await
-                            .map_err(|_| "Não foi possível abrir o seletor.".to_string())
+                            .map_err(|_| "Não foi possível abrir o seletor".to_string())
                             .and_then(|r| r)
                     },
                     move |r| Msg::Onboarding(Event::Chosen(field, r)),

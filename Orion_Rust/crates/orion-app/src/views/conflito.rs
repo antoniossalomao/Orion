@@ -10,27 +10,28 @@ use iced::widget::{column, container, mouse_area, opaque, row, scrollable, text,
 use iced::{Background, Border, Length};
 
 fn painel<'a>(titulo: &'a str, texto: &'a str) -> El<'a> {
-    let corpo = scrollable(container(txf(texto.to_string(), 12.5, t::FG, t::MONO)).padding(14).width(Length::Fill))
+    let corpo = scrollable(container(txf(texto.to_string(), 12.5, t::FG, t::MONO)).padding(t::SP_35).width(Length::Fill))
         .direction(scrollable::Direction::Vertical(thin_bar()))
         .style(thin_scroll)
         .height(Length::Fill);
-    column![container(tx(titulo, 12.0, t::FG3)).padding(pad(8.0, 12.0, 6.0, 12.0)), hline(), corpo].width(Length::FillPortion(1)).height(Length::Fill).into()
+    column![container(tx(titulo, 12.0, t::FG3)).padding(pad(t::SP_2, t::SP_3, t::SP_15, t::SP_3)), hline(), corpo].width(Length::FillPortion(1)).height(Length::Fill).into()
 }
 
 pub fn modal(app: &App) -> El<'_> {
-    let c = app.conflito.as_ref().unwrap();
+    // A camada só é montada com o estado presente; sem ele, não desenha nada em vez de derrubar o app.
+    let Some(c) = app.conflito.as_ref() else { return iced::widget::Space::new().into() };
     let nome = c.original_path.rsplit('/').next().unwrap_or(&c.original_path).to_string();
     let head = container(
         row![
             icon("file", 16.0, t::FG2),
             txf(nome, 18.0, t::FG, t::SERIF),
-            container(tx(crate::i18n::text("Sua nota no vault e a versão nova do Orion diferem."), 12.0, t::FG3)).width(Length::Fill),
+            container(tx(crate::i18n::text("Sua nota no vault e a versão nova do Orion diferem"), 12.0, t::FG3)).width(Length::Fill),
             tip(ib("close", Some(Msg::ConflitoFechar), false), crate::i18n::text("Fechar"))
         ]
-        .spacing(8)
+        .spacing(t::SP_2)
         .align_y(Vertical::Center),
     )
-    .padding(pad(10.0, 12.0, 10.0, 18.0));
+    .padding(pad(t::SP_25, t::SP_3, t::SP_25, t::SP_45));
     let lados: El = if app.is_drawer_mode() {
         column![painel(crate::i18n::text("No vault (sua versão)"), &c.original), hline(), painel(crate::i18n::text("Versão nova do Orion"), &c.proposal)].into()
     } else {
@@ -41,7 +42,7 @@ pub fn modal(app: &App) -> El<'_> {
         .font(t::MONO)
         .size(t::snap_size(12.5 as f32))
         .line_height(text::LineHeight::Relative(1.6))
-        .padding(14)
+        .padding(t::SP_35)
         .height(Length::Fill)
         .style(|_, _| text_editor::Style { background: Background::Color(t::SIDE), border: Border::default(), placeholder: t::FG3, value: t::FG, selection: t::ACCENT_SOFT });
     let livre = !c.busy;
@@ -54,10 +55,10 @@ pub fn modal(app: &App) -> El<'_> {
             btn(crate::i18n::text("Descartar proposta"), Kind::Normal, livre, None, Some(Msg::ConflitoDescartar)),
             btn(crate::i18n::text("Salvar texto final"), Kind::Primary, livre, None, Some(Msg::ConflitoSalvar)),
         ]
-        .spacing(8)
+        .spacing(t::SP_2)
         .align_y(Vertical::Center),
     )
-    .padding(pad(8.0, 12.0, 8.0, 12.0));
+    .padding(pad(t::SP_2, t::SP_3, t::SP_2, t::SP_3));
     let (w, h) = (1100.0f32.min(app.win.width - 48.0), 760.0f32.min(app.win.height - 48.0));
     let mobile = app.is_drawer_mode();
     let dialog = container(column![head, hline(), container(lados).height(Length::FillPortion(3)), hline(), acoes, container(final_ed).height(Length::FillPortion(2))])

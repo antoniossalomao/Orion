@@ -88,7 +88,7 @@ impl State {
             scrollable(text(notes).size(14).color(theme::FG2)).height(Length::Fill),
             button(t.cont).on_press(Message::Close),
         ]
-        .spacing(8)
+        .spacing(theme::SP_2)
         .width(Length::Fill);
         container(row![sky, Space::new().width(Length::Fixed(20.0)), right])
             .padding(0)
