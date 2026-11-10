@@ -503,6 +503,37 @@ pub struct App {
     pub news_pending: bool,
 }
 
+/// Texto digitado em campo de senha, código ou chave, a caminho do `update`.
+/// O `Debug` nunca mostra o conteúdo e a memória é zerada ao soltar
+/// (REGRAS.md: segredos nunca em log, audit ou processo filho).
+#[derive(Clone)]
+pub struct Secret(String);
+impl Secret {
+    pub fn take(mut self) -> String {
+        std::mem::take(&mut self.0)
+    }
+}
+impl From<String> for Secret {
+    fn from(s: String) -> Self {
+        Secret(s)
+    }
+}
+impl From<&str> for Secret {
+    fn from(s: &str) -> Self {
+        Secret(s.to_owned())
+    }
+}
+impl std::fmt::Debug for Secret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("[conteúdo oculto]")
+    }
+}
+impl Drop for Secret {
+    fn drop(&mut self) {
+        zeroize::Zeroize::zeroize(&mut self.0);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Msg {
     Resources(crate::resources::Event),
@@ -520,7 +551,7 @@ pub enum Msg {
     Mostrar,
     MiniPos(window::Id, Option<Size>),
     // entrada
-    PwChanged(String),
+    PwChanged(Secret),
     UserChanged(String),
     Login,
     Hello,
@@ -605,7 +636,7 @@ pub enum Msg {
     ShowAll(usize),
     ChatJump(f32),
     KeyOpen(String),
-    KeyInput(String),
+    KeyInput(Secret),
     KeyCancel,
     KeySave,
     RenameClose,
@@ -688,7 +719,7 @@ pub enum Msg {
     PalRun(usize),
     QcapOpen,
     QcapClose,
-    AutoSenhaText(String),
+    AutoSenhaText(Secret),
     AutoSenhaOk,
     AutoSenhaClose,
     NuvemTrazer(usize),
@@ -768,7 +799,7 @@ pub enum Msg {
     Hover(Option<(u8, usize)>),
     L(crate::live::Lm),
     Poll,
-    ResumePw(String),
+    ResumePw(Secret),
     Noop,
 }
 
@@ -1098,7 +1129,7 @@ impl App {
                 return iced::widget::operation::focus(crate::island::password_field(crate::island::Purpose::Autonomous));
             }
             Msg::AutoSenhaText(s) => {
-                self.auto_senha = Some(s.clone());
+                if let Some(mut old) = self.auto_senha.replace(s.clone().take()) { zeroize::Zeroize::zeroize(&mut old); }
                 return Task::none();
             }
             Msg::AutoSenhaClose => {
@@ -1218,7 +1249,7 @@ impl App {
             Msg::Moved(p) => { if !self.mini { self.win_pos = Some(p); } }
             Msg::Resized(s) => { self.win = s; self.ceu.tick(Instant::now(), s, true); if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); } },
             Msg::Hover(h) => self.hover = h,
-            Msg::PwChanged(s) => self.pw = s,
+            Msg::PwChanged(s) => { zeroize::Zeroize::zeroize(&mut self.pw); self.pw = s.take(); }
             Msg::UserChanged(s) => self.user = s,
             Msg::Onboarding(_) | Msg::Face(_) | Msg::Camera(_) | Msg::Hello | Msg::LoginCancel | Msg::Recov(_) => {},
             Msg::Login => {
@@ -1227,7 +1258,7 @@ impl App {
                 } else {
                     self.logged = true;
                     self.gate_err.clear();
-                    self.pw.clear();
+                    zeroize::Zeroize::zeroize(&mut self.pw);
                     self.navigate(View::Chat, Some(0));
                     self.hist.clear();
                     self.toast("git pull do vault: 3 notas novas");
@@ -1389,7 +1420,7 @@ impl App {
                 return iced::widget::operation::focus("api-key");
             }
             Msg::KeyInput(v) => {
-                if let Some(f) = self.key_form.as_mut().filter(|f| !f.busy) { f.value = v; f.error.clear(); }
+                if let Some(f) = self.key_form.as_mut().filter(|f| !f.busy) { zeroize::Zeroize::zeroize(&mut f.value); f.value = v.take(); f.error.clear(); }
             }
             Msg::KeyCancel => {
                 if self.key_form.as_ref().is_some_and(|f| !f.busy) { self.key_form = None; }
@@ -2087,7 +2118,7 @@ impl App {
                     self.mem.sel = None;
                 }
             }
-            Msg::ResumePw(s) => self.resume_pw = s,
+            Msg::ResumePw(s) => { zeroize::Zeroize::zeroize(&mut self.resume_pw); self.resume_pw = s.take(); }
             Msg::Poll => {}
             Msg::ToolPermission(index) => {
                 let mut values = self.p.tools.unwrap_or([false; 3]);

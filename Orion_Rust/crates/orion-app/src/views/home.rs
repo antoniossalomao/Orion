@@ -113,7 +113,9 @@ pub fn view(app: &App) -> El<'_> {
             used = 0.0;
         }
         used += if used > 0.0 { 8.0 + w } else { w };
-        lines.last_mut().unwrap().push(el);
+        if let Some(line) = lines.last_mut() {
+            line.push(el);
+        }
     }
     let mut sg = column![].spacing(t::SP_2);
     for l in lines {

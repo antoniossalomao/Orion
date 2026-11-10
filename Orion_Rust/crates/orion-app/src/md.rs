@@ -217,6 +217,7 @@ pub fn latex_to_text(src: &str) -> String {
                 continue;
             }
         }
+        // Invariante: `i < src.len()` no laço, então `rest` nunca é vazio.
         let c = rest.chars().next().unwrap();
         if c != '{' && c != '}' {
             out.push(c);
@@ -280,6 +281,7 @@ pub fn cached_parse(src: &str) -> std::sync::Arc<Vec<Block>> {
     PARSED.with(|cache| {
         let mut cache = cache.borrow_mut();
         if let Some(i) = cache.iter().position(|(text, _)| text == src) {
+            // Invariante: `i` veio de `position` na mesma fila, sob a mesma trava.
             let item = cache.remove(i).unwrap();
             let blocks = item.1.clone();
             cache.push_back(item);

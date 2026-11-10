@@ -221,7 +221,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                 Panic::Paused => {
                     let mut v: Vec<El> = vec![badge(crate::i18n::text("Pausado"), Tone::Err)];
                     if app.api.is_some() {
-                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).id(crate::island::password_field(crate::island::Purpose::Panic)).on_input(Msg::ResumePw).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(170.0)).into());
+                        v.push(container(text_input(crate::i18n::text("Senha para retomar"), &app.resume_pw).id(crate::island::password_field(crate::island::Purpose::Panic)).on_input(|s| Msg::ResumePw(s.into())).on_submit(Msg::PanicResume).secure(true).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0))).width(Length::Fixed(170.0)).into());
                     }
                     if app.face_id_enabled() {
                         v.push(btn(crate::i18n::text("Face ID"), Kind::Ghost, true, None, (!app.island.busy()).then_some(Msg::Face(crate::island::FaceMsg::Start(crate::island::Purpose::Panic)))));
@@ -307,7 +307,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
                     if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == *nome) {
                         let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0));
                         if !f.busy {
-                            input = input.on_input(Msg::KeyInput).on_submit(Msg::KeySave);
+                            input = input.on_input(|s| Msg::KeyInput(s.into())).on_submit(Msg::KeySave);
                         }
                         let desc = if f.error.is_empty() { crate::i18n::formatted("Chave de {label}. Não aparece na tela nem em log.", format!("Chave de {label}. Não aparece na tela nem em log.")) } else { crate::i18n::status(&f.error) };
                         c = c.push(setting_el(

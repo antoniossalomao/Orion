@@ -122,7 +122,7 @@ pub fn view(app: &App) -> El<'_> {
     if !code {
         campos = campos.push(rise(fade(campo(crate::i18n::text("Usuário"), &app.user, Msg::UserChanged, false), p_user, bg), p_user, 10.0));
     }
-    campos = campos.push(rise(fade(campo(if code { crate::i18n::text("Código do Telegram") } else { crate::i18n::text("Senha") }, &app.pw, Msg::PwChanged, !code), p_senha, bg), p_senha, 10.0));
+    campos = campos.push(rise(fade(campo(if code { crate::i18n::text("Código do Telegram") } else { crate::i18n::text("Senha") }, &app.pw, |s| Msg::PwChanged(s.into()), !code), p_senha, bg), p_senha, 10.0));
 
     let entrar = iced::widget::button(container(row![txf(crate::i18n::text("Entrar"), 14.0, t::PRIMARY_INK, t::UI_MED), crate::icons::icon("chevR", 14.0, t::PRIMARY_INK)].spacing(t::SP_2).align_y(iced::alignment::Vertical::Center)).width(Length::Fill).center_x(Length::Fill).center_y(Length::Fill))
         .width(Length::Fill)

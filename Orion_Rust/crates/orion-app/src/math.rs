@@ -860,6 +860,7 @@ pub fn typeset(src: &str, size: f32) -> Option<Formula> {
         let key = (src.to_string(), size.to_bits());
         let mut cache = cache.borrow_mut();
         if let Some(index) = cache.iter().position(|(k, _)| *k == key) {
+            // Invariante: `index` veio de `position` na mesma fila, sob a mesma trava.
             let item = cache.remove(index).unwrap();
             let result = item.1.clone(); cache.push_back(item); return result;
         }

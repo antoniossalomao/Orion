@@ -266,7 +266,7 @@ pub fn enroll_password_modal(app: &App) -> El<'_> {
     let v = app.island.enroll_password.as_deref().unwrap_or("");
     let input = iced::widget::text_input(crate::i18n::text("Sua senha"), v)
         .id("faceid-password")
-        .on_input(|s| Msg::Face(FaceMsg::EnrollPassword(s)))
+        .on_input(|s| Msg::Face(FaceMsg::EnrollPassword(s.into())))
         .on_submit(Msg::Face(FaceMsg::EnrollSubmit))
         .secure(true)
         .size(t::snap_size(15.0))

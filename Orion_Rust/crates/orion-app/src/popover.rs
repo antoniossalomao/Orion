@@ -67,6 +67,7 @@ impl<'a, M: Clone + 'a, T: 'a, R: iced::advanced::Renderer + 'a> Widget<M, T, R>
     fn layout(&mut self, tree: &mut Tree, renderer: &R, limits: &layout::Limits) -> layout::Node {
         self.base.as_widget_mut().layout(&mut tree.children[0], renderer, limits)
     }
+    // Invariante: o `layout` deste widget sempre cria um nó filho (o conteúdo), então `children().next()` existe em draw, update, mouse_interaction e operate.
     fn draw(&self, tree: &Tree, renderer: &mut R, theme: &T, style: &renderer::Style, layout: Layout<'_>, cursor: mouse::Cursor, viewport: &Rectangle) {
         self.base.as_widget().draw(&tree.children[0], renderer, theme, style, layout, cursor, viewport);
     }

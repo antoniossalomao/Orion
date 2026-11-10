@@ -10,7 +10,8 @@ use iced::widget::{column, container, mouse_area, opaque, row, scrollable, text,
 use iced::{Background, Border, Length};
 
 pub fn modal(app: &App) -> El<'_> {
-    let e = app.editor.as_ref().unwrap();
+    // A camada só é montada com o estado presente; sem ele, não desenha nada em vez de derrubar o app.
+    let Some(e) = app.editor.as_ref() else { return iced::widget::Space::new().into() };
     let head = container(
         row![
             icon("file", 16.0, t::FG2),

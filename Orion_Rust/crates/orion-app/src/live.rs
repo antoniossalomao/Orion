@@ -516,7 +516,7 @@ impl App {
             Msg::Recov(ev) => Some((self.update_recov(ev.clone()), false)),
             Msg::LoginCancel => {
                 if let Some(ch)=self.challenge.take(){api.cancelar_entrada(&ch);}
-                self.pw.clear();self.gate_err.clear();
+                zeroize::Zeroize::zeroize(&mut self.pw);self.gate_err.clear();
                 Some((Task::none(),false))
             }
             Msg::Hello => {

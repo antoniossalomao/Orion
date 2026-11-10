@@ -40,9 +40,9 @@ impl Drop for Form {
 pub enum Event {
     Open,
     Close,
-    Code(String),
-    Pw(String),
-    Pw2(String),
+    Code(crate::app::Secret),
+    Pw(crate::app::Secret),
+    Pw2(crate::app::Secret),
     Submit,
     Done(Result<String, String>),
     Print,
@@ -65,19 +65,22 @@ impl App {
             }
             Event::Code(s) => {
                 if let Some(f) = self.recov.as_mut() {
-                    f.code = s.chars().take(80).collect();
+                    f.code.zeroize();
+                    f.code = s.take().chars().take(80).collect();
                     f.err.clear();
                 }
             }
             Event::Pw(s) => {
                 if let Some(f) = self.recov.as_mut() {
-                    f.pw = s.chars().take(SENHA_MAX + 1).collect();
+                    f.pw.zeroize();
+                    f.pw = s.take().chars().take(SENHA_MAX + 1).collect();
                     f.err.clear();
                 }
             }
             Event::Pw2(s) => {
                 if let Some(f) = self.recov.as_mut() {
-                    f.pw2 = s.chars().take(SENHA_MAX + 1).collect();
+                    f.pw2.zeroize();
+                    f.pw2 = s.take().chars().take(SENHA_MAX + 1).collect();
                     f.err.clear();
                 }
             }
@@ -261,9 +264,9 @@ pub fn view<'a>(f: &'a Form, cab: El<'a>) -> El<'a> {
     column![
         cab,
         sp_h(t::SP_25),
-        campo("Código de recuperação", &f.code, |s| Msg::Recov(Event::Code(s)), false, false),
-        campo("Nova senha", &f.pw, |s| Msg::Recov(Event::Pw(s)), true, false),
-        campo("Confirme a nova senha", &f.pw2, |s| Msg::Recov(Event::Pw2(s)), true, true),
+        campo("Código de recuperação", &f.code, |s| Msg::Recov(Event::Code(s.into())), false, false),
+        campo("Nova senha", &f.pw, |s| Msg::Recov(Event::Pw(s.into())), true, false),
+        campo("Confirme a nova senha", &f.pw2, |s| Msg::Recov(Event::Pw2(s.into())), true, true),
         aviso,
         btn(crate::i18n::text("Recuperar acesso"), Kind::Primary, false, None, if f.busy { None } else { Some(Msg::Recov(Event::Submit)) }),
         btn(crate::i18n::text("Voltar ao login"), Kind::Ghost, true, None, if f.busy { None } else { Some(Msg::Recov(Event::Close)) }),

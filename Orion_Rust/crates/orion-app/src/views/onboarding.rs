@@ -377,7 +377,8 @@ fn step_done<'a>(f: &'a Form) -> El<'a> {
 }
 
 pub fn view(app: &App) -> El<'_> {
-    let f = app.onboarding.as_ref().expect("primeiro uso");
+    // A camada só é montada com o estado presente; sem ele, não desenha nada em vez de derrubar o app.
+    let Some(f) = app.onboarding.as_ref() else { return iced::widget::Space::new().into() };
     let done = f.step >= STEPS;
     let p = crate::anim::progress(Some(f.step_at), app.now, 420, app.p.reduced);
 

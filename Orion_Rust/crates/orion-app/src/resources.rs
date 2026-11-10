@@ -703,9 +703,7 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
         let text = input_value(app, key);
         let control: El = match kind {
             Bool if key == "local_stt_gpu"
-                && !app.resources.snapshot.as_ref().unwrap()["availability"]["stt_gpu"]
-                    .as_bool()
-                    .unwrap_or(false) =>
+                && !app.resources.snapshot.as_ref().and_then(|s| s["availability"]["stt_gpu"].as_bool()).unwrap_or(false) =>
             {
                 badge(
                     crate::i18n::text("GPU de transcrição indisponível neste pacote"),
@@ -761,7 +759,8 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             }
         }
     }
-    let applied = app.resources.snapshot.as_ref().unwrap();
+    // Sem a foto dos recursos (ainda carregando), mostra só o que já foi montado.
+    let Some(applied) = app.resources.snapshot.as_ref() else { return col.into() };
     if applied["saved"] != applied["active"] {
         col = col.push(tx(
             crate::i18n::text("Há alterações salvas aguardando aplicação"),

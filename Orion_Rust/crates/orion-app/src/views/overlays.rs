@@ -116,7 +116,8 @@ pub fn palette(app: &App) -> El<'_> {
 }
 
 pub fn quick_capture(app: &App) -> El<'_> {
-    let q = app.qcap.as_ref().unwrap();
+    // A camada só é montada com o estado presente; sem ele, não desenha nada em vez de derrubar o app.
+    let Some(q) = app.qcap.as_ref() else { return iced::widget::Space::new().into() };
     let input = text_input(crate::i18n::text("Uma linha: tarefa, lembrete, gasto ou nota"), &q.text)
         .on_input(Msg::QcapText)
         .on_submit(Msg::QcapSave)
@@ -151,7 +152,7 @@ pub fn auto_senha(app: &App) -> El<'_> {
     let v = app.auto_senha.as_deref().unwrap_or("");
     let input = text_input(crate::i18n::text("Sua senha"), v)
         .id(crate::island::password_field(crate::island::Purpose::Autonomous))
-        .on_input(Msg::AutoSenhaText)
+        .on_input(|s| Msg::AutoSenhaText(s.into()))
         .on_submit(Msg::AutoSenhaOk)
         .secure(true)
         .size(t::snap_size(15 as f32))
@@ -174,7 +175,8 @@ pub fn auto_senha(app: &App) -> El<'_> {
 }
 
 pub fn isso(app: &App) -> El<'_> {
-    let i = app.isso.as_ref().unwrap();
+    // A camada só é montada com o estado presente; sem ele, não desenha nada em vez de derrubar o app.
+    let Some(i) = app.isso.as_ref() else { return iced::widget::Space::new().into() };
     let (w, h) = (app.win.width, app.win.height);
     let (x, y, sw, sh) = ((w * 0.30).round(), (h * 0.28).round(), (w * 0.34).round(), (h * 0.26).round());
     let dim = |ww: f32, hh: f32| container(sp_w(0.0)).width(Length::Fixed(ww.max(0.0))).height(Length::Fixed(hh.max(0.0))).style(|_| container::Style { background: Some(t::VEIL_LIGHT.into()), ..Default::default() });

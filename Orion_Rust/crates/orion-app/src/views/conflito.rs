@@ -18,7 +18,8 @@ fn painel<'a>(titulo: &'a str, texto: &'a str) -> El<'a> {
 }
 
 pub fn modal(app: &App) -> El<'_> {
-    let c = app.conflito.as_ref().unwrap();
+    // A camada só é montada com o estado presente; sem ele, não desenha nada em vez de derrubar o app.
+    let Some(c) = app.conflito.as_ref() else { return iced::widget::Space::new().into() };
     let nome = c.original_path.rsplit('/').next().unwrap_or(&c.original_path).to_string();
     let head = container(
         row![
