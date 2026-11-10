@@ -127,7 +127,7 @@ fn aprovacoes(app: &App) -> El<'_> {
         let c = &app.convs[ci];
         if let data::ChatMsg::Orion(o) = &c.msgs[mi] {
             let Some(a) = o.approval.as_ref() else { continue };
-            let txt = crate::md::render(&crate::md::parse(&a.text), crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 14.0, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
+            let txt = crate::md::render(&crate::md::cached_parse(&a.text), crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 14.0, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
             let mut acoes = approval_actions(a, Msg::Approve(ci, mi), Msg::Deny(ci, mi));
             acoes.push(btn(crate::i18n::text("Abrir conversa"), Kind::Ghost, true, None, Some(Msg::OpenConv(ci))));
             col = col.push(qcard(

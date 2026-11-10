@@ -32,7 +32,7 @@ pub fn modal(app: &App) -> El<'_> {
         .padding(t::SP_45)
         .height(Length::Fill)
         .style(|_, _| text_editor::Style { background: Background::Color(t::SIDE), border: Border::default(), placeholder: t::FG3, value: t::FG, selection: t::ACCENT_SOFT });
-    let blocks = md::parse(&e.content.text());
+    let blocks = md::cached_parse(&e.content.text());
     let prev = scrollable(container(md::render(&blocks, md::Style::preview())).padding(pad(t::SP_45, t::SP_6, t::SP_45, t::SP_6)).width(Length::Fill)).direction(scrollable::Direction::Vertical(thin_bar())).style(thin_scroll).height(Length::Fill);
     let mobile = app.is_drawer_mode();
     let body: El = if mobile { column![container(ed).height(Length::FillPortion(1)), hline(), container(prev).height(Length::FillPortion(1))].into() } else { row![container(ed).width(Length::FillPortion(1)).height(Length::Fill), vline_f(), container(prev).width(Length::FillPortion(1)).height(Length::Fill)].into() };
