@@ -1002,6 +1002,10 @@ impl App {
     pub fn sync_sky(&mut self) {
         let (area, density) = (self.sky_area(), self.sky_density());
         self.sky_frame.adjust(area, density);
+        let win = self.win;
+        if let Some(f) = self.onboarding.as_mut() {
+            f.set_sky_density(density, win);
+        }
     }
 
     pub fn subscription(&self) -> Subscription<Msg> {

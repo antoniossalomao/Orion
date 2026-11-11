@@ -290,6 +290,10 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         a.dpi = 2.0;
         let (area, density) = (a.sky_area(), a.sky_density());
         a.sky_frame.settle(area, density);
+        let win = a.win;
+        if let Some(f) = a.onboarding.as_mut() {
+            f.set_sky_density(density, win);
+        }
     }
     v
 }
