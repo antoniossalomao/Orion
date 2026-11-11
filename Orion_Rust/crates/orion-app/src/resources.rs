@@ -69,6 +69,8 @@ pub enum Event {
     Input(&'static str, String),
     VaultChecked(String, &'static str, bool),
     Toggle(&'static str),
+    /// Liga ou desliga palavra de ativação/palmas pela aba Voz e liga junto a voz por clique, que o microfone exige.
+    VoiceToggle(&'static str),
     /// F04.31: liga ou desliga um grupo de avisos no Telegram (índice em `GRUPOS_TELEGRAM`).
     TelegramGrupo(usize),
     Browse(&'static str, bool),
@@ -1181,6 +1183,18 @@ impl App {
                 if key == "vault_dir" {
                     return check_vault_task(text);
                 }
+            }
+            Event::VoiceToggle(key) if !self.resources.busy => {
+                // REGRAS.md: opt-in não liga sozinho; aqui o clique do Antônio é o pedido. Salva as duas chaves de uma vez.
+                let on = input_value(self, key) == "true";
+                self.resources.undo = Some((key, on.to_string()));
+                self.resources.draft.insert(key, (!on).to_string());
+                let mut keys: Vec<&'static str> = vec![key];
+                if !on && input_value(self, "voice_enabled") != "true" {
+                    self.resources.draft.insert("voice_enabled", "true".to_string());
+                    keys.push("voice_enabled");
+                }
+                return self.save_draft(Some(&keys));
             }
             Event::Toggle(key) if !self.resources.busy => {
                 // F07.02: o toggle salva sozinho e guarda o valor anterior para desfazer.

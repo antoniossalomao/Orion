@@ -552,7 +552,6 @@ fn section<'a>(app: &'a App) -> El<'a> {
             }
         }
         Sec::Voz => {
-            c = c.push(lede(crate::i18n::text("Em breve. Os ajustes abaixo já ficam salvos")));
             c = c.push(sh(crate::i18n::text("Ativação")));
             c = c.push(setting(crate::i18n::text("Palavra “Orion”"), crate::i18n::text("Escuta localmente. Traz a janela para o foco."), sw(p.wake, "wake")));
             c = c.push(setting(crate::i18n::text("Duas palmas"), crate::i18n::text("Também traz a janela para o foco"), sw(p.clap, "clap")));

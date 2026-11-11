@@ -684,6 +684,8 @@ pub enum Msg {
     ModelDel(usize),
     ModelPause(usize),
     ModelTest(usize),
+    /// Baixa o motor de visão (gestos, rosto e objetos) pelo botão do módulo de câmera.
+    VisionInstall,
     Refresh,
     // configurações
     OpenSettings(Option<Sec>),
@@ -1810,6 +1812,7 @@ impl App {
                 }
             }
             Msg::ModelGet(_) => self.toast("Baixar modelo (exemplo)"),
+            Msg::VisionInstall => self.toast("Baixar recursos de visão (exemplo)"),
             Msg::ModelDel(_) => self.toast("Remover modelo (exemplo)"),
             Msg::ModelPause(_) => self.toast("Pausar download (exemplo)"),
             Msg::ModelTest(_) => self.toast("Testar modelo (exemplo)"),

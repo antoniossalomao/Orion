@@ -218,6 +218,7 @@ pub fn router(st: Estado) -> Router {
         .route("/plugins/:id/diagnostics", get(diagnostico))
         .route("/modelos-locais", get(modelos::listar))
         .route("/modelos-locais/:id", delete(modelos::remover))
+        .route("/modelos-locais/visao/baixar", post(modelos::baixar_visao))
         .route("/modelos-locais/:id/baixar", post(modelos::baixar))
         .route("/modelos-locais/:id/pausar", post(modelos::pausar))
         .route("/modelos-locais/:id/testar", post(modelos::testar))

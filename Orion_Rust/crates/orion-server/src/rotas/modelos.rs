@@ -107,6 +107,41 @@ pub async fn baixar(_: Admin, State(st): State<Estado>, Path(id): Path<String>) 
     Ok((axum::http::StatusCode::ACCEPTED, Json(json!({"id": id, "estado": "baixando"}))))
 }
 
+/// Instala de uma vez o motor de visão (ONNX Runtime, DirectML e os modelos de mão, rosto e objetos), por
+/// pedido seu no módulo de câmera. Cada peça confere tamanho e SHA-256 do catálogo fixado.
+pub async fn baixar_visao(_: Admin, State(_st): State<Estado>) -> ApiResult<(axum::http::StatusCode, Json<Value>)> {
+    const ID: &str = "visao";
+    let Some(dir) = orion_core::vision_runtime::runtime_dir() else { return erro(409, "pasta dos recursos de visão indisponível") };
+    {
+        let mut g = ANDAMENTO.lock().map_err(|_| ApiError::new(500, "estado dos downloads indisponível"))?;
+        if g.values().any(Baixa::rodando) {
+            return erro(409, "já há um download em andamento");
+        }
+        g.insert(ID.into(), Baixa { feito: 0, erro: None, pausado: false, cancela: Arc::new(AtomicBool::new(false)) });
+    }
+    let cancela = ANDAMENTO.lock().ok().and_then(|g| g.get(ID).map(|b| b.cancela.clone())).unwrap_or_default();
+    tokio::task::spawn_blocking(move || {
+        let mut falha: Option<String> = None;
+        for id in orion_local::catalog::VISION_RUNTIME {
+            if let Err(e) = orion_local::download::install(id, &dir, &cancela, &|_, _| {}) {
+                falha = Some(e.to_string());
+                break;
+            }
+        }
+        if let Ok(mut g) = ANDAMENTO.lock() {
+            match falha {
+                None => {
+                    g.remove(ID);
+                }
+                Some(e) => {
+                    g.insert(ID.into(), Baixa { feito: 0, erro: Some(e), pausado: false, cancela: Arc::new(AtomicBool::new(false)) });
+                }
+            }
+        }
+    });
+    Ok((axum::http::StatusCode::ACCEPTED, Json(json!({"id": ID, "estado": "baixando"}))))
+}
+
 pub async fn remover(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
     let Some(a) = orion_local::catalog::find(&id) else { return erro(404, "modelo desconhecido") };
     let caminho = pasta(&st).join(&a.filename);

@@ -56,6 +56,10 @@ pub fn view(app: &App) -> El<'_> {
             if let Some(note) = &snap.note {
                 for line in note.split(" · ") { col = col.push(tx(crate::i18n::status(line), 11.5, t::FG3)); }
             }
+            // Sem o motor de visão, gestos, rosto e objetos ficam parados: o botão baixa tudo (pedido seu, com SHA-256 conferido).
+            if snap.note.as_deref().is_some_and(|n| n.contains("recursos de visão")) {
+                col = col.push(btn(crate::i18n::text("Baixar recursos de visão"), Kind::Normal, true, None, Some(Msg::VisionInstall)));
+            }
             col.into()
         }
         _ => container(tx(crate::i18n::text("Ligando a câmera…"), 12.5, t::FG3)).padding(pad(t::SP_45, t::SP_1, t::SP_45, t::SP_1)).into(),
