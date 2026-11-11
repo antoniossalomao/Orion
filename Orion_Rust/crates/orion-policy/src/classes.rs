@@ -182,6 +182,7 @@ pub fn default_tools() -> HashMap<String, ToolSpec> {
         t("executar_comando", Exec).cmd("cmd"),
         t("iniciar_processo_bg", Exec).cmd("comando"),
         t("controlar_janela", Exec).external(), // título de aba é texto de terceiros
+        t("enviar_teclas", Exec).external(),    // digitação e atalhos de teclado na janela focada
         t("explicar_tela", Exec).external(),    // envia a tela inteira ao modelo: confirma
         // foto da webcam: confirma sempre (REGRAS.md: a câmera só liga por pedido seu)
         t("ver_camera", Exec).external(),
@@ -208,6 +209,7 @@ pub fn default_rate_limits() -> HashMap<String, (u32, u64)> {
         ("navegar_web", (10, 300)),
         ("navegador_ler", (60, 300)),
         ("navegador_agir", (30, 300)),
+        ("enviar_teclas", (30, 60)),
         ("gerar_imagem", (5, 600)), // protege a cota gratuita do provedor
         ("pesquisar_internet", (20, 300)),
     ]
