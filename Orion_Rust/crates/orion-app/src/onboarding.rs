@@ -104,7 +104,7 @@ pub struct Form {
     pub step_at: std::time::Instant,
     /// Céu do instalador: uma estrela acende por tela (7 telas, 7 estrelas).
     pub sky: orion_sky::OrionSky,
-    pub sky_img: iced::widget::image::Handle,
+    pub sky_img: crate::sky_frame::Frame,
     pub sky_at: std::time::Instant,
     /// Pixels por ponto em que o céu é composto (densidade do sistema vezes a escala da interface).
     pub sky_density: f32,
@@ -177,7 +177,7 @@ impl Form {
         self.sky.set_size(w, h);
         self.sky.light_to(self.step + 1);
         self.sky.step_dt(dt, 0.0, 0.0);
-        self.sky_img = self.sky.render_image_handle();
+        self.sky_img = crate::sky_frame::Frame::compose(&self.sky);
     }
 
     /// Para as capturas: deixa o céu já assentado na etapa `step`.
@@ -189,7 +189,7 @@ impl Form {
         for _ in 0..160 {
             self.sky.step_dt(0.05, 0.0, 0.0);
         }
-        self.sky_img = self.sky.render_image_handle();
+        self.sky_img = crate::sky_frame::Frame::compose(&self.sky);
     }
 
     /// Outra densidade (outro monitor, escala da interface): refaz o quadro só quando ela muda.
@@ -199,7 +199,7 @@ impl Form {
             let ((w, h), k) = sky_px(win, density);
             self.sky.set_pixel_scale(k);
             self.sky.set_size(w, h);
-            self.sky_img = self.sky.render_image_handle();
+            self.sky_img = crate::sky_frame::Frame::compose(&self.sky);
         }
     }
 
@@ -213,7 +213,7 @@ impl Form {
         sky.compact_constellation(0.62);
         sky.light_to(1);
         sky.step_dt(0.016, 0.0, 0.0);
-        let sky_img = sky.render_image_handle();
+        let sky_img = crate::sky_frame::Frame::compose(&sky);
         Self {
             authorize_tools: false,
             step: 0,

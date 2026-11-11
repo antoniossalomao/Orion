@@ -468,7 +468,7 @@ pub fn view(app: &App) -> El<'_> {
 
     let counter = if done { crate::i18n::text("PRONTO").to_string() } else { crate::i18n::formatted("PASSO {} DE {}", format!("PASSO {} DE {}", f.step + 1, STEPS)) };
     let star = STARS[f.step.min(STEPS)];
-    let sky_side = iced::widget::image(f.sky_img.clone()).content_fit(iced::ContentFit::Fill).width(Length::Fill).height(Length::Fill);
+    let sky_side: El<'_> = f.sky_img.view(crate::sky_frame::Slot::Onboarding);
     let side_text = container(
         column![
             row![belt_fg(false), grow()],
