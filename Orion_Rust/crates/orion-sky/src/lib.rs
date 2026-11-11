@@ -527,6 +527,12 @@ impl OrionSky {
         iced_image::Handle::from_rgba(w, h, self.render_raw_rgba(w, h))
     }
 
+    /// Quadro atual em RGBA cru, no tamanho de `set_size`: para quem sobe os pixels direto para a GPU.
+    pub fn render_frame(&self) -> (u32, u32, Vec<u8>) {
+        let (w, h) = self.size;
+        (w, h, self.render_raw_rgba(w, h))
+    }
+
     /// Renderiza o quadro atual em um `RgbaImage` usando os sprites 128×128 e composição `lighter`.
     pub fn render_rgba(&self, width: u32, height: u32) -> RgbaImage {
         let buf = self.render_raw_rgba(width, height);
