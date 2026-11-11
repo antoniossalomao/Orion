@@ -19,7 +19,7 @@ static ID_JANELA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^0x[0-9a-fA-F]
 
 const PS_MIDIA: &str = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class OrionTecla { [DllImport(\"user32.dll\")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra); }';$vk = [byte][int]$env:MIDIA_VK; $n = [int]$env:MIDIA_VEZES;1..$n | ForEach-Object {[OrionTecla]::keybd_event($vk, 0, 0, [UIntPtr]::Zero);[OrionTecla]::keybd_event($vk, 0, 2, [UIntPtr]::Zero)}";
 const PS_JANELA: &str = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class OrionJanela { [DllImport(\"user32.dll\")] public static extern bool ShowWindow(IntPtr h, int c); [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr h); }';$acao = $env:JANELA_ACAO; $alvo = $env:JANELA_TITULO;$todas = @(Get-Process | Where-Object { $_.MainWindowTitle });if ($acao -eq 'listar') { $todas | ForEach-Object { '{0}|{1}' -f $_.ProcessName, $_.MainWindowTitle }; exit 0 };$achadas = @($todas | Where-Object { $_.MainWindowTitle.IndexOf($alvo, [StringComparison]::OrdinalIgnoreCase) -ge 0 });if ($achadas.Count -eq 0) { [Console]::Error.WriteLine('janela não encontrada'); exit 2 };if ($achadas.Count -gt 1) { [Console]::Error.WriteLine('mais de uma janela: seja específico');$achadas | ForEach-Object { '{0}|{1}' -f $_.ProcessName, $_.MainWindowTitle }; exit 3 };$p = $achadas[0]; $h = $p.MainWindowHandle;if ($acao -eq 'focar') { [OrionJanela]::ShowWindow($h, 9) | Out-Null; [OrionJanela]::SetForegroundWindow($h) | Out-Null }elseif ($acao -eq 'minimizar') { [OrionJanela]::ShowWindow($h, 6) | Out-Null }elseif ($acao -eq 'maximizar') { [OrionJanela]::ShowWindow($h, 3) | Out-Null }elseif ($acao -eq 'restaurar') { [OrionJanela]::ShowWindow($h, 9) | Out-Null }elseif ($acao -eq 'fechar') { $p.CloseMainWindow() | Out-Null };'{0}|{1}' -f $p.ProcessName, $p.MainWindowTitle";
-const PS_TECLAS: &str = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class OrionTeclas { [DllImport(\"user32.dll\")] public static extern bool ShowWindow(IntPtr h, int c); [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr h); }';$alvo = $env:JANELA_TITULO;$pName = 'ativa';$wTitle = 'ativa';if ($alvo) { $todas = @(Get-Process | Where-Object { $_.MainWindowTitle }); $achadas = @($todas | Where-Object { $_.MainWindowTitle.IndexOf($alvo, [StringComparison]::OrdinalIgnoreCase) -ge 0 }); if ($achadas.Count -eq 0) { [Console]::Error.WriteLine('janela não encontrada: ' + $alvo); exit 2 }; $p = $achadas[0]; [OrionTeclas]::ShowWindow($p.MainWindowHandle, 9) | Out-Null; [OrionTeclas]::SetForegroundWindow($p.MainWindowHandle) | Out-Null; $espera = [int]$env:JANELA_ESPERA_MS; if ($espera -le 0) { $espera = 300 }; Start-Sleep -Milliseconds $espera; $pName = $p.ProcessName; $wTitle = $p.MainWindowTitle; };Add-Type -AssemblyName System.Windows.Forms;$seq = $env:TECLAS_SENDKEYS;if ($seq) { [System.Windows.Forms.SendKeys]::SendWait($seq); };'{0}|{1}' -f $pName, $wTitle";
+const PS_TECLAS: &str = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class OrionTeclas { [DllImport(\"user32.dll\")] public static extern bool ShowWindow(IntPtr h, int c); [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr h); }';$alvo = $env:JANELA_TITULO;$pName = 'ativa';$wTitle = 'ativa';if ($alvo) { $todas = @(Get-Process | Where-Object { $_.MainWindowTitle }); $achadas = @($todas | Where-Object { $_.MainWindowTitle.IndexOf($alvo, [StringComparison]::OrdinalIgnoreCase) -ge 0 }); if ($achadas.Count -eq 0) { [Console]::Error.WriteLine('janela não encontrada: ' + $alvo); exit 2 }; $p = $achadas[0]; [OrionTeclas]::ShowWindow($p.MainWindowHandle, 9) | Out-Null; [OrionTeclas]::SetForegroundWindow($p.MainWindowHandle) | Out-Null; $espera = [int]$env:JANELA_ESPERA_MS; if ($espera -le 0) { $espera = 300 }; Start-Sleep -Milliseconds $espera; $pName = $p.ProcessName; $wTitle = $p.MainWindowTitle; };Add-Type -AssemblyName System.Windows.Forms;$seq = $env:TECLAS_SENDKEYS;$cad = [int]$env:TECLAS_CADENCIA_MS;if ($seq) { if ($cad -gt 0) { $chars = $seq.ToCharArray(); foreach ($ch in $chars) { [System.Windows.Forms.SendKeys]::SendWait($ch.ToString()); Start-Sleep -Milliseconds $cad; } } else { [System.Windows.Forms.SendKeys]::SendWait($seq); } };'{0}|{1}' -f $pName, $wTitle";
 
 fn vk(acao: &str) -> u8 {
     match acao {
@@ -277,13 +277,14 @@ pub fn para_sendkeys(texto: Option<&str>, teclas: Option<&[String]>) -> String {
     seq
 }
 
-fn teclas_windows(titulo: &str, seq: &str, espera_ms: u64, t: Duration) -> Value {
+fn teclas_windows(titulo: &str, seq: &str, espera_ms: u64, cadencia_ms: u64, t: Duration) -> Value {
     let Some((argv, env)) = ps(
         PS_TECLAS,
         &[
             ("JANELA_TITULO", titulo.into()),
             ("JANELA_ESPERA_MS", espera_ms.to_string()),
             ("TECLAS_SENDKEYS", seq.into()),
+            ("TECLAS_CADENCIA_MS", cadencia_ms.to_string()),
         ],
     ) else {
         return json!({"ok": false, "erro": "PowerShell não encontrado"});
@@ -297,10 +298,10 @@ fn teclas_windows(titulo: &str, seq: &str, espera_ms: u64, t: Duration) -> Value
         return json!({"ok": false, "erro": if e.is_empty() { "falhou ao enviar teclas".to_string() } else { e }});
     }
     let linhas: Vec<String> = texto(&r.stdout).lines().filter(|l| !l.trim().is_empty()).map(String::from).collect();
-    json!({"ok": true, "janela": linhas.first().cloned().unwrap_or_else(|| titulo.to_string()), "enviado": true})
+    json!({"ok": true, "janela": linhas.first().cloned().unwrap_or_else(|| titulo.to_string()), "enviado": true, "cadencia_ms": cadencia_ms})
 }
 
-fn teclas_linux(titulo: &str, texto_opt: Option<&str>, teclas_opt: Option<&[String]>, espera_ms: u64, t: Duration) -> Value {
+fn teclas_linux(titulo: &str, texto_opt: Option<&str>, teclas_opt: Option<&[String]>, espera_ms: u64, cadencia_ms: u64, t: Duration) -> Value {
     if which("xdotool").is_none() {
         return json!({"ok": false, "erro": "xdotool não encontrado (necessário no Linux para simulação de teclado)"});
     }
@@ -310,7 +311,8 @@ fn teclas_linux(titulo: &str, texto_opt: Option<&str>, teclas_opt: Option<&[Stri
     }
     if let Some(txt) = texto_opt {
         if !txt.is_empty() {
-            let _ = exec(&v(&["xdotool", "type", "--delay", "12", "--", txt]), env_limpo(), t);
+            let delay_str = if cadencia_ms > 0 { cadencia_ms.to_string() } else { "12".to_string() };
+            let _ = exec(&v(&["xdotool", "type", "--delay", &delay_str, "--", txt]), env_limpo(), t);
         }
     }
     if let Some(keys) = teclas_opt {
@@ -333,9 +335,12 @@ fn teclas_linux(titulo: &str, texto_opt: Option<&str>, teclas_opt: Option<&[Stri
                 _ => k.as_str(),
             };
             let _ = exec(&v(&["xdotool", "key", norm]), env_limpo(), t);
+            if cadencia_ms > 0 {
+                std::thread::sleep(Duration::from_millis(cadencia_ms));
+            }
         }
     }
-    json!({"ok": true, "janela": titulo, "enviado": true})
+    json!({"ok": true, "janela": titulo, "enviado": true, "cadencia_ms": cadencia_ms})
 }
 
 pub fn media_tools(timeout_s: f64) -> Vec<Tool> {
@@ -389,14 +394,23 @@ pub fn media_tools(timeout_s: f64) -> Vec<Tool> {
         ),
         Tool::sync(
             "enviar_teclas",
-            "Digita texto ou aciona teclas e atalhos na janela ativa do computador (ou foca uma janela pelo título antes de digitar). Útil para interagir com programas abertos (Spotify, editores de código, navegadores).",
+            "Digita texto ou aciona teclas e atalhos na janela ativa do computador (ou foca uma janela pelo título antes de digitar). Em modo visual, permite cadencia_ms para simular digitação visível na tela estilo Playwright/máquina de escrever. Se 'silencioso: true', cancela a ação para não mover foco nem mexer na tela do usuário.",
             obj(json!({
                 "titulo_janela": {"type": "string", "description": "Parte do título da janela para focar antes de digitar (ex: 'Spotify', 'Visual Studio Code', 'Chrome'). Opcional: se omitido, age na janela atualmente ativa."},
                 "texto": {"type": "string", "description": "Texto literal a ser digitado na janela focada."},
                 "teclas": {"type": "array", "items": {"type": "string"}, "description": "Lista de teclas especiais ou atalhos a pressionar em sequência (ex: ['Enter'], ['Tab'], ['Ctrl+s'], ['Ctrl+f'], ['Ctrl+l'], ['Escape'])."},
-                "espera_ms": {"type": "integer", "description": "Tempo em milissegundos para aguardar a janela focar antes de digitar (padrão: 300)."}
+                "espera_ms": {"type": "integer", "description": "Tempo em milissegundos para aguardar a janela focar antes de digitar (padrão: 300)."},
+                "cadencia_ms": {"type": "integer", "description": "Atraso em milissegundos entre cada caractere digitado (ex: 20 a 50 ms) para exibir a digitação acontecendo ao vivo na tela estilo máquina de escrever. Padrão: 0 (instantâneo)."},
+                "silencioso": {"type": "boolean", "description": "Se true, cancela a ação para não mover foco nem mexer na tela do usuário. Padrão: false."}
             }), &[]),
             move |a| {
+                let silencioso = a.b_or("silencioso", false);
+                if silencioso {
+                    return Ok(json!({
+                        "ok": false,
+                        "erro": "modo silencioso ativo: digitação na tela ativa cancelada para não mexer na tela nem roubar foco. Use ferramentas de segundo plano (escrever_arquivo, executar_comando, iniciar_processo_bg)."
+                    }));
+                }
                 let titulo = a.s_or("titulo_janela", "").trim().to_string();
                 if titulo.chars().count() > 200 || titulo.contains('\0') {
                     return Ok(json!({"ok": false, "erro": "título de janela inválido"}));
@@ -417,14 +431,15 @@ pub fn media_tools(timeout_s: f64) -> Vec<Tool> {
                     }
                 }
                 let espera_ms = a.i_or("espera_ms", 300)?.clamp(50, 5000) as u64;
+                let cadencia_ms = a.i_or("cadencia_ms", 0)?.clamp(0, 1000) as u64;
                 if cfg!(windows) {
                     let seq = para_sendkeys(texto_opt, teclas_opt);
-                    return Ok(teclas_windows(&titulo, &seq, espera_ms, t));
+                    return Ok(teclas_windows(&titulo, &seq, espera_ms, cadencia_ms, t));
                 }
                 if cfg!(target_os = "macos") {
                     return Ok(json!({"ok": false, "erro": "enviar_teclas no macOS exige permissão de Acessibilidade"}));
                 }
-                Ok(teclas_linux(&titulo, texto_opt, teclas_opt, espera_ms, t))
+                Ok(teclas_linux(&titulo, texto_opt, teclas_opt, espera_ms, cadencia_ms, t))
             },
         ),
     ]

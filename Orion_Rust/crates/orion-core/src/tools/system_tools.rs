@@ -108,16 +108,18 @@ pub fn system_tools(timeout_s: f64) -> Vec<Tool> {
         Tool::sync("checar_saude_sistema", "CPU, memória, disco e bateria da máquina onde o Orion roda.", json!({"type": "object", "properties": {}}), |_| Ok(checar_saude())),
         Tool::sync(
             "abrir_app",
-            "Abre um programa pelo nome, arquivo pelo caminho ou URL/URI (ex: 'spotify:search:...', 'https://...'). Aceita argumentos opcionais para passar ao executável.",
+            "Abre um programa pelo nome, arquivo pelo caminho ou URL/URI (ex: 'spotify:search:...', 'https://...'). Aceita argumentos opcionais e modo silencioso para não abrir janela visível nem mexer na tela.",
             obj(json!({
                 "nome": {"type": "string", "description": "Nome do programa (ex: 'code', 'spotify', 'chrome'), caminho de arquivo ou URL/URI."},
-                "argumentos": {"type": "array", "items": {"type": "string"}, "description": "Lista de argumentos opcionais para o programa (ex: caminhos de arquivos a abrir no editor, parâmetros)."}
+                "argumentos": {"type": "array", "items": {"type": "string"}, "description": "Lista de argumentos opcionais para o programa (ex: caminhos de arquivos a abrir no editor, parâmetros)."},
+                "silencioso": {"type": "boolean", "description": "Se true, abre o processo em segundo plano de forma oculta sem janela visível nem foco na tela (WindowStyle Hidden no Windows). Padrão: false."}
             }), &["nome"]),
             |a| {
                 let nome = a.s("nome")?.trim().to_string();
                 if nome.is_empty() || nome.contains('\0') {
                     return Ok(json!({"erro": "nome do app vazio ou inválido"}));
                 }
+                let silencioso = a.b_or("silencioso", false);
                 let args_list: Vec<String> = if let Some(arr) = a.get("argumentos").and_then(|v| v.as_array()) {
                     arr.iter().filter_map(|v| v.as_str()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
                 } else if let Some(s) = a.get("argumentos").and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty()) {
@@ -133,11 +135,12 @@ pub fn system_tools(timeout_s: f64) -> Vec<Tool> {
                     let Some(exe) = ps_exe() else { return Ok(json!({"erro": "PowerShell não encontrado"})) };
                     let mut env = env_limpo();
                     env.insert("APP_ALVO".into(), if existe { caminho.to_string_lossy().into_owned() } else { nome.clone() });
+                    let win_style = if silencioso { " -WindowStyle Hidden" } else { "" };
                     if !args_list.is_empty() {
                         env.insert("APP_ARGS".into(), serde_json::to_string(&args_list).unwrap_or_default());
-                        (vec![exe, "-NoProfile".into(), "-NonInteractive".into(), "-Command".into(), "Start-Process -FilePath $env:APP_ALVO -ArgumentList ($env:APP_ARGS | ConvertFrom-Json)".into()], env)
+                        (vec![exe, "-NoProfile".into(), "-NonInteractive".into(), "-Command".into(), format!("Start-Process -FilePath $env:APP_ALVO -ArgumentList ($env:APP_ARGS | ConvertFrom-Json){win_style}")], env)
                     } else {
-                        (vec![exe, "-NoProfile".into(), "-NonInteractive".into(), "-Command".into(), "Start-Process -FilePath $env:APP_ALVO".into()], env)
+                        (vec![exe, "-NoProfile".into(), "-NonInteractive".into(), "-Command".into(), format!("Start-Process -FilePath $env:APP_ALVO{win_style}")], env)
                     }
                 } else if cfg!(target_os = "macos") {
                     let mut argv = if is_uri {
@@ -147,6 +150,9 @@ pub fn system_tools(timeout_s: f64) -> Vec<Tool> {
                     } else {
                         vec!["open".into(), "-a".into(), nome.clone()]
                     };
+                    if silencioso {
+                        argv.push("-j".into());
+                    }
                     if !args_list.is_empty() {
                         argv.push("--args".into());
                         argv.extend(args_list.clone());
@@ -171,7 +177,7 @@ pub fn system_tools(timeout_s: f64) -> Vec<Tool> {
                 if let Err(e) = lancar(&argv, env) {
                     return Ok(json!({"erro": format!("não foi possível abrir: {:?}", e.kind())}));
                 }
-                Ok(json!({"ok": true, "aberto": nome, "argumentos": args_list}))
+                Ok(json!({"ok": true, "aberto": nome, "argumentos": args_list, "silencioso": silencioso}))
             },
         ),
         Tool::sync(
