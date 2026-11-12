@@ -52,6 +52,11 @@ pub struct ToolSpec {
     pub risk: Option<Risk>,
     /// Argumento com comando de shell (EXEC).
     pub cmd_arg: Option<String>,
+    /// Argumentos que, preenchidos, deixam a ferramenta tão poderosa quanto um shell (argv livre,
+    /// texto digitado numa janela): com pasta bloqueada, confirmam sempre, como o shell (F02.23).
+    /// Lista vazia com `shell_like` verdadeiro vale para qualquer chamada.
+    pub shell_args: Vec<String>,
+    pub shell_like: bool,
     /// Argumento com caminho que a ferramenta escreve.
     pub path_arg: Option<String>,
     /// `path_arg` é uma pasta que será reorganizada.
@@ -85,6 +90,12 @@ impl ToolSpec {
 
     pub fn cmd(mut self, a: &str) -> Self {
         self.cmd_arg = Some(a.into());
+        self
+    }
+    /// Ferramenta que age como shell quando um destes argumentos vem preenchido.
+    pub fn shell(mut self, args: &[&str]) -> Self {
+        self.shell_like = true;
+        self.shell_args = args.iter().map(|a| a.to_string()).collect();
         self
     }
     pub fn path(mut self, a: &str) -> Self {
@@ -171,7 +182,7 @@ pub fn default_tools() -> HashMap<String, ToolSpec> {
         t("criar_evento", Write),
         t("gerar_imagem", Write),
         t("capturar_tela", Write), // deixa um arquivo no computador; não sai dele
-        t("abrir_app", Exec),      // abre programa ou arquivo qualquer: confirma
+        t("abrir_app", Exec).shell(&["argumentos"]),      // abre programa ou arquivo qualquer: confirma
         t("controlar_midia", Write),
         t("backup_memoria", Write),
         t("iniciar_vigilancia_pasta", Write),
@@ -182,7 +193,7 @@ pub fn default_tools() -> HashMap<String, ToolSpec> {
         t("executar_comando", Exec).cmd("cmd"),
         t("iniciar_processo_bg", Exec).cmd("comando"),
         t("controlar_janela", Exec).external(), // título de aba é texto de terceiros
-        t("enviar_teclas", Exec).external(),    // digitação e atalhos de teclado na janela focada
+        t("enviar_teclas", Exec).external().shell(&[]), // digitar num terminal é rodar comando
         t("explicar_tela", Exec).external(),    // envia a tela inteira ao modelo: confirma
         // foto da webcam: confirma sempre (REGRAS.md: a câmera só liga por pedido seu)
         t("ver_camera", Exec).external(),
