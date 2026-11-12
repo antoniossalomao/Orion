@@ -160,6 +160,9 @@ pub fn system_tools(timeout_s: f64) -> Vec<Tool> {
                     (argv, env_limpo())
                 } else if is_uri {
                     (which("xdg-open").map(|x| vec![x.to_string_lossy().into_owned(), nome.clone()]).unwrap_or_default(), env_limpo())
+                } else if existe && args_list.is_empty() {
+                    // arquivo sem argumentos abre no programa padrão (PDF, imagem), nunca é executado
+                    (which("xdg-open").map(|x| vec![x.to_string_lossy().into_owned(), resolvido]).unwrap_or_default(), env_limpo())
                 } else if existe {
                     let mut argv = vec![resolvido];
                     argv.extend(args_list.clone());

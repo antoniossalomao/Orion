@@ -19,7 +19,7 @@ static ID_JANELA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^0x[0-9a-fA-F]
 
 const PS_MIDIA: &str = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class OrionTecla { [DllImport(\"user32.dll\")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra); }';$vk = [byte][int]$env:MIDIA_VK; $n = [int]$env:MIDIA_VEZES;1..$n | ForEach-Object {[OrionTecla]::keybd_event($vk, 0, 0, [UIntPtr]::Zero);[OrionTecla]::keybd_event($vk, 0, 2, [UIntPtr]::Zero)}";
 const PS_JANELA: &str = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class OrionJanela { [DllImport(\"user32.dll\")] public static extern bool ShowWindow(IntPtr h, int c); [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr h); }';$acao = $env:JANELA_ACAO; $alvo = $env:JANELA_TITULO;$todas = @(Get-Process | Where-Object { $_.MainWindowTitle });if ($acao -eq 'listar') { $todas | ForEach-Object { '{0}|{1}' -f $_.ProcessName, $_.MainWindowTitle }; exit 0 };$achadas = @($todas | Where-Object { $_.MainWindowTitle.IndexOf($alvo, [StringComparison]::OrdinalIgnoreCase) -ge 0 });if ($achadas.Count -eq 0) { [Console]::Error.WriteLine('janela não encontrada'); exit 2 };if ($achadas.Count -gt 1) { [Console]::Error.WriteLine('mais de uma janela: seja específico');$achadas | ForEach-Object { '{0}|{1}' -f $_.ProcessName, $_.MainWindowTitle }; exit 3 };$p = $achadas[0]; $h = $p.MainWindowHandle;if ($acao -eq 'focar') { [OrionJanela]::ShowWindow($h, 9) | Out-Null; [OrionJanela]::SetForegroundWindow($h) | Out-Null }elseif ($acao -eq 'minimizar') { [OrionJanela]::ShowWindow($h, 6) | Out-Null }elseif ($acao -eq 'maximizar') { [OrionJanela]::ShowWindow($h, 3) | Out-Null }elseif ($acao -eq 'restaurar') { [OrionJanela]::ShowWindow($h, 9) | Out-Null }elseif ($acao -eq 'fechar') { $p.CloseMainWindow() | Out-Null };'{0}|{1}' -f $p.ProcessName, $p.MainWindowTitle";
-const PS_TECLAS: &str = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class OrionTeclas { [DllImport(\"user32.dll\")] public static extern bool ShowWindow(IntPtr h, int c); [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr h); }';$alvo = $env:JANELA_TITULO;$pName = 'ativa';$wTitle = 'ativa';if ($alvo) { $todas = @(Get-Process | Where-Object { $_.MainWindowTitle }); $achadas = @($todas | Where-Object { $_.MainWindowTitle.IndexOf($alvo, [StringComparison]::OrdinalIgnoreCase) -ge 0 }); if ($achadas.Count -eq 0) { [Console]::Error.WriteLine('janela não encontrada: ' + $alvo); exit 2 }; $p = $achadas[0]; [OrionTeclas]::ShowWindow($p.MainWindowHandle, 9) | Out-Null; [OrionTeclas]::SetForegroundWindow($p.MainWindowHandle) | Out-Null; $espera = [int]$env:JANELA_ESPERA_MS; if ($espera -le 0) { $espera = 300 }; Start-Sleep -Milliseconds $espera; $pName = $p.ProcessName; $wTitle = $p.MainWindowTitle; };Add-Type -AssemblyName System.Windows.Forms;$seq = $env:TECLAS_SENDKEYS;$cad = [int]$env:TECLAS_CADENCIA_MS;if ($seq) { if ($cad -gt 0) { $chars = $seq.ToCharArray(); foreach ($ch in $chars) { [System.Windows.Forms.SendKeys]::SendWait($ch.ToString()); Start-Sleep -Milliseconds $cad; } } else { [System.Windows.Forms.SendKeys]::SendWait($seq); } };'{0}|{1}' -f $pName, $wTitle";
+const PS_TECLAS: &str = "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class OrionTeclas { [DllImport(\"user32.dll\")] public static extern bool ShowWindow(IntPtr h, int c); [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr h); }';$alvo = $env:JANELA_TITULO;$todas = @(Get-Process | Where-Object { $_.MainWindowTitle });$achadas = @($todas | Where-Object { $_.MainWindowTitle.IndexOf($alvo, [StringComparison]::OrdinalIgnoreCase) -ge 0 });if ($achadas.Count -eq 0) { [Console]::Error.WriteLine('janela não encontrada'); exit 2 };if ($achadas.Count -gt 1) { [Console]::Error.WriteLine('mais de uma janela: seja específico'); $achadas | ForEach-Object { '{0}|{1}' -f $_.ProcessName, $_.MainWindowTitle }; exit 3 };$p = $achadas[0];[OrionTeclas]::ShowWindow($p.MainWindowHandle, 9) | Out-Null;[OrionTeclas]::SetForegroundWindow($p.MainWindowHandle) | Out-Null;$espera = [int]$env:JANELA_ESPERA_MS; if ($espera -le 0) { $espera = 300 };Start-Sleep -Milliseconds $espera;Add-Type -AssemblyName System.Windows.Forms;$toks = @($env:TECLAS_SENDKEYS | ConvertFrom-Json);$cad = [int]$env:TECLAS_CADENCIA_MS;if ($cad -gt 0) { foreach ($t in $toks) { [System.Windows.Forms.SendKeys]::SendWait([string]$t); Start-Sleep -Milliseconds $cad } } else { [System.Windows.Forms.SendKeys]::SendWait(-join $toks) };'{0}|{1}' -f $p.ProcessName, $p.MainWindowTitle";
 
 fn vk(acao: &str) -> u8 {
     match acao {
@@ -187,103 +187,74 @@ fn janela_windows(acao: &str, titulo: &str, t: Duration) -> Value {
     json!({"ok": true, "acao": acao, "janela": linhas.first().cloned().unwrap_or_default()})
 }
 
-pub fn para_sendkeys(texto: Option<&str>, teclas: Option<&[String]>) -> String {
-    let mut seq = String::new();
-    if let Some(txt) = texto {
-        for c in txt.chars() {
-            match c {
-                '+' | '^' | '%' | '~' | '(' | ')' | '[' | ']' | '{' | '}' => {
-                    seq.push('{');
-                    seq.push(c);
-                    seq.push('}');
-                }
-                '\n' => seq.push_str("{ENTER}"),
-                '\t' => seq.push_str("{TAB}"),
-                _ => seq.push(c),
+/// Escapa um caractere literal para o SendKeys (`+^%~()[]{}` têm significado especial).
+fn sk_literal(c: char) -> String {
+    match c {
+        '+' | '^' | '%' | '~' | '(' | ')' | '[' | ']' | '{' | '}' => format!("{{{c}}}"),
+        '\n' => "{ENTER}".into(),
+        '\t' => "{TAB}".into(),
+        _ => c.to_string(),
+    }
+}
+
+fn sk_tecla(nome: &str) -> Option<String> {
+    Some(match nome {
+        "enter" | "return" => "{ENTER}".into(),
+        "tab" => "{TAB}".into(),
+        "esc" | "escape" => "{ESC}".into(),
+        "space" | "espaco" | "espaço" => " ".into(),
+        "backspace" => "{BACKSPACE}".into(),
+        "delete" | "del" => "{DELETE}".into(),
+        "up" => "{UP}".into(),
+        "down" => "{DOWN}".into(),
+        "left" => "{LEFT}".into(),
+        "right" => "{RIGHT}".into(),
+        "home" => "{HOME}".into(),
+        "end" => "{END}".into(),
+        "pgup" | "pageup" => "{PGUP}".into(),
+        "pgdn" | "pagedown" => "{PGDN}".into(),
+        f if f.len() > 1 && f.starts_with('f') && f[1..].parse::<u8>().is_ok_and(|n| (1..=24).contains(&n)) => format!("{{{}}}", f.to_uppercase()),
+        _ => return None,
+    })
+}
+
+/// Converte texto e teclas em blocos do SendKeys, um por toque: com cadência cada bloco é enviado
+/// sozinho, então `{ENTER}` ou `{+}` nunca são partidos no meio.
+pub fn para_sendkeys(texto: Option<&str>, teclas: Option<&[String]>) -> Vec<String> {
+    let mut seq: Vec<String> = texto.map(|t| t.chars().map(sk_literal).collect()).unwrap_or_default();
+    for k in teclas.unwrap_or_default() {
+        let kl = k.trim().to_lowercase();
+        let partes: Vec<&str> = kl.split('+').map(str::trim).collect();
+        let (mods, tecla) = if partes.len() > 1 && !partes[partes.len() - 1].is_empty() { (&partes[..partes.len() - 1], partes[partes.len() - 1]) } else { (&partes[..0], kl.as_str()) };
+        let mut prefixo = String::new();
+        for m in mods {
+            match *m {
+                "ctrl" | "control" => prefixo.push('^'),
+                "alt" => prefixo.push('%'),
+                "shift" => prefixo.push('+'),
+                _ => {}
             }
         }
-    }
-    if let Some(keys) = teclas {
-        for k in keys {
-            let kl = k.trim().to_lowercase();
-            if kl.contains('+') {
-                let parts: Vec<&str> = kl.split('+').collect();
-                let mut mod_str = String::new();
-                let mut key_part = "";
-                for p in parts {
-                    match p.trim() {
-                        "ctrl" | "control" => mod_str.push('^'),
-                        "alt" => mod_str.push('%'),
-                        "shift" => mod_str.push('+'),
-                        other => key_part = other,
-                    }
-                }
-                seq.push_str(&mod_str);
-                match key_part {
-                    "enter" | "return" => seq.push_str("{ENTER}"),
-                    "tab" => seq.push_str("{TAB}"),
-                    "esc" | "escape" => seq.push_str("{ESC}"),
-                    "space" | "espaco" | "espaço" => seq.push(' '),
-                    "backspace" => seq.push_str("{BACKSPACE}"),
-                    "delete" | "del" => seq.push_str("{DELETE}"),
-                    "up" => seq.push_str("{UP}"),
-                    "down" => seq.push_str("{DOWN}"),
-                    "left" => seq.push_str("{LEFT}"),
-                    "right" => seq.push_str("{RIGHT}"),
-                    other if other.starts_with('f') && other[1..].parse::<u8>().is_ok() => {
-                        seq.push('{');
-                        seq.push_str(&other.to_uppercase());
-                        seq.push('}');
-                    }
-                    other => seq.push_str(other),
-                }
-            } else {
-                match kl.as_str() {
-                    "enter" | "return" => seq.push_str("{ENTER}"),
-                    "tab" => seq.push_str("{TAB}"),
-                    "esc" | "escape" => seq.push_str("{ESC}"),
-                    "space" | "espaco" | "espaço" => seq.push(' '),
-                    "backspace" => seq.push_str("{BACKSPACE}"),
-                    "delete" | "del" => seq.push_str("{DELETE}"),
-                    "up" => seq.push_str("{UP}"),
-                    "down" => seq.push_str("{DOWN}"),
-                    "left" => seq.push_str("{LEFT}"),
-                    "right" => seq.push_str("{RIGHT}"),
-                    "home" => seq.push_str("{HOME}"),
-                    "end" => seq.push_str("{END}"),
-                    "pgup" | "pageup" => seq.push_str("{PGUP}"),
-                    "pgdn" | "pagedown" => seq.push_str("{PGDN}"),
-                    other if other.starts_with('f') && other[1..].parse::<u8>().is_ok() => {
-                        seq.push('{');
-                        seq.push_str(&other.to_uppercase());
-                        seq.push('}');
-                    }
-                    other => {
-                        for c in other.chars() {
-                            match c {
-                                '+' | '^' | '%' | '~' | '(' | ')' | '[' | ']' | '{' | '}' => {
-                                    seq.push('{');
-                                    seq.push(c);
-                                    seq.push('}');
-                                }
-                                _ => seq.push(c),
-                            }
-                        }
-                    }
-                }
-            }
+        let corpo = sk_tecla(tecla).unwrap_or_else(|| tecla.chars().map(sk_literal).collect());
+        if prefixo.is_empty() {
+            seq.push(corpo);
+        } else if corpo.chars().count() > 1 && !corpo.starts_with('{') {
+            // modificador vale para o grupo inteiro: Ctrl+ab vira ^(ab)
+            seq.push(format!("{prefixo}({corpo})"));
+        } else {
+            seq.push(format!("{prefixo}{corpo}"));
         }
     }
     seq
 }
 
-fn teclas_windows(titulo: &str, seq: &str, espera_ms: u64, cadencia_ms: u64, t: Duration) -> Value {
+fn teclas_windows(titulo: &str, seq: &[String], espera_ms: u64, cadencia_ms: u64, t: Duration) -> Value {
     let Some((argv, env)) = ps(
         PS_TECLAS,
         &[
             ("JANELA_TITULO", titulo.into()),
             ("JANELA_ESPERA_MS", espera_ms.to_string()),
-            ("TECLAS_SENDKEYS", seq.into()),
+            ("TECLAS_SENDKEYS", serde_json::to_string(seq).unwrap_or_else(|_| "[]".into())),
             ("TECLAS_CADENCIA_MS", cadencia_ms.to_string()),
         ],
     ) else {
@@ -305,10 +276,21 @@ fn teclas_linux(titulo: &str, texto_opt: Option<&str>, teclas_opt: Option<&[Stri
     if which("xdotool").is_none() {
         return json!({"ok": false, "erro": "xdotool não encontrado (necessário no Linux para simulação de teclado)"});
     }
-    if !titulo.is_empty() {
-        let _ = exec(&v(&["xdotool", "search", "--name", titulo, "windowactivate", "--sync"]), env_limpo(), t);
-        std::thread::sleep(Duration::from_millis(espera_ms.max(100)));
+    // REGRAS.md: busca que acha mais de uma janela não age. O título vira regex no xdotool: escapa.
+    let padrao = regex::escape(titulo);
+    let ids: Vec<String> = match exec(&v(&["xdotool", "search", "--name", &padrao]), env_limpo(), t) {
+        Ok(r) => texto(&r.stdout).lines().map(str::trim).filter(|l| !l.is_empty()).map(String::from).collect(),
+        Err(e) => return json!({"ok": false, "erro": e}),
+    };
+    match ids.len() {
+        0 => return json!({"ok": false, "erro": "janela não encontrada"}),
+        1 => {}
+        _ => return json!({"ok": false, "erro": "mais de uma janela: seja específico"}),
     }
+    if exec(&v(&["xdotool", "windowactivate", "--sync", &ids[0]]), env_limpo(), t).map(|r| r.codigo != Some(0)).unwrap_or(true) {
+        return json!({"ok": false, "erro": "não consegui focar a janela"});
+    }
+    std::thread::sleep(Duration::from_millis(espera_ms.max(100)));
     if let Some(txt) = texto_opt {
         if !txt.is_empty() {
             let delay_str = if cadencia_ms > 0 { cadencia_ms.to_string() } else { "12".to_string() };
@@ -334,7 +316,10 @@ fn teclas_linux(titulo: &str, texto_opt: Option<&str>, teclas_opt: Option<&[Stri
                 }
                 _ => k.as_str(),
             };
-            let _ = exec(&v(&["xdotool", "key", norm]), env_limpo(), t);
+            if norm.starts_with('-') || norm.chars().any(char::is_whitespace) {
+                return json!({"ok": false, "erro": format!("tecla inválida: {k}")});
+            }
+            let _ = exec(&v(&["xdotool", "key", "--window", &ids[0], norm]), env_limpo(), t);
             if cadencia_ms > 0 {
                 std::thread::sleep(Duration::from_millis(cadencia_ms));
             }
@@ -380,7 +365,8 @@ pub fn media_tools(timeout_s: f64) -> Vec<Tool> {
                 if acao != "listar" && titulo.is_empty() {
                     return Ok(json!({"ok": false, "erro": "informe parte do título da janela"}));
                 }
-                if titulo.chars().count() > 200 || titulo.contains('\0') {
+                // sem título, a janela ativa depois de aprovar o cartão é o próprio Orion
+                if titulo.is_empty() || titulo.chars().count() > 200 || titulo.contains('\0') {
                     return Ok(json!({"ok": false, "erro": "título inválido"}));
                 }
                 if cfg!(windows) {
@@ -394,15 +380,15 @@ pub fn media_tools(timeout_s: f64) -> Vec<Tool> {
         ),
         Tool::sync(
             "enviar_teclas",
-            "Digita texto ou aciona teclas e atalhos na janela ativa do computador (ou foca uma janela pelo título antes de digitar). Em modo visual, permite cadencia_ms para simular digitação visível na tela estilo Playwright/máquina de escrever. Se 'silencioso: true', cancela a ação para não mover foco nem mexer na tela do usuário.",
+            "Foca uma janela pelo título e digita texto ou aciona teclas e atalhos nela. Em modo visual, permite cadencia_ms para simular digitação visível na tela estilo Playwright/máquina de escrever. Se 'silencioso: true', cancela a ação para não mover foco nem mexer na tela do usuário.",
             obj(json!({
-                "titulo_janela": {"type": "string", "description": "Parte do título da janela para focar antes de digitar (ex: 'Spotify', 'Visual Studio Code', 'Chrome'). Opcional: se omitido, age na janela atualmente ativa."},
+                "titulo_janela": {"type": "string", "description": "Parte do título da janela para focar antes de digitar (ex: 'Spotify', 'Visual Studio Code'). Obrigatório: se achar mais de uma janela, não age."},
                 "texto": {"type": "string", "description": "Texto literal a ser digitado na janela focada."},
                 "teclas": {"type": "array", "items": {"type": "string"}, "description": "Lista de teclas especiais ou atalhos a pressionar em sequência (ex: ['Enter'], ['Tab'], ['Ctrl+s'], ['Ctrl+f'], ['Ctrl+l'], ['Escape'])."},
                 "espera_ms": {"type": "integer", "description": "Tempo em milissegundos para aguardar a janela focar antes de digitar (padrão: 300)."},
                 "cadencia_ms": {"type": "integer", "description": "Atraso em milissegundos entre cada caractere digitado (ex: 20 a 50 ms) para exibir a digitação acontecendo ao vivo na tela estilo máquina de escrever. Padrão: 0 (instantâneo)."},
                 "silencioso": {"type": "boolean", "description": "Se true, cancela a ação para não mover foco nem mexer na tela do usuário. Padrão: false."}
-            }), &[]),
+            }), &["titulo_janela"]),
             move |a| {
                 let silencioso = a.b_or("silencioso", false);
                 if silencioso {
@@ -422,6 +408,9 @@ pub fn media_tools(timeout_s: f64) -> Vec<Tool> {
                     .map(|arr| arr.iter().filter_map(|x| x.as_str()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
                     .unwrap_or_default();
                 let teclas_opt = if teclas_vec.is_empty() { None } else { Some(teclas_vec.as_slice()) };
+                if teclas_vec.len() > 100 {
+                    return Ok(json!({"ok": false, "erro": "teclas demais numa chamada (máximo 100)"}));
+                }
                 if texto_opt.is_none() && teclas_opt.is_none() {
                     return Ok(json!({"ok": false, "erro": "informe 'texto' para digitar ou 'teclas' para pressionar"}));
                 }
@@ -443,4 +432,22 @@ pub fn media_tools(timeout_s: f64) -> Vec<Tool> {
             },
         ),
     ]
+}
+
+#[cfg(test)]
+mod testes_teclas {
+    use super::para_sendkeys;
+
+    #[test]
+    fn cada_toque_e_um_bloco_inteiro() {
+        let teclas = vec!["Enter".to_string(), "Ctrl+s".to_string(), "Ctrl+Shift+F5".to_string(), "ctrl+ab".to_string()];
+        let seq = para_sendkeys(Some("a+b\n{x}"), Some(&teclas));
+        assert_eq!(seq, ["a", "{+}", "b", "{ENTER}", "{{}", "x", "{}}", "{ENTER}", "^s", "^+{F5}", "^(ab)"]);
+    }
+
+    #[test]
+    fn tecla_desconhecida_vira_texto_escapado() {
+        let teclas = vec!["%x".to_string()];
+        assert_eq!(para_sendkeys(None, Some(&teclas)), ["{%}x"]);
+    }
 }
