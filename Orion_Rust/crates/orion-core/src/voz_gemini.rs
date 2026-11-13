@@ -148,12 +148,9 @@ impl GeminiSpeaker {
             }
             *r += previsto;
         }
-        let resultado = self.chamar(&chave, texto).await;
-        {
-            let mut r = self.reservado.lock();
-            *r = (*r - previsto).max(0.0);
-        }
-        resultado
+        // devolve a reserva em qualquer saída, inclusive quando a fala é cancelada no meio
+        let _reserva = Reserva { total: &self.reservado, valor: previsto };
+        self.chamar(&chave, texto).await
     }
 
     async fn chamar(&self, chave: &str, texto: &str) -> Result<Vec<u8>, SpeakError> {
@@ -203,6 +200,19 @@ impl GeminiSpeaker {
         self.registrar(segundos);
         limpar_aviso();
         Ok(wav)
+    }
+}
+
+/// Libera a reserva do custo previsto ao sair de `gerar`, mesmo se o futuro for abortado.
+struct Reserva<'a> {
+    total: &'a Mutex<f64>,
+    valor: f64,
+}
+
+impl Drop for Reserva<'_> {
+    fn drop(&mut self) {
+        let mut r = self.total.lock();
+        *r = (*r - self.valor).max(0.0);
     }
 }
 
