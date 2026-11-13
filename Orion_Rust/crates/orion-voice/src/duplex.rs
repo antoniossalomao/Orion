@@ -151,6 +151,13 @@ impl Playback {
     }
 }
 
+impl Drop for Playback {
+    /// Toda saída (pânico, erro do microfone/AEC) encerra o medidor de nível junto com o áudio.
+    fn drop(&mut self) {
+        self.stopped.store(true, Ordering::SeqCst);
+    }
+}
+
 /// Publica o nível do que está tocando (~60 vezes por segundo) até a fala acabar.
 fn medir_enquanto_toca(samples: Arc<Vec<f32>>, tocado: Arc<AtomicUsize>, done: Arc<AtomicBool>, stopped: Arc<AtomicBool>, failed: Arc<AtomicBool>) {
     if !crate::nivel::tem_saida() {

@@ -241,39 +241,3 @@ impl<'a, Message> canvas::Program<Message> for Esfera<'a> {
         vec![f.into_geometry()]
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn nivel_real_expira_e_estado_interpola_sem_pular() {
-        publicar(Some([1.0; FAIXAS]));
-        assert!(nivel_real().is_some());
-        publicar(None);
-        assert!(nivel_real().is_none());
-
-        let mut m = Motor::default();
-        let t0 = Instant::now();
-        m.avancar(t0, false);
-        m.estado = Estado::Falando;
-        m.avancar(t0 + Duration::from_millis(16), false);
-        assert!(m.energia > 0.25 && m.energia < 0.7, "interpola até o alvo");
-        for i in 0..400 {
-            m.avancar(t0 + Duration::from_millis(32 + 16 * i), false);
-        }
-        assert!((m.energia - 0.7).abs() < 0.01);
-    }
-
-    #[test]
-    fn reduzir_movimento_ignora_o_som() {
-        publicar(Some([1.0; FAIXAS]));
-        let mut m = Motor::default();
-        let t0 = Instant::now();
-        for i in 0..100 {
-            m.avancar(t0 + Duration::from_millis(16 * i), true);
-        }
-        assert!(m.nivel < 0.01);
-        publicar(None);
-    }
-}

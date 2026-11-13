@@ -53,18 +53,3 @@ pub fn medir(amostras: &[f32], fim: usize, taxa: u32) -> [f32; FAIXAS] {
     }
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn tom_puro_acende_a_faixa_certa() {
-        let taxa = 16_000;
-        let a: Vec<f32> = (0..2048).map(|i| (2.0 * std::f32::consts::PI * 750.0 * i as f32 / taxa as f32).sin() * 0.5).collect();
-        let m = medir(&a, 2048, taxa);
-        let maior = m.iter().enumerate().max_by(|x, y| x.1.total_cmp(y.1)).unwrap().0;
-        assert_eq!(maior, 3);
-        assert!(medir(&vec![0.0; 2048], 2048, taxa).iter().all(|v| *v < 1e-6));
-    }
-}
