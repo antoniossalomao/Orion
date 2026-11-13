@@ -5,7 +5,7 @@ use crate::icons::icon;
 use crate::theme as t;
 use crate::ui::*;
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, column, container, rich_text, row, span, stack};
+use iced::widget::{button, column, container, rich_text, row, span};
 use iced::{Background, Border, Length};
 
 pub fn local_hour() -> u32 {
@@ -68,7 +68,7 @@ fn recent_projects(app: &App) -> Vec<usize> {
 }
 
 pub fn view(app: &App) -> El<'_> {
-    let sky: El<'_> = app.sky_frame.frame.view(crate::sky_frame::Slot::App);
+
     let hour = app.hour.unwrap_or_else(local_hour);
     let size = (app.win.width * 0.05).clamp(34.0, 46.0);
     let hello_spans: Vec<iced::widget::text::Span<'_, (), iced::Font>> = vec![
@@ -82,50 +82,6 @@ pub fn view(app: &App) -> El<'_> {
     .line_height(iced::widget::text::LineHeight::Relative(1.08));
     let eyebrow = row![grow(), belt_fg(false), txf(spaced(crate::i18n::text("SEU ESPAÇO COM ORION"), 1), 11.0, t::FG3, t::UI_MED), grow()].spacing(t::SP_25).align_y(Vertical::Center);
 
-    let mut status = row![
-        grow(),
-        row![dot_el(t::OK, 6.0), tx(crate::i18n::text("Conectado"), 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center),
-        row![icon("cpu", 14.0, t::FG3), tx(app.p.model_label(), 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center),
-        row![icon("graph", 14.0, t::FG3), tx(match app.mem.nodes.len() { 1 => crate::i18n::text("1 nota no vault").to_string(), n => crate::i18n::formatted("{n} notas no vault", format!("{n} notas no vault")) }, 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center),
-    ];
-    // O horário do backup só aparece nos dados de exemplo: ainda não vem do núcleo.
-    if !app.is_live() {
-        status = status.push(row![icon("clock", 14.0, t::FG3), tx(crate::i18n::text("Backup do vault às 14:00"), 12.0, t::FG3)].spacing(t::SP_15).align_y(Vertical::Center));
-    }
-    let status = status.push(grow()).spacing(t::SP_4).align_y(Vertical::Center);
-
-    let est = |label: &str, lead: f32| 28.0 + lead + label.chars().count() as f32 * 13.0 * 0.5 + 2.0;
-    let mut items: Vec<(f32, El)> = vec![];
-    if let Some((ci, _)) = app.pend_list().first() {
-        let l = crate::i18n::formatted("{} espera você", format!("{} espera você", app.convs[*ci].title));
-        items.push((est(&l, 14.0), sugg(None, true, l, true, Msg::OpenConv(*ci))));
-    }
-    if let Some(bi) = app.convs.iter().position(|c| c.id == "brief") {
-        items.push((est("Ler o briefing da manhã", 24.0), sugg(Some("bell"), false, crate::i18n::text("Ler o briefing da manhã").into(), false, Msg::OpenConv(bi))));
-    }
-    items.push((est("Resumir o vault da semana", 24.0), sugg(Some("book"), false, crate::i18n::text("Resumir o vault da semana").into(), false, Msg::Fill("Resuma o que mudou no vault esta semana"))));
-    items.push((est("Explorar a memória", 24.0), sugg(Some("graph"), false, crate::i18n::text("Explorar a memória").into(), false, Msg::Go(View::Memoria))));
-    let mut lines: Vec<Vec<El>> = vec![vec![]];
-    let mut used = 0.0;
-    for (w, el) in items {
-        if used > 0.0 && used + 8.0 + w > 660.0 {
-            lines.push(vec![]);
-            used = 0.0;
-        }
-        used += if used > 0.0 { 8.0 + w } else { w };
-        if let Some(line) = lines.last_mut() {
-            line.push(el);
-        }
-    }
-    let mut sg = column![].spacing(t::SP_2);
-    for l in lines {
-        let mut r = row![grow()].spacing(t::SP_2).align_y(Vertical::Center);
-        for e in l {
-            r = r.push(e);
-        }
-        sg = sg.push(r.push(grow()));
-    }
-
     // Projetos recentes (F01.24): até três, na ordem da lista; o clique abre a conversa do projeto ou um chat novo nele.
     let mut recent = row![grow(), tx(crate::i18n::text("Projetos recentes"), 12.0, t::FG3)].spacing(t::SP_25).align_y(Vertical::Center);
     for i in recent_projects(app) {
@@ -133,12 +89,33 @@ pub fn view(app: &App) -> El<'_> {
     }
     let recent = recent.push(grow());
 
-    let mut content = column![eyebrow, container(hello).padding(pad(t::SP_1, 0.0, t::SP_6, 0.0)), crate::views::composer::view(app, true), container(status).padding(pad(t::SP_15, 0.0, 0.0, 0.0)), container(sg).padding(pad(t::SP_45, 0.0, 0.0, 0.0))]
+    // presença do Orion acima da saudação (esfera de poeira que respira e reage à voz)
+    // centralizada, logo acima da barra de chat (pedido do Antônio)
+    let sphere = container(iced::widget::canvas(crate::presence::Sphere { engine: &app.presence }).width(Length::Fixed(280.0)).height(Length::Fixed(230.0))).width(Length::Fill).center_x(Length::Fill);
+    // tarefas rápidas: só texto apagado, sem moldura (discreto, pedido do Antônio)
+    let quick_task = |label: &'static str, msg: Msg| -> El<'_> {
+        button(tx(crate::i18n::text(label), 12.0, t::FG3))
+            .padding(pad(t::SP_05, t::SP_15, t::SP_05, t::SP_15))
+            .on_press(msg)
+            .style(|_, st| button::Style { background: None, text_color: t::FG3, border: Border { color: if matches!(st, button::Status::Hovered) { t::LINE2 } else { iced::Color::TRANSPARENT }, width: 1.0, radius: t::R_PILL.into() }, shadow: Default::default(), snap: true })
+            .into()
+    };
+    let mut quick_tasks = row![grow()].spacing(t::SP_1).align_y(Vertical::Center);
+    if let Some(bi) = app.convs.iter().position(|c| c.id == "brief") {
+        quick_tasks = quick_tasks.push(quick_task("Ler o briefing da manhã", Msg::OpenConv(bi)));
+    }
+    quick_tasks = quick_tasks.push(quick_task("Resumir o vault da semana", Msg::Fill("Resuma o que mudou no vault esta semana")));
+    quick_tasks = quick_tasks.push(quick_task("Explorar a memória", Msg::Go(View::Memoria)));
+    let quick_tasks = quick_tasks.push(grow());
+
+    let mut content = column![eyebrow, container(hello).padding(pad(t::SP_1, 0.0, t::SP_2, 0.0)), sphere, crate::views::composer::view(app, true)]
         .spacing(t::SP_3)
         .width(Length::Fixed(660.0));
     if !app.projects.is_empty() {
         content = content.push(container(recent).padding(pad(t::SP_2, 0.0, 0.0, 0.0)));
     }
+    content = content.push(container(quick_tasks).padding(pad(t::SP_1, 0.0, 0.0, 0.0)));
     let c = container(content).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).padding(pad(t::SP_10, t::SP_4, t::SP_14, t::SP_4));
-    stack![sky, c].width(Length::Fill).height(Length::Fill).into()
+    // o fundo de espaço vem do `shell`, atrás da barra do topo também
+    c.into()
 }

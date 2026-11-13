@@ -478,6 +478,7 @@ pub const CMDS: &[(&str, &str)] = &[
     ("/projeto", "Trocar o projeto da conversa"),
     ("/autonomo", "Ligar ou desligar o modo autônomo"),
     ("/tarefa", "Pedir uma tarefa longa em segundo plano"),
+    ("/maestro", "Missão grande: o Maestro divide e distribui entre os agentes"),
     ("/nuvem", "Mandar uma tarefa para o Claude ou o Codex na nuvem"),
     ("/imagem", "Gerar imagem (Gemini)"),
     ("/limpar", "Conversa nova no mesmo projeto"),

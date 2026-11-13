@@ -91,6 +91,7 @@ pub struct AppState {
     pub rotinas: Arc<orion_core::rotinas::RotinaStore>,
     pub executor_rotinas: Option<Arc<orion_core::rotinas::Executor>>,
     pub tarefas_bg: Option<Arc<orion_core::tarefas_bg::TarefasBg>>,
+    pub maestro: Option<Arc<orion_core::maestro::Maestro>>,
     /// `None` sem `ORION_NUVEM=true` (opt-in).
     pub nuvem: Option<Arc<orion_core::nuvem::Nuvem>>,
     pub camera_descrever: Option<CameraDescrever>,
@@ -381,9 +382,32 @@ pub fn memory_from_settings(settings: &Settings) -> anyhow::Result<Store> {
     Ok(s)
 }
 
+/// Uma instância por processo: o gasto do mês fica num só lugar mesmo com o speaker recriado na recarga.
+fn gemini_voice_shared(settings: &Settings) -> Arc<orion_core::gemini_voice::GeminiSpeaker> {
+    static VOICE: std::sync::OnceLock<Arc<orion_core::gemini_voice::GeminiSpeaker>> = std::sync::OnceLock::new();
+    VOICE.get_or_init(|| Arc::new(orion_core::gemini_voice::GeminiSpeaker::new(&settings.data_dir, settings.voice_tts_budget_usd))).clone()
+}
+
+pub fn gemini_voice(settings: &Settings) -> Arc<dyn orion_core::voice::Speaker> {
+    gemini_voice_shared(settings)
+}
+
+/// Gasto da voz Gemini no mês e o teto, se ela estiver em uso.
+pub fn gemini_voice_spend(settings: &Settings) -> Option<(orion_core::gemini_voice::Spend, f64)> {
+    (settings.voice_tts_engine == "gemini").then(|| {
+        let v = gemini_voice_shared(settings);
+        (v.spend(), v.budget_usd())
+    })
+}
+
 pub fn speaker_from_settings(settings: &Settings) -> Option<Arc<dyn orion_core::voice::Speaker>> {
     if !((settings.voice_enabled && (settings.voice_speak || settings.voice_live_enabled)) || settings.telegram_voice_reply) {
         return None;
+    }
+    // Voz do Orion: Gemini (Charon calmo) com chave própria e teto mensal, SEM reserva. Se ficar
+    // indisponível, a fala não sai e o app avisa (decisão do Antônio, 13/11/2026).
+    if settings.voice_tts_engine == "gemini" {
+        return Some(gemini_voice(settings));
     }
     #[cfg(windows)]
     {
@@ -845,6 +869,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         }
         None => (None, None),
     };
+    // Maestro: o Sonnet planeja pela CLI da assinatura e o Orion executa (só lê e propõe)
+    let maestro = agent.as_ref().map(|a| orion_core::maestro::Maestro::new(&settings.data_dir, delegator.clone(), a.clone(), ops.clone(), Some(modos.clone())));
     let ler_depois = Arc::new(orion_core::ler_depois::LerDepois::new(
         memory.clone(),
         settings.vault_dir.clone(),
@@ -1181,6 +1207,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         rotinas,
         executor_rotinas,
         tarefas_bg,
+        maestro,
         nuvem: settings.nuvem.then(|| {
             let pasta = if settings.nuvem_dir.trim().is_empty() { std::env::current_dir().unwrap_or_default() } else { std::path::PathBuf::from(settings.nuvem_dir.trim()) };
             Arc::new(orion_core::nuvem::Nuvem::new(memory.clone(), pasta, settings.codex_env.clone(), 180.0))

@@ -38,6 +38,7 @@ pub mod progresso;
 pub mod subagente;
 pub mod legenda;
 pub mod ler_depois;
+pub mod maestro;
 pub mod mcp_client;
 pub mod mcp_export;
 pub mod mcp_indice;
@@ -78,6 +79,7 @@ pub mod vigia;
 pub mod visao_cli;
 pub mod visao_local;
 pub mod voice;
+pub mod gemini_voice;
 pub mod wake;
 
 pub use config::Settings;

@@ -478,7 +478,7 @@ pub const GRUPOS_TELEGRAM: [(&str, &[&str]); 8] = [
     ("Lembretes e timers", &["lembrete"]),
     ("Agendamentos", &["agendamento"]),
     ("Rotinas", &["rotina"]),
-    ("Tarefas em segundo plano", &["tarefa_bg"]),
+    ("Tarefas em segundo plano", &["tarefa_bg", "maestro"]),
     ("Cota e custos", &["cota"]),
     ("Briefing e resumos", &["briefing", "resumo_diario", "semanal"]),
     ("Água e hora de dormir", &["bem_estar"]),
