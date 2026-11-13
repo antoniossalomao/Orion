@@ -80,6 +80,7 @@ pub use native::*;
 mod duplex;
 #[cfg(windows)]
 pub use duplex::{play_audio,play_interruptible};
+pub mod nivel;
 
 /// Interrupção exige fala sustentada após o AEC, nunca um pico isolado ou palmas.
 pub struct BargeInGate {

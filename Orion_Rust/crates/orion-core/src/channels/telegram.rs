@@ -237,7 +237,8 @@ impl TelegramChannel {
         }
         let bytes = speaker.synthesize(text).await.map_err(|_| terr("síntese indisponível", None))?;
         let mut measure = orion_ai::saidas::medir("telegram", "audio", "", bytes.len(), "audio");
-        let part = reqwest::multipart::Part::bytes(bytes).file_name("orion.mp3").mime_str("audio/mpeg").map_err(|_| terr("tipo inválido", None))?;
+        let (nome, mime) = crate::voice::tipo_do_audio(&bytes[..bytes.len().min(16)]).map(|(n, m)| (if n.ends_with(".wav") { "orion.wav" } else { "orion.mp3" }, m)).unwrap_or(("orion.mp3", "audio/mpeg"));
+        let part = reqwest::multipart::Part::bytes(bytes).file_name(nome).mime_str(mime).map_err(|_| terr("tipo inválido", None))?;
         let response = self
             .client
             .post(format!("{}/bot{}/sendAudio", self.base, self.token))

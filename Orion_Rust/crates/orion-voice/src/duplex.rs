@@ -6,7 +6,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use parking_lot::Mutex;
 use std::collections::VecDeque;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     Arc,
 };
 use std::time::{Duration, Instant};
@@ -70,11 +70,12 @@ struct Playback {
 fn output<T: cpal::SizedSample + cpal::FromSample<f32>>(
     device: &cpal::Device,
     config: cpal::StreamConfig,
-    samples: Vec<f32>,
+    samples: Arc<Vec<f32>>,
     reference: Arc<Mutex<VecDeque<f32>>>,
     done: Arc<AtomicBool>,
     stopped: Arc<AtomicBool>,
     failed: Arc<AtomicBool>,
+    tocado: Arc<AtomicUsize>,
 ) -> anyhow::Result<cpal::Stream> {
     let rate = config.sample_rate;
     let channels = config.channels as usize;
@@ -98,6 +99,7 @@ fn output<T: cpal::SizedSample + cpal::FromSample<f32>>(
                     a + (b - a) * fraction
                 };
                 frame.fill(T::from_sample(sample));
+                tocado.store(position as usize, Ordering::Relaxed);
                 if let Some(value) = resampler.push(sample) {
                     if let Some(queue) = &mut queue {
                         if queue.len() >= REFERENCE_LIMIT {
@@ -118,6 +120,8 @@ fn output<T: cpal::SizedSample + cpal::FromSample<f32>>(
 
 impl Playback {
     fn start(samples: Vec<f32>, reference: Arc<Mutex<VecDeque<f32>>>) -> anyhow::Result<Self> {
+        let samples = Arc::new(samples);
+        let tocado = Arc::new(AtomicUsize::new(0));
         let device = cpal::default_host()
             .default_output_device()
             .ok_or_else(|| anyhow!("saída de áudio ausente"))?;
@@ -127,12 +131,13 @@ impl Playback {
         let stopped = Arc::new(AtomicBool::new(false));
         let failed = Arc::new(AtomicBool::new(false));
         let stream = match supported.sample_format() {
-            cpal::SampleFormat::F32 => output::<f32>(&device, config, samples, reference, done.clone(), stopped.clone(), failed.clone()),
-            cpal::SampleFormat::I16 => output::<i16>(&device, config, samples, reference, done.clone(), stopped.clone(), failed.clone()),
-            cpal::SampleFormat::U16 => output::<u16>(&device, config, samples, reference, done.clone(), stopped.clone(), failed.clone()),
+            cpal::SampleFormat::F32 => output::<f32>(&device, config, samples.clone(), reference, done.clone(), stopped.clone(), failed.clone(), tocado.clone()),
+            cpal::SampleFormat::I16 => output::<i16>(&device, config, samples.clone(), reference, done.clone(), stopped.clone(), failed.clone(), tocado.clone()),
+            cpal::SampleFormat::U16 => output::<u16>(&device, config, samples.clone(), reference, done.clone(), stopped.clone(), failed.clone(), tocado.clone()),
             _ => Err(anyhow!("formato de saída não suportado")),
         }?;
         stream.play()?;
+        medir_enquanto_toca(samples, tocado, done.clone(), stopped.clone(), failed.clone());
         Ok(Self {
             stream,
             done,
@@ -144,6 +149,21 @@ impl Playback {
         self.stopped.store(true, Ordering::SeqCst);
         let _ = self.stream.pause();
     }
+}
+
+/// Publica o nível do que está tocando (~60 vezes por segundo) até a fala acabar.
+fn medir_enquanto_toca(samples: Arc<Vec<f32>>, tocado: Arc<AtomicUsize>, done: Arc<AtomicBool>, stopped: Arc<AtomicBool>, failed: Arc<AtomicBool>) {
+    if !crate::nivel::tem_saida() {
+        return;
+    }
+    let _ = std::thread::Builder::new().name("orion-voz-nivel".into()).spawn(move || {
+        while !done.load(Ordering::Relaxed) && !stopped.load(Ordering::Relaxed) && !failed.load(Ordering::Relaxed) {
+            let pos = tocado.load(Ordering::Relaxed);
+            crate::nivel::publicar(Some(crate::nivel::medir(&samples, pos, RATE)));
+            std::thread::sleep(Duration::from_millis(16));
+        }
+        crate::nivel::publicar(None);
+    });
 }
 
 /// Retorna PCM mono 16 kHz somente se o usuário interrompeu. Pausa/pânico descartam tudo.

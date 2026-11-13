@@ -316,14 +316,17 @@ pub async fn turno_de_voz(
     if let (true, Some(sp), false) = (falar, &speaker, fala.is_empty()) {
         estado_ws(ws, "speaking").await;
         match sp.synthesize(&fala).await {
-            Ok(mp3) => {
+            Ok(audio) => {
                 stats.inc_sintetizados();
-                ws.send_json(json!({"type": "audio", "mime": "audio/mpeg", "bytes": mp3.len()})).await;
-                ws.send_bytes(mp3).await;
+                let mime = tipo_do_audio(&audio[..audio.len().min(16)]).map(|t| t.1).unwrap_or("audio/mpeg");
+                ws.send_json(json!({"type": "audio", "mime": mime, "bytes": audio.len()})).await;
+                ws.send_bytes(audio).await;
             }
             Err(e) => {
                 stats.inc_erros();
                 tracing::warn!("TTS falhou: {e}");
+                // sem voz de reserva: quem pediu por voz fica sabendo que a fala não vai sair
+                ws.send_json(json!({"type": "voice_unavailable", "message": e.to_string()})).await;
             }
         }
     }

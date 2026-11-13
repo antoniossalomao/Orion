@@ -381,9 +381,32 @@ pub fn memory_from_settings(settings: &Settings) -> anyhow::Result<Store> {
     Ok(s)
 }
 
+/// Uma instância por processo: o gasto do mês fica num só lugar mesmo com o speaker recriado na recarga.
+fn voz_gemini_unica(settings: &Settings) -> Arc<orion_core::voz_gemini::GeminiSpeaker> {
+    static VOZ: std::sync::OnceLock<Arc<orion_core::voz_gemini::GeminiSpeaker>> = std::sync::OnceLock::new();
+    VOZ.get_or_init(|| Arc::new(orion_core::voz_gemini::GeminiSpeaker::new(&settings.data_dir, settings.voice_tts_budget_usd))).clone()
+}
+
+pub fn voz_gemini(settings: &Settings) -> Arc<dyn orion_core::voice::Speaker> {
+    voz_gemini_unica(settings)
+}
+
+/// Gasto da voz Gemini no mês e o teto, se ela estiver em uso.
+pub fn voz_gemini_gasto(settings: &Settings) -> Option<(orion_core::voz_gemini::Gasto, f64)> {
+    (settings.voice_tts_engine == "gemini").then(|| {
+        let v = voz_gemini_unica(settings);
+        (v.gasto(), v.orcamento_usd())
+    })
+}
+
 pub fn speaker_from_settings(settings: &Settings) -> Option<Arc<dyn orion_core::voice::Speaker>> {
     if !((settings.voice_enabled && (settings.voice_speak || settings.voice_live_enabled)) || settings.telegram_voice_reply) {
         return None;
+    }
+    // Voz do Orion: Gemini (Charon calmo) com chave própria e teto mensal, SEM reserva. Se ficar
+    // indisponível, a fala não sai e o app avisa (decisão do Antônio, 13/11/2026).
+    if settings.voice_tts_engine == "gemini" {
+        return Some(voz_gemini(settings));
     }
     #[cfg(windows)]
     {

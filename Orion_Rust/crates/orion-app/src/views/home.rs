@@ -133,7 +133,10 @@ pub fn view(app: &App) -> El<'_> {
     }
     let recent = recent.push(grow());
 
-    let mut content = column![eyebrow, container(hello).padding(pad(t::SP_1, 0.0, t::SP_6, 0.0)), crate::views::composer::view(app, true), container(status).padding(pad(t::SP_15, 0.0, 0.0, 0.0)), container(sg).padding(pad(t::SP_45, 0.0, 0.0, 0.0))]
+    // presença do Orion acima da saudação (esfera de poeira que respira e reage à voz)
+    // centralizada, logo acima da barra de chat (pedido do Antônio)
+    let esfera = container(iced::widget::canvas(crate::presenca::Esfera { motor: &app.presenca }).width(Length::Fixed(200.0)).height(Length::Fixed(180.0))).width(Length::Fill).center_x(Length::Fill);
+    let mut content = column![eyebrow, container(hello).padding(pad(t::SP_1, 0.0, t::SP_2, 0.0)), esfera, crate::views::composer::view(app, true), container(status).padding(pad(t::SP_15, 0.0, 0.0, 0.0)), container(sg).padding(pad(t::SP_45, 0.0, 0.0, 0.0))]
         .spacing(t::SP_3)
         .width(Length::Fixed(660.0));
     if !app.projects.is_empty() {

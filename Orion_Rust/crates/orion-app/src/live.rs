@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 
 #[derive(Debug, Clone)]
 pub enum Lm {
+    Voz(Result<Value, String>),
     Boot(Result<bool, String>),
     Initialized(Result<(), String>),
     LanguageSaved(Result<(), String>),
@@ -344,7 +345,8 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
         Sec::Tools => pull_tool_permissions(api),
         Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills), crate::resources::load(api),crate::resources::load_management(api,&["mcp","accounts","calendar","plugins"])]),
         Sec::Automation=>Task::batch([crate::resources::load(api),crate::resources::load_management(api,&["routines","downloads"])]),
-        Sec::Voz | Sec::Camera | Sec::Memoria | Sec::Fontes | Sec::Privacidade | Sec::Sistema => crate::resources::load(api),
+        Sec::Voz => Task::batch([crate::resources::load(api), get("/voz/estado", Lm::Voz), get("/config/chaves", Lm::Keys)]),
+        Sec::Camera | Sec::Memoria | Sec::Fontes | Sec::Privacidade | Sec::Sistema => crate::resources::load(api),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
         Sec::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
         Sec::Modelos => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget), get("/config/chaves", Lm::Keys)]),
@@ -783,7 +785,9 @@ impl App {
             Msg::Go(v) => Some((pull_page(&api, *v), true)),
             Msg::Poll => {
                 let extra = if self.view == View::Nuvem { pull_page(&api, View::Nuvem) } else if self.set_open && self.sec == Sec::Locais { pull_sec(&api, Sec::Locais) } else { Task::none() };
-                Some((Task::batch([pull_basic(&api), extra]), false))
+                let a2 = api.clone();
+                let voz = Task::perform(async move { a2.get("/voz/estado").await }, |r| Msg::L(Lm::Voz(r)));
+                Some((Task::batch([pull_basic(&api), extra, voz]), false))
             }
             Msg::OpenSettings(Some(sec)) | Msg::SetSec(sec) => Some((pull_sec(&api, *sec), true)),
             Msg::NuvemTrazer(i) => {
@@ -1311,6 +1315,19 @@ impl App {
                             form.error = result.err().unwrap_or_else(|| "Resposta inesperada. Confira a lista de projetos antes de tentar de novo.".into());
                         }
                     }
+                }
+            }
+            Lm::Voz(r) => {
+                if let Ok(v) = r {
+                    let seq = v["aviso_seq"].as_u64().unwrap_or(0);
+                    // mostra o aviso de voz indisponível uma vez por ocorrência nova
+                    if seq != self.voz_aviso_seq {
+                        self.voz_aviso_seq = seq;
+                        if let Some(msg) = v["aviso"].as_str() {
+                            self.toast(msg);
+                        }
+                    }
+                    self.voz = Some(v);
                 }
             }
             Lm::Keys(r) => {

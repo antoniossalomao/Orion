@@ -340,6 +340,10 @@ pub struct App {
     pub user: String,
     pub window_active: bool,
     pub sky_frame: crate::sky_frame::SkyFrame,
+    /// Esfera de presença do Orion (tela inicial e ilha de voz).
+    pub presenca: crate::presenca::Motor,
+    /// Último aviso de voz indisponível já mostrado (`seq` de `/voz/estado`).
+    pub voz_aviso_seq: u64,
     pub system_reduces_motion: bool,
     pub loading: Option<String>,
     pub message_heights: std::collections::HashMap<(String, usize), f32>,
@@ -402,6 +406,8 @@ pub struct App {
     pub imgs_pedidas: std::collections::HashSet<String>,
     /// Quais chaves de provedor já estão no cofre (só sim/não).
     pub keys: std::collections::BTreeMap<String, bool>,
+    /// `/voz/estado`: chave, gasto do mês e aviso de voz indisponível.
+    pub voz: Option<serde_json::Value>,
     pub request_id: u64,
     pub facts: Vec<data::Fact>,
     pub edit_fact: Option<(usize, String)>,
@@ -790,6 +796,8 @@ pub enum Msg {
     MemLocal(usize),
     // janela
     Tick(Instant),
+    /// Quadro da esfera de presença (~30 por segundo, só com ela visível).
+    Presenca(Instant),
     WindowActive(bool),
     BootProgress,
     MessageSize(String, usize, f32),
@@ -828,6 +836,8 @@ impl App {
             user: std::env::var("ORION_USER").ok().filter(|s| !s.trim().is_empty()).unwrap_or_default(),
             window_active: true,
             sky_frame: crate::sky_frame::SkyFrame::new(Size::new(1439.0 * 100.0 / 205.0, 862.0), 1.0),
+            presenca: crate::presenca::Motor::default(),
+            voz_aviso_seq: 0,
             dpi: 1.0,
             system_reduces_motion: crate::sky_frame::system_reduces_motion(),
             loading: None,
@@ -877,6 +887,7 @@ impl App {
             artifact_busy: false,
             imgs_pedidas: std::collections::HashSet::new(),
             keys: std::collections::BTreeMap::new(),
+            voz: None,
             request_id: 0,
             facts: data::facts(),
             edit_fact: None,
@@ -1046,7 +1057,34 @@ impl App {
         let hud = if self.window_active && self.island.busy() && self.island.shows_hud() { iced::time::every(Duration::from_millis(250)).map(|_| Msg::Face(crate::island::FaceMsg::PreviewTick)) } else { Subscription::none() };
         // módulo de câmera: último quadro a cada ~66 ms, só com o módulo aberto
         let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
-        Subscription::batch([sky_tick, tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress,resources])
+        let presenca = if self.window_active && !self.fundo && !self.mini && self.presenca_visivel() { iced::time::every(Duration::from_millis(33)).map(Msg::Presenca) } else { Subscription::none() };
+        Subscription::batch([sky_tick, tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress, resources, presenca])
+    }
+
+    /// A esfera aparece na tela inicial e na ilha de voz.
+    pub fn presenca_visivel(&self) -> bool {
+        self.logged && self.onboarding.is_none() && (self.view == View::Home || self.voice)
+    }
+
+    /// Estado da esfera a partir do que o Orion está fazendo agora.
+    pub fn presenca_estado(&self) -> crate::presenca::Estado {
+        use crate::presenca::Estado;
+        let audio = self.resources.audio.as_ref().and_then(|v| v["status"].as_str()).unwrap_or("");
+        match audio {
+            "speaking" => return Estado::Falando,
+            "recording" => return Estado::Ouvindo,
+            "thinking" | "transcribing" => return Estado::Pensando,
+            _ => {}
+        }
+        if self.mic_rec {
+            Estado::Ouvindo
+        } else if self.streaming.is_some() {
+            Estado::Pensando
+        } else if !self.pend_list().is_empty() {
+            Estado::Aguarda
+        } else {
+            Estado::Repouso
+        }
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
@@ -1137,7 +1175,7 @@ impl App {
     fn update_core(&mut self, msg: Msg) -> Task<Msg> {
         if let Msg::Resources(event)=msg { return self.update_resources(event); }
         let _timing = Timing::new("update", self.view);
-        if !matches!(&msg, Msg::Tick(_) | Msg::SkyTick(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
+        if !matches!(&msg, Msg::Tick(_) | Msg::SkyTick(_) | Msg::Presenca(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
         if let Msg::Face(m) = msg { return self.update_face(m); }
         if let Msg::Camera(m) = msg { return self.update_camera(m); }
@@ -1236,6 +1274,10 @@ impl App {
             self.short_edit = None;
         }
         match msg {
+            Msg::Presenca(now) => {
+                self.presenca.estado = self.presenca_estado();
+                self.presenca.avancar(now, self.p.reduced || self.system_reduces_motion);
+            }
             Msg::Tick(now) => {
                 // F05.01: a fila segue sozinha quando o upload ou a resposta anterior terminar.
                 if !self.queued.is_empty() && self.streaming.is_none() && !self.attaching {
@@ -1448,7 +1490,7 @@ impl App {
             }
             Msg::KeyOpen(nome) => {
                 if self.key_form.as_ref().is_some_and(|f| f.busy) { return Task::none(); }
-                let label = crate::onboarding::PROVIDERS.iter().find(|p| p.2 == nome).map(|p| p.1.to_string()).unwrap_or_else(|| nome.clone());
+                let label = if nome == "ORION_VOZ_GEMINI_KEY" { "Voz do Orion".to_string() } else { crate::onboarding::PROVIDERS.iter().find(|p| p.2 == nome).map(|p| p.1.to_string()).unwrap_or_else(|| nome.clone()) };
                 self.key_form = Some(KeyForm { nome, label, value: String::new(), busy: false, error: String::new() });
                 return iced::widget::operation::focus("api-key");
             }

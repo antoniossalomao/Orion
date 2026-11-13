@@ -917,6 +917,8 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     let fundo = fundo && !trancado && !primeiro_uso;
     // Atualização que ficou guardada (o fechamento anterior não chegou a trocar): troca já; vale na próxima abertura.
     instalar_atualizacao_guardada("na abertura");
+    // a esfera de presença reage ao som que o Orion fala (mesmo processo, sem rede)
+    orion_voice::nivel::ao_nivel(orion_app::presenca::publicar);
     let r = orion_app::run::run_ui(Some(api), None, fundo);
     if let Some(n) = slot.lock().take() {
         if let Some(backup) = n.backup.lock().take() {

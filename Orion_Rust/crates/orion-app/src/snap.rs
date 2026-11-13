@@ -119,6 +119,17 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
     push("02-inicio", cena(|a| {
         a.update(Msg::NewChat);
     }));
+    // esfera de presença no meio da fala (nível de voz simulado, quadro avançado ~1,5 s)
+    push("02b-inicio-falando", cena(|a| {
+        a.update(Msg::NewChat);
+        a.presenca.estado = crate::presenca::Estado::Falando;
+        let t0 = std::time::Instant::now();
+        for i in 0..90u64 {
+            crate::presenca::publicar(Some([0.9, 0.7, 0.8, 0.5, 0.6, 0.4, 0.3, 0.2]));
+            a.presenca.avancar(t0 + std::time::Duration::from_millis(16 * i), false);
+        }
+        crate::presenca::publicar(None);
+    }));
     push("03-chat-ram", cena(|a| {
         a.update(Msg::OpenConv(0));
     }));
