@@ -91,6 +91,7 @@ pub struct AppState {
     pub rotinas: Arc<orion_core::rotinas::RotinaStore>,
     pub executor_rotinas: Option<Arc<orion_core::rotinas::Executor>>,
     pub tarefas_bg: Option<Arc<orion_core::tarefas_bg::TarefasBg>>,
+    pub maestro: Option<Arc<orion_core::maestro::Maestro>>,
     /// `None` sem `ORION_NUVEM=true` (opt-in).
     pub nuvem: Option<Arc<orion_core::nuvem::Nuvem>>,
     pub camera_descrever: Option<CameraDescrever>,
@@ -314,13 +315,40 @@ pub fn transcriber_from_settings(settings: &Settings) -> Option<orion_ai::transc
         None
     };
     #[cfg(windows)]
-    if let Some(model) = &settings.local_stt_model {
-        match orion_core::native_audio::transcriber(model, settings.local_stt_gpu, fallback.clone()) {
+    if let Some(model) = settings.local_stt_model.clone().or_else(|| discover_stt_model(settings)) {
+        match orion_core::native_audio::transcriber(&model, settings.local_stt_gpu, fallback.clone()) {
             Ok(t) => return Some(t),
             Err(_) => tracing::warn!("Whisper local indisponível; confira o modelo e a GPU"),
         }
     }
     fallback
+}
+
+/// O Whisper baixado pela tela de Modelos só vai para o disco: nada grava `local_stt_model`. Procura o
+/// arquivo do catálogo (tamanho conferido) nas pastas de modelos para a voz achar o que já foi baixado.
+#[cfg(windows)]
+fn discover_stt_model(settings: &Settings) -> Option<std::path::PathBuf> {
+    let mut dirs = vec![settings.data_dir.join("modelos")];
+    if let Some(d) = settings.local_model_path.as_ref().and_then(|p| p.parent()) {
+        dirs.push(d.to_path_buf());
+    }
+    let manifesto = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.join("orion-install.json")));
+    if let Some(d) = manifesto
+        .and_then(|m| std::fs::read(m).ok())
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+        .and_then(|v| v["models_dir"].as_str().map(std::path::PathBuf::from))
+    {
+        dirs.push(d);
+    }
+    for artifact in orion_local::catalog::all().into_iter().filter(|a| a.kind == "stt") {
+        for dir in &dirs {
+            let path = dir.join(&artifact.filename);
+            if path.metadata().is_ok_and(|m| m.len() == artifact.bytes) {
+                return Some(path);
+            }
+        }
+    }
+    None
 }
 
 /// Sem chave de API, sem embeddings: a busca segue só por palavra-chave.
@@ -354,13 +382,64 @@ pub fn memory_from_settings(settings: &Settings) -> anyhow::Result<Store> {
     Ok(s)
 }
 
+/// Uma instância por processo: o gasto do mês fica num só lugar mesmo com o speaker recriado na recarga.
+fn gemini_voice_shared(settings: &Settings) -> Arc<orion_core::gemini_voice::GeminiSpeaker> {
+    static VOICE: std::sync::OnceLock<Arc<orion_core::gemini_voice::GeminiSpeaker>> = std::sync::OnceLock::new();
+    VOICE.get_or_init(|| Arc::new(orion_core::gemini_voice::GeminiSpeaker::new(&settings.data_dir, settings.voice_tts_budget_usd))).clone()
+}
+
+pub fn gemini_voice(settings: &Settings) -> Arc<dyn orion_core::voice::Speaker> {
+    gemini_voice_shared(settings)
+}
+
+/// Gasto da voz Gemini no mês e o teto, se ela estiver em uso.
+pub fn gemini_voice_spend(settings: &Settings) -> Option<(orion_core::gemini_voice::Spend, f64)> {
+    (settings.voice_tts_engine == "gemini").then(|| {
+        let v = gemini_voice_shared(settings);
+        (v.spend(), v.budget_usd())
+    })
+}
+
 pub fn speaker_from_settings(settings: &Settings) -> Option<Arc<dyn orion_core::voice::Speaker>> {
     if !((settings.voice_enabled && (settings.voice_speak || settings.voice_live_enabled)) || settings.telegram_voice_reply) {
         return None;
     }
+    // Voz do Orion: Gemini (Charon calmo) com chave própria e teto mensal, SEM reserva. Se ficar
+    // indisponível, a fala não sai e o app avisa (decisão do Antônio, 13/11/2026).
+    if settings.voice_tts_engine == "gemini" {
+        return Some(gemini_voice(settings));
+    }
     #[cfg(windows)]
-    if orion_core::util::which("edge-tts").is_none(){return Some(Arc::new(orion_core::voice::WindowsSpeaker));}
+    {
+        let windows: Arc<dyn orion_core::voice::Speaker> = Arc::new(orion_core::voice::WindowsSpeaker);
+        if orion_core::util::which("edge-tts").is_none() {
+            return Some(windows);
+        }
+        let edge: Arc<dyn orion_core::voice::Speaker> = Arc::new(orion_core::voice::EdgeSpeaker::new(&settings.voice_tts_voice, 30.0));
+        return Some(Arc::new(SpeakerComReserva { primario: edge, reserva: windows }));
+    }
+    #[cfg(not(windows))]
     Some(Arc::new(orion_core::voice::EdgeSpeaker::new(&settings.voice_tts_voice, 30.0)))
+}
+
+/// Voz do Edge primeiro; se falhar (sem rede, limite do serviço), cai na voz instalada no Windows
+/// para a resposta nunca ficar muda.
+#[cfg(windows)]
+struct SpeakerComReserva {
+    primario: Arc<dyn orion_core::voice::Speaker>,
+    reserva: Arc<dyn orion_core::voice::Speaker>,
+}
+
+#[cfg(windows)]
+impl orion_core::voice::Speaker for SpeakerComReserva {
+    fn synthesize<'a>(&'a self, text: &'a str) -> futures::future::BoxFuture<'a, Result<Vec<u8>, orion_core::voice::SpeakError>> {
+        Box::pin(async move {
+            match self.primario.synthesize(text).await {
+                Ok(audio) => Ok(audio),
+                Err(_) => self.reserva.synthesize(text).await,
+            }
+        })
+    }
 }
 
 pub fn camera_from_settings(
@@ -790,6 +869,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         }
         None => (None, None),
     };
+    // Maestro: o Sonnet planeja pela CLI da assinatura e o Orion executa (só lê e propõe)
+    let maestro = agent.as_ref().map(|a| orion_core::maestro::Maestro::new(&settings.data_dir, delegator.clone(), a.clone(), ops.clone(), Some(modos.clone())));
     let ler_depois = Arc::new(orion_core::ler_depois::LerDepois::new(
         memory.clone(),
         settings.vault_dir.clone(),
@@ -1126,6 +1207,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         rotinas,
         executor_rotinas,
         tarefas_bg,
+        maestro,
         nuvem: settings.nuvem.then(|| {
             let pasta = if settings.nuvem_dir.trim().is_empty() { std::env::current_dir().unwrap_or_default() } else { std::path::PathBuf::from(settings.nuvem_dir.trim()) };
             Arc::new(orion_core::nuvem::Nuvem::new(memory.clone(), pasta, settings.codex_env.clone(), 180.0))
@@ -1174,25 +1256,30 @@ fn listen_from_settings(
         if !settings.wake_enabled && !settings.clap_enabled {
             return None;
         }
-        let detector: Box<dyn Detector> = if settings.wake_enabled {
+        // (REGRAS.md: palmas só abrem; nunca aprovam nem executam) As palmas não dependem da palavra de
+        // ativação: se faltar o modelo da palavra, o motor ou o agente, a escuta segue só com as palmas.
+        let mut wake_on = settings.wake_enabled;
+        let mut detector: Box<dyn Detector> = Box::new(DetectorInerte);
+        if wake_on {
             if settings.wake_engine != "openwakeword" {
-                tracing::warn!("escuta Rust exige ORION_WAKE_ENGINE=openwakeword");
-                return None;
-            }
-            let Some(model) = &settings.wake_model else {
-                tracing::warn!("escuta desligada: falta modelo ONNX treinado para Orion");
-                return None;
-            };
-            match orion_core::native_audio::OpenWakeWord::load(model, settings.wake_threshold as f32) {
-                Ok(d) => Box::new(d),
-                Err(_) => {
-                    tracing::warn!("escuta desligada: modelo openWakeWord inválido");
-                    return None;
+                tracing::warn!("palavra de ativação desligada: exige ORION_WAKE_ENGINE=openwakeword");
+                wake_on = false;
+            } else if let Some(model) = &settings.wake_model {
+                match orion_core::native_audio::OpenWakeWord::load(model, settings.wake_threshold as f32) {
+                    Ok(d) => detector = Box::new(d),
+                    Err(_) => {
+                        tracing::warn!("palavra de ativação desligada: modelo openWakeWord inválido");
+                        wake_on = false;
+                    }
                 }
+            } else {
+                tracing::warn!("palavra de ativação desligada: falta modelo ONNX treinado para Orion");
+                wake_on = false;
             }
-        } else {
-            Box::new(DetectorInerte)
-        };
+        }
+        if !wake_on && !settings.clap_enabled {
+            return None;
+        }
         let device = settings.wake_device.clone();
         let source: SourceFactory = Arc::new(move || orion_core::native_audio::CpalSource::open(&device).map(|s| Box::new(s) as Box<dyn AudioSource>));
         let config = WakeConfig {
@@ -1205,16 +1292,25 @@ fn listen_from_settings(
             clap_ratio: settings.clap_ratio,
             ..Default::default()
         };
-        let listener = if settings.wake_enabled {
-            let (Some(agent), Some(transcriber)) = (agent, transcriber) else {
-                tracing::warn!("voz desligada: configure agente e transcrição local");
-                return None;
-            };
-            WakeListener::from_runtime(detector, source, agent, transcriber, speaker, memory, config, None, None, Some(modos.clone()))
-        } else {
-            Arc::new(WakeListener::new(detector, source, Arc::new(|_| {}), Some(memory), config, None))
+        // Toca a fala pela saída de áudio do próprio Orion (sem depender de ffplay/mpv/mpg123 no PATH).
+        let play: PlayFn = Arc::new(|audio: &[u8]| orion_voice::play_audio(audio, &|| false).is_ok());
+        let runtime = if wake_on { agent.zip(transcriber) } else { None };
+        let (listener, wake_on) = match runtime {
+            Some((agent, transcriber)) => (
+                WakeListener::from_runtime(detector, source, agent, transcriber, speaker, memory, config, None, Some(play), Some(modos.clone())),
+                true,
+            ),
+            None => {
+                if wake_on {
+                    tracing::warn!("palavra de ativação desligada: configure agente e transcrição local; palmas seguem ativas");
+                }
+                if !settings.clap_enabled {
+                    return None;
+                }
+                (Arc::new(WakeListener::new(Box::new(DetectorInerte), source, Arc::new(|_| {}), Some(memory), config, None)), false)
+            }
         };
-        if settings.wake_enabled && settings.voice_barge_in {
+        if wake_on && settings.voice_barge_in {
             let device = settings.wake_device.clone();
             let delay = settings.voice_aec_delay_ms;
             *listener.interruptible_player.lock() = Some(Arc::new(move |mp3, noise_threshold, abort| {

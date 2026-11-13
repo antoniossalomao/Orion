@@ -238,41 +238,199 @@ fn rotinas(app: &App) -> El<'_> {
 }
 
 fn nuvem(app: &App) -> El<'_> {
-    let mut rows = vec![];
+    // linhas quietas: ponto ou spinner na coluna fixa, título, metadado em uma linha e ações à direita
+    let mut rows: Vec<El> = vec![];
+    let lead_spin = || -> El { container(spinner(app.spin, 10.0)).width(Length::Fixed(t::SP_4)).height(Length::Fixed(t::SP_5)).center_y(Length::Fixed(t::SP_5)).into() };
     for (i, c) in app.cloud.iter().enumerate() {
-        let right: Vec<El> = if c.running {
-            vec![container(row![spinner(app.spin, 10.0), txf(crate::i18n::text("rodando"), 11.0, t::SIGNAL, t::UI_MED)].spacing(t::SP_1).align_y(Vertical::Center)).padding(pad(t::SP_PX, t::SP_2, t::SP_PX, t::SP_2)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into(), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
+        let (lead, state, color, mut actions): (El, String, iced::Color, Vec<El>) = if c.running {
+            (lead_spin(), crate::i18n::text("rodando").to_string(), t::ACCENT, vec![btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::CloudCancel(i)))])
         } else if c.proj == "na_fila" {
             // F04.21: até 3 tarefas rodam juntas; a fila espera a vez e pode ser cancelada
-            vec![badge(crate::i18n::text("na fila"), Tone::Info), btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::CloudCancel(i)))]
+            (status_dot(t::FG4), crate::i18n::text("na fila").to_string(), t::FG3, vec![btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::CloudCancel(i)))])
         } else {
-            let tone = match c.proj.as_str() {
-                "concluída" | "concluida" => Tone::Ok,
-                "falhou" | "erro" => Tone::Err,
-                _ => Tone::Plain,
+            let color = match c.proj.as_str() {
+                "falhou" | "erro" => t::DANGER,
+                _ => t::FG3,
             };
-            vec![badge(&c.proj, tone)]
+            (status_dot(if color == t::DANGER { t::DANGER } else { t::FG4 }), c.proj.clone(), color, vec![])
         };
-        let desc = if c.link.is_empty() { c.at.clone() } else { format!("{} · {}", c.at, c.link) };
-        rows.push(li(column![li_title(vec![badge(&c.svc, Tone::Info), tx(c.t.clone(), 14.0, t::FG).into()]), li_desc(desc)].into(), li_right(right)));
+        let meta = if c.link.is_empty() { format!("{} · {}", c.svc, c.at) } else { format!("{} · {} · {}", c.svc, c.at, c.link) };
+        actions.insert(0, txf(state, 12.0, color, t::UI_MED).into());
+        rows.push(task_row(lead, c.t.clone(), meta, actions));
     }
     for (svc, t_) in &app.cloud_extra {
-        rows.push(li(column![li_title(vec![badge(svc, Tone::Info), tx(t_.clone(), 14.0, t::FG).into()]), li_desc("Orion · agora · enviada")].into(), li_right(vec![container(row![spinner(app.spin, 10.0), txf(crate::i18n::text("rodando"), 11.0, t::SIGNAL, t::UI_MED)].spacing(t::SP_1).align_y(Vertical::Center)).padding(pad(t::SP_PX, t::SP_2, t::SP_PX, t::SP_2)).style(surface(Some(t::SIGNAL_SOFT), None, 999.0)).into()])));
+        rows.push(task_row(lead_spin(), t_.clone(), format!("{svc} · agora"), vec![txf(crate::i18n::text("rodando"), 12.0, t::ACCENT, t::UI_MED).into()]));
     }
     for (i, n) in app.nuvem.iter().enumerate() {
-        let tone = match n.estado.as_str() {
-            "ready" | "concluída" | "concluida" => Tone::Ok,
-            "error" | "failed" | "erro" => Tone::Err,
-            _ => Tone::Plain,
-        };
-        let desc = if n.url.is_empty() { "nuvem".to_string() } else { crate::i18n::formatted("nuvem · {}", format!("nuvem · {}", n.url)) };
-        let acoes = vec![badge(&n.estado, tone), btn(crate::i18n::text("Trazer"), Kind::Normal, true, None, Some(Msg::NuvemTrazer(i))), btn(crate::i18n::text("Descartar"), Kind::Normal, true, None, Some(Msg::NuvemDescartar(i)))];
-        rows.push(li(column![li_title(vec![badge(&n.svc, Tone::Info), tx(n.t.clone(), 14.0, t::FG).into()]), li_desc(desc)].into(), li_right(acoes)));
+        let failed = matches!(n.estado.as_str(), "error" | "failed" | "erro");
+        let meta = if n.url.is_empty() { format!("{} · nuvem", n.svc) } else { format!("{} · {}", n.svc, n.url) };
+        let actions = vec![
+            txf(n.estado.clone(), 12.0, if failed { t::DANGER } else { t::FG3 }, t::UI_MED).into(),
+            btn(crate::i18n::text("Trazer"), Kind::Normal, true, None, Some(Msg::NuvemTrazer(i))),
+            btn(crate::i18n::text("Descartar"), Kind::Ghost, true, None, Some(Msg::NuvemDescartar(i))),
+        ];
+        rows.push(task_row(status_dot(if failed { t::DANGER } else { t::FG4 }), n.t.clone(), meta, actions));
     }
-    if rows.is_empty() {
-        rows.push(li(column![li_title(vec![tx(crate::i18n::text("Nenhuma tarefa ainda"), 14.0, t::FG3).into()]), li_desc("Peça com /tarefa: o Orion segue sozinho, só lê e propõe, e avisa quando terminar.")].into(), li_right(vec![])));
+    let rows: El = if rows.is_empty() {
+        container(column![tx(crate::i18n::text("Nenhuma tarefa ainda"), 14.0, t::FG2), li_desc("Peça com /tarefa: o Orion segue sozinho, só lê e propõe, e avisa quando terminar.")].spacing(t::SP_1)).padding(pad(t::SP_4, t::SP_4, t::SP_4, t::SP_4)).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE), t::R_CARD)).into()
+    } else {
+        let mut col = column![];
+        let n = rows.len();
+        for (k, r) in rows.into_iter().enumerate() {
+            col = col.push(r);
+            if k + 1 < n {
+                col = col.push(container(hline()).padding(pad(0.0, t::SP_4, 0.0, t::SP_10)));
+            }
+        }
+        container(col).width(Length::Fill).style(surface(Some(t::RAISE), Some(t::LINE), t::R_CARD)).into()
+    };
+    let tasks_head = container(txf(crate::i18n::text("Tarefas"), t::TEXT_BASE + 2.0, t::FG, t::UI_MED)).padding(pad(t::SP_2, t::SP_1, t::SP_2, t::SP_1));
+    let body: El = if app.maestro.is_empty() { rows } else { column![maestro_section(app), tasks_head, rows].into() };
+    page(crate::i18n::text("Segundo plano"), crate::i18n::text("Tarefas longas que o Orion faz sozinho: só lê e propõe, dentro do tempo e dos passos que você deu. Crie com /tarefa."), Some(btn(crate::i18n::text("Nova tarefa"), Kind::Normal, true, Some("cloud"), Some(Msg::CloudNew))), body)
+}
+
+/// Estado de missão ou etapa do Maestro: rótulo e cor do ponto. A cor só aparece no que pede atenção
+/// (rodando, esperando você, falhou); o resto fica neutro.
+fn maestro_status(state: &str) -> (&'static str, iced::Color) {
+    match state {
+        "planejando" => (crate::i18n::text("planejando"), t::ACCENT),
+        "aguarda_aprovacao" => (crate::i18n::text("aguarda aprovação"), t::SIGNAL),
+        "rodando" => (crate::i18n::text("rodando"), t::ACCENT),
+        "integrando" => (crate::i18n::text("juntando"), t::ACCENT),
+        "concluida" | "ok" => (crate::i18n::text("concluída"), t::FG3),
+        "falhou" => (crate::i18n::text("falhou"), t::DANGER),
+        "cancelada" => (crate::i18n::text("cancelada"), t::FG4),
+        "interrompida" => (crate::i18n::text("interrompida"), t::SIGNAL),
+        "pulada" => (crate::i18n::text("pulada"), t::FG4),
+        _ => (crate::i18n::text("pendente"), t::FG4),
     }
-    page(crate::i18n::text("Segundo plano"), crate::i18n::text("Tarefas longas que o Orion faz sozinho: só lê e propõe, dentro do tempo e dos passos que você deu. Crie com /tarefa."), Some(btn(crate::i18n::text("Nova tarefa"), Kind::Normal, true, Some("cloud"), Some(Msg::CloudNew))), list(rows))
+}
+
+fn effort_label(effort: &str) -> &'static str {
+    match effort {
+        "baixo" => crate::i18n::text("baixo"),
+        "alto" => crate::i18n::text("alto"),
+        _ => crate::i18n::text("médio"),
+    }
+}
+
+/// Ponto de estado de 6 px numa caixa fixa, para alinhar a coluna.
+fn status_dot<'a>(color: iced::Color) -> El<'a> {
+    let dot = container(sp_w(0.0)).width(Length::Fixed(6.0)).height(Length::Fixed(6.0)).style(surface(Some(color), None, 3.0));
+    container(dot).width(Length::Fixed(t::SP_4)).height(Length::Fixed(t::SP_5)).center_y(Length::Fixed(t::SP_5)).into()
+}
+
+/// Marca de etapa na linha do tempo: feita, rodando, falhou ou por fazer.
+fn step_mark<'a>(app: &App, state: &str) -> El<'a> {
+    let mark: El = match state {
+        "ok" => icon("check", 12.0, t::FG2).into(),
+        "rodando" => spinner(app.spin, 10.0),
+        "falhou" => icon("close", 12.0, t::DANGER).into(),
+        _ => container(sp_w(0.0)).width(Length::Fixed(6.0)).height(Length::Fixed(6.0)).style(surface(None, Some(t::FG4), 3.0)).into(),
+    };
+    container(mark).width(Length::Fixed(t::SP_4)).height(Length::Fixed(t::SP_5)).center_x(Length::Fixed(t::SP_4)).center_y(Length::Fixed(t::SP_5)).into()
+}
+
+/// Linha de tarefa: marca na coluna fixa, título, metadado e ações alinhadas ao centro.
+fn task_row<'a>(lead: El<'a>, title: String, meta: String, actions: Vec<El<'a>>) -> El<'a> {
+    let text = column![tx(title, t::TEXT_BASE, t::FG), txf(meta, 12.0, t::FG3, t::UI)].spacing(t::SP_05).width(Length::Fill);
+    container(row![lead, text, row(actions).spacing(t::SP_2).align_y(Vertical::Center)].spacing(t::SP_2).align_y(Vertical::Center)).padding(pad(t::SP_3, t::SP_4, t::SP_3, t::SP_3)).width(Length::Fill).into()
+}
+
+/// Barra fina de progresso (etapas concluídas sobre o total).
+fn progress_line<'a>(done: usize, total: usize, color: iced::Color) -> El<'a> {
+    let track = |c: iced::Color| container(sp_w(0.0)).height(Length::Fixed(2.0)).style(surface(Some(c), None, 1.0));
+    let (d, rest) = (done.min(total) as u16, total.saturating_sub(done) as u16);
+    let mut r = row![].width(Length::Fill);
+    if d > 0 {
+        r = r.push(track(color).width(Length::FillPortion(d)));
+    }
+    if rest > 0 {
+        r = r.push(track(t::LINE2).width(Length::FillPortion(rest)));
+    }
+    r.into()
+}
+
+/// Seção do Maestro: cada missão é um bloco com o pedido, o estado, o progresso e, aberta, a
+/// linha do tempo das etapas (agente e esforço em mono) e o resultado em markdown.
+fn maestro_section(app: &App) -> El<'_> {
+    let head = row![
+        column![
+            txf("Maestro", t::TEXT_BASE + 2.0, t::FG, t::UI_MED),
+            tx(crate::i18n::text("O Sonnet divide o pedido, distribui entre os agentes e junta o resultado. Plano com CLI espera sua aprovação."), 12.5, t::FG3),
+        ]
+        .spacing(t::SP_1)
+        .width(Length::Fill),
+    ]
+    .align_y(Vertical::Top)
+    .spacing(t::SP_3);
+    let mut col = column![container(head).padding(pad(0.0, t::SP_1, t::SP_2, t::SP_1))].spacing(t::SP_2);
+    for m in &app.maestro {
+        col = col.push(mission_card(app, m));
+    }
+    container(col).padding(pad(0.0, 0.0, t::SP_4, 0.0)).into()
+}
+
+fn mission_card<'a>(app: &'a App, m: &'a serde_json::Value) -> El<'a> {
+    let s = |k: &str| m[k].as_str().unwrap_or("").to_string();
+    let (id, state) = (s("id"), s("estado"));
+    let (label, color) = maestro_status(&state);
+    let active = ["planejando", "rodando", "integrando"].contains(&state.as_str());
+    let open = app.maestro_open.as_deref() == Some(id.as_str());
+    let steps = m["subtarefas"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    let done = steps.iter().filter(|x| x["estado"] == "ok").count();
+
+    let mut actions = row![].spacing(t::SP_1).align_y(Vertical::Center);
+    if ["aguarda_aprovacao", "interrompida"].contains(&state.as_str()) {
+        actions = actions.push(btn(crate::i18n::text("Aprovar"), Kind::Primary, true, None, Some(Msg::MaestroApprove(id.clone()))));
+    }
+    if active || state == "aguarda_aprovacao" {
+        actions = actions.push(btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::MaestroCancel(id.clone()))));
+    } else {
+        actions = actions.push(tip(ib("trash", Some(Msg::MaestroDelete(id.clone())), false), crate::i18n::text("Apagar")));
+    }
+    actions = actions.push(tip(ib(if open { "chevD" } else { "chevR" }, Some(Msg::MaestroToggle(id.clone())), false), crate::i18n::text(if open { "Fechar" } else { "Ver" })));
+
+    // estado · etapas · resumo, numa linha só de metadado
+    let mut meta = row![txf(label, 12.0, if color == t::FG4 || color == t::FG3 { t::FG3 } else { color }, t::UI_MED)].spacing(t::SP_2).align_y(Vertical::Center);
+    if !steps.is_empty() {
+        meta = meta.push(txf(format!("{done}/{}", steps.len()), 12.0, t::FG3, t::MONO));
+    }
+    let summary = s("resumo");
+    if !summary.is_empty() {
+        meta = meta.push(tx(summary, 12.0, t::FG3).wrapping(text::Wrapping::None));
+    }
+
+    let title = column![tx(s("pedido"), t::TEXT_BASE, t::FG).line_height(text::LineHeight::Relative(1.4)), meta].spacing(t::SP_1).width(Length::Fill);
+    let top = row![if active { container(spinner(app.spin, 10.0)).width(Length::Fixed(t::SP_4)).height(Length::Fixed(t::SP_5)).center_y(Length::Fixed(t::SP_5)).into() } else { status_dot(color) }, title, actions].spacing(t::SP_2).align_y(Vertical::Top);
+    let mut body = column![top].spacing(t::SP_3);
+    if !steps.is_empty() && !["concluida", "cancelada"].contains(&state.as_str()) {
+        body = body.push(container(progress_line(done, steps.len(), if state == "falhou" { t::DANGER } else { t::ACCENT })).padding(pad(0.0, 0.0, 0.0, t::SP_6)));
+    }
+    if open {
+        let mut timeline = column![].spacing(t::SP_1);
+        for x in steps {
+            let xs = |k: &str| x[k].as_str().unwrap_or("").to_string();
+            let step_state = xs("estado");
+            let who = if xs("agente_usado").is_empty() { xs("agente") } else { xs("agente_usado") };
+            let title_color = if step_state == "pendente" || step_state == "pulada" { t::FG3 } else { t::FG2 };
+            timeline = timeline.push(row![step_mark(app, &step_state), tx(xs("titulo"), 13.0, title_color).width(Length::Fill), txf(format!("{who} · {}", effort_label(&xs("esforco"))), 11.5, t::FG3, t::MONO)].spacing(t::SP_2).align_y(Vertical::Center));
+            if step_state == "falhou" {
+                timeline = timeline.push(container(tx(xs("saida").chars().take(300).collect::<String>(), 12.0, t::FG3)).padding(pad(0.0, 0.0, t::SP_1, t::SP_6)));
+            }
+        }
+        body = body.push(container(timeline).padding(pad(0.0, 0.0, 0.0, t::SP_6)));
+        let error = s("erro");
+        if !error.is_empty() {
+            body = body.push(container(tx(error, 12.5, t::DANGER)).padding(pad(0.0, 0.0, 0.0, t::SP_6)));
+        }
+        let result = m["resultado"].as_str().unwrap_or("");
+        if !result.is_empty() {
+            let rendered = crate::md::render(&crate::md::cached_parse(result), crate::md::Style { font: t::UI, bold: t::UI_SEMI, size: 13.5, line: 1.5, h_font: t::UI_MED, h1: 16.0, h2: 15.0, h3: 14.0, gap: 4.0 });
+            body = body.push(column![hline(), container(rendered).padding(pad(t::SP_3, 0.0, 0.0, t::SP_6))]);
+        }
+    }
+    container(body).padding(pad(t::SP_4, t::SP_4, t::SP_4, t::SP_3)).width(Length::Fill).style(surface(Some(t::RAISE), Some(if state == "aguarda_aprovacao" { t::alpha(t::SIGNAL, 0.35) } else { t::LINE }), t::R_CARD)).into()
 }
 
 pub fn src_rows(app: &App) -> Vec<El<'_>> {

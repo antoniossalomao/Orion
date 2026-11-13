@@ -340,6 +340,10 @@ pub struct App {
     pub user: String,
     pub window_active: bool,
     pub sky_frame: crate::sky_frame::SkyFrame,
+    /// Esfera de presença do Orion (tela inicial e ilha de voz).
+    pub presence: crate::presence::Engine,
+    /// Último aviso de voz indisponível já mostrado (`seq` de `/voz/estado`).
+    pub voice_notice_seq: u64,
     pub system_reduces_motion: bool,
     pub loading: Option<String>,
     pub message_heights: std::collections::HashMap<(String, usize), f32>,
@@ -402,6 +406,8 @@ pub struct App {
     pub imgs_pedidas: std::collections::HashSet<String>,
     /// Quais chaves de provedor já estão no cofre (só sim/não).
     pub keys: std::collections::BTreeMap<String, bool>,
+    /// `/voz/estado`: chave, gasto do mês e aviso de voz indisponível.
+    pub voice_status: Option<serde_json::Value>,
     pub request_id: u64,
     pub facts: Vec<data::Fact>,
     pub edit_fact: Option<(usize, String)>,
@@ -412,6 +418,10 @@ pub struct App {
     pub lembretes: Vec<(i64, String, f64)>,
     /// Tarefas na nuvem pelas CLIs oficiais (`/nuvem`); vazio com a nuvem desligada.
     pub nuvem: Vec<data::NuvemItem>,
+    /// Missões do Maestro (`/maestro`), a mais nova primeiro.
+    pub maestro: Vec<serde_json::Value>,
+    /// Missão do Maestro aberta em detalhe.
+    pub maestro_open: Option<String>,
     pub mcp: Vec<data::Mcp>,
     pub cloud_extra: Vec<(String, String)>,
     pub skills: Vec<data::SkillRow>,
@@ -499,6 +509,8 @@ pub struct App {
     pub cur_sid: Option<String>,
     pub at: Marks,
     pub t0: Instant,
+    /// Segundos do fundo animado da tela inicial (parado com movimento reduzido).
+    pub backdrop_t: f32,
     pub hour: Option<u32>,
     pub toast_pinned: bool,
     /// Aviso de novidades ainda não mostrado nesta versão (novidades.rs).
@@ -684,6 +696,8 @@ pub enum Msg {
     ModelDel(usize),
     ModelPause(usize),
     ModelTest(usize),
+    /// Baixa o motor de visão (gestos, rosto e objetos) pelo botão do módulo de câmera.
+    VisionInstall,
     Refresh,
     // configurações
     OpenSettings(Option<Sec>),
@@ -731,6 +745,11 @@ pub enum Msg {
     /// F12.10: concluir o lembrete com esse id.
     LembreteFeito(i64),
     NuvemDescartar(usize),
+    /// Maestro: abrir/fechar o detalhe, aprovar o plano, cancelar ou apagar a missão (por id).
+    MaestroToggle(String),
+    MaestroApprove(String),
+    MaestroCancel(String),
+    MaestroDelete(String),
     QcapText(String),
     QcapKind(usize),
     QcapSave,
@@ -788,6 +807,8 @@ pub enum Msg {
     MemLocal(usize),
     // janela
     Tick(Instant),
+    /// Quadro da esfera de presença (~30 por segundo, só com ela visível).
+    Presence(Instant),
     WindowActive(bool),
     BootProgress,
     MessageSize(String, usize, f32),
@@ -826,6 +847,8 @@ impl App {
             user: std::env::var("ORION_USER").ok().filter(|s| !s.trim().is_empty()).unwrap_or_default(),
             window_active: true,
             sky_frame: crate::sky_frame::SkyFrame::new(Size::new(1439.0 * 100.0 / 205.0, 862.0), 1.0),
+            presence: crate::presence::Engine::default(),
+            voice_notice_seq: 0,
             dpi: 1.0,
             system_reduces_motion: crate::sky_frame::system_reduces_motion(),
             loading: None,
@@ -834,7 +857,8 @@ impl App {
             view: View::Home,
             conv: None,
             convs: data::convs(),
-            collapsed: false,
+            // barra lateral começa recolhida (pedido do Antônio); Ctrl+B ou o botão abre
+            collapsed: true,
             more: false,
             side_q: String::new(),
             drawer: false,
@@ -875,6 +899,7 @@ impl App {
             artifact_busy: false,
             imgs_pedidas: std::collections::HashSet::new(),
             keys: std::collections::BTreeMap::new(),
+            voice_status: None,
             request_id: 0,
             facts: data::facts(),
             edit_fact: None,
@@ -883,6 +908,8 @@ impl App {
             cloud: data::cloud(),
             lembretes: vec![],
             nuvem: vec![],
+            maestro: vec![],
+            maestro_open: None,
             mcp: data::mcp(),
             cloud_extra: vec![],
             skills: data::skills_demo(),
@@ -954,6 +981,7 @@ impl App {
             cur_sid: None,
             at: Marks::default(),
             t0: Instant::now(),
+            backdrop_t: 0.0,
             hour: None,
             toast_pinned: false,
             news_pending: crate::novidades::pending(),
@@ -1017,8 +1045,8 @@ impl App {
         let moving = busy || orbiting || self.streaming.is_some() || self.toast.is_some() || self.news_pending;
         // a ilha anima a ~60 quadros/s só enquanto lê ou muda de forma; parada, não acorda a janela
         let island = if self.window_active && !self.fundo && self.island_visible() && self.island.animating(self.now) { iced::time::every(Duration::from_millis(16)).map(Msg::Tick) } else { Subscription::none() };
-        // F01.29: céu do login e da tela inicial; parado (reduzir movimento) só recolhe o quadro pendente
-        let sky_visible = self.window_active && !self.fundo && !self.mini && self.onboarding.is_none() && (!self.logged || self.view == View::Home);
+        // F01.29: céu do login (a tela inicial usa nebulosas estáticas); parado (reduzir movimento) só recolhe o quadro pendente
+        let sky_visible = self.window_active && !self.fundo && !self.mini && self.onboarding.is_none() && !self.logged;
         let sky_animates = !self.p.reduced && !self.system_reduces_motion;
         let sky_tick = if sky_visible { iced::time::every(Duration::from_millis(if sky_animates { 50 } else { 250 })).map(Msg::SkyTick) } else { Subscription::none() };
         let tick = if self.window_active && !self.fundo && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };
@@ -1044,7 +1072,34 @@ impl App {
         let hud = if self.window_active && self.island.busy() && self.island.shows_hud() { iced::time::every(Duration::from_millis(250)).map(|_| Msg::Face(crate::island::FaceMsg::PreviewTick)) } else { Subscription::none() };
         // módulo de câmera: último quadro a cada ~66 ms, só com o módulo aberto
         let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
-        Subscription::batch([sky_tick, tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress,resources])
+        let presence = if self.window_active && !self.fundo && !self.mini && self.presence_visible() { iced::time::every(Duration::from_millis(33)).map(Msg::Presence) } else { Subscription::none() };
+        Subscription::batch([sky_tick, tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress, resources, presence])
+    }
+
+    /// A esfera aparece na tela inicial e na ilha de voz.
+    pub fn presence_visible(&self) -> bool {
+        self.logged && self.onboarding.is_none() && (self.view == View::Home || self.voice)
+    }
+
+    /// Estado da esfera a partir do que o Orion está fazendo agora.
+    pub fn presence_state(&self) -> crate::presence::PresenceState {
+        use crate::presence::PresenceState as State;
+        let audio = self.resources.audio.as_ref().and_then(|v| v["status"].as_str()).unwrap_or("");
+        match audio {
+            "speaking" => return State::Speaking,
+            "recording" => return State::Listening,
+            "thinking" | "transcribing" => return State::Thinking,
+            _ => {}
+        }
+        if self.mic_rec {
+            State::Listening
+        } else if self.streaming.is_some() {
+            State::Thinking
+        } else if !self.pend_list().is_empty() {
+            State::Waiting
+        } else {
+            State::Idle
+        }
     }
 
     pub fn pend_list(&self) -> Vec<(usize, usize)> {
@@ -1135,7 +1190,7 @@ impl App {
     fn update_core(&mut self, msg: Msg) -> Task<Msg> {
         if let Msg::Resources(event)=msg { return self.update_resources(event); }
         let _timing = Timing::new("update", self.view);
-        if !matches!(&msg, Msg::Tick(_) | Msg::SkyTick(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
+        if !matches!(&msg, Msg::Tick(_) | Msg::SkyTick(_) | Msg::Presence(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
         if let Msg::Face(m) = msg { return self.update_face(m); }
         if let Msg::Camera(m) = msg { return self.update_camera(m); }
@@ -1234,6 +1289,13 @@ impl App {
             self.short_edit = None;
         }
         match msg {
+            Msg::Presence(now) => {
+                self.presence.state = self.presence_state();
+                self.presence.advance(now, self.p.reduced || self.system_reduces_motion);
+                if !self.p.reduced && !self.system_reduces_motion {
+                    self.backdrop_t = now.duration_since(self.t0).as_secs_f32();
+                }
+            }
             Msg::Tick(now) => {
                 // F05.01: a fila segue sozinha quando o upload ou a resposta anterior terminar.
                 if !self.queued.is_empty() && self.streaming.is_none() && !self.attaching {
@@ -1446,7 +1508,7 @@ impl App {
             }
             Msg::KeyOpen(nome) => {
                 if self.key_form.as_ref().is_some_and(|f| f.busy) { return Task::none(); }
-                let label = crate::onboarding::PROVIDERS.iter().find(|p| p.2 == nome).map(|p| p.1.to_string()).unwrap_or_else(|| nome.clone());
+                let label = if nome == "ORION_VOZ_GEMINI_KEY" { "Voz do Orion".to_string() } else { crate::onboarding::PROVIDERS.iter().find(|p| p.2 == nome).map(|p| p.1.to_string()).unwrap_or_else(|| nome.clone()) };
                 self.key_form = Some(KeyForm { nome, label, value: String::new(), busy: false, error: String::new() });
                 return iced::widget::operation::focus("api-key");
             }
@@ -1810,6 +1872,7 @@ impl App {
                 }
             }
             Msg::ModelGet(_) => self.toast("Baixar modelo (exemplo)"),
+            Msg::VisionInstall => self.toast("Baixar recursos de visão (exemplo)"),
             Msg::ModelDel(_) => self.toast("Remover modelo (exemplo)"),
             Msg::ModelPause(_) => self.toast("Pausar download (exemplo)"),
             Msg::ModelTest(_) => self.toast("Testar modelo (exemplo)"),
@@ -2152,6 +2215,8 @@ impl App {
             }
             Msg::ResumePw(s) => { zeroize::Zeroize::zeroize(&mut self.resume_pw); self.resume_pw = s.take(); }
             Msg::Poll => {}
+            Msg::MaestroToggle(id) => self.maestro_open = if self.maestro_open.as_deref() == Some(id.as_str()) { None } else { Some(id) },
+            Msg::MaestroApprove(_) | Msg::MaestroCancel(_) | Msg::MaestroDelete(_) => {}
             Msg::ToolPermission(index) => {
                 let mut values = self.p.tools.unwrap_or([false; 3]);
                 if index == 3 { values = [!values.iter().all(|v| *v); 3]; }

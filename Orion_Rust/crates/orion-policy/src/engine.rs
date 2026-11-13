@@ -268,8 +268,10 @@ impl PolicyEngine {
         if let Some(limite) = self.rate.check(&call.name) {
             return Decision::new(Action::Deny, r, limite);
         }
-        // F02.23 (shell): comando que cita pasta bloqueada é negado.
-        if let Some(arg) = spec.cmd_arg.as_deref() {
+        // F02.23 (shell): comando que cita pasta bloqueada é negado; vale também para argv livre e
+        // texto digitado (abrir_app com argumentos, enviar_teclas).
+        let shell_ativo = spec.cmd_arg.is_some() || Self::age_como_shell(&spec, call);
+        for arg in spec.cmd_arg.iter().chain(spec.shell_args.iter()).map(String::as_str).chain(spec.shell_like.then_some(["nome", "texto", "teclas"]).into_iter().flatten()) {
             if let Some(motivo) = self.path_guard.command_touches_blocked(&call.arg_str(arg)) {
                 return Decision::new(Action::Deny, r, motivo);
             }
@@ -298,7 +300,7 @@ impl PolicyEngine {
         });
         // com pasta bloqueada, shell não roda sozinho nem com autorização persistente: o texto do comando
         // não prova que ele não toca nela (`cd`, variáveis), então você vê cada comando antes
-        let shell_com_bloqueio = spec.cmd_arg.is_some() && !self.path_guard.blocked_roots.is_empty();
+        let shell_com_bloqueio = shell_ativo && !self.path_guard.blocked_roots.is_empty();
         if self.without_confirmation() && !protected_write && !ctx.read_only && !shell_com_bloqueio {
             return Decision::new(Action::Allow, r, "autorização persistente deste computador");
         }
@@ -333,6 +335,18 @@ impl PolicyEngine {
         pyjson::dumps_ascii(&v, true)
     }
 
+    /// Ferramenta marcada como shell e chamada com algum dos argumentos que a tornam um shell.
+    fn age_como_shell(spec: &ToolSpec, call: &ToolCall) -> bool {
+        spec.shell_like
+            && (spec.shell_args.is_empty()
+                || spec.shell_args.iter().any(|a| match call.args.get(a) {
+                    None | Some(Value::Null) => false,
+                    Some(Value::String(s)) => !s.trim().is_empty(),
+                    Some(Value::Array(v)) => !v.is_empty(),
+                    Some(_) => true,
+                }))
+    }
+
     fn motivo_confirmacao(&self, spec: &ToolSpec, risk: Risk, call: &ToolCall, ctx: &Context) -> Option<String> {
         if risk == Risk::Destructive {
             return Some("ação destrutiva".into());
@@ -349,6 +363,8 @@ impl PolicyEngine {
                 } else if !v.read_only {
                     motivo = Some(format!("execução fora da lista de leitura segura: {}", v.reason));
                 }
+            } else if Self::age_como_shell(spec, call) && !self.path_guard.blocked_roots.is_empty() {
+                motivo = Some("há pastas bloqueadas: argumentos livres e digitação pedem confirmação como o shell".into());
             } else {
                 motivo = Some("execução/automação (agente, navegador ou UI)".into());
             }

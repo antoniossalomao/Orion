@@ -100,6 +100,8 @@ pub(crate) const SECRET_NAMES: &[&str] = &[
     "ORION_BRAVE_API_KEY",
     "ORION_TELEGRAM_TOKEN",
     "ORION_GITHUB_TOKEN",
+    // chave só da voz (Gemini TTS); nunca usada pelo chat
+    "ORION_VOZ_GEMINI_KEY",
 ];
 
 fn optional(s: &str) -> Option<PathBuf> {

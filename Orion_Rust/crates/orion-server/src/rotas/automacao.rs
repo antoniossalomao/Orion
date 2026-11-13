@@ -248,6 +248,56 @@ pub async fn decidir_proposta_bg(_: Admin, State(st): State<Estado>, Path((tid, 
     Ok(Json(bg(tarefas(&st)?.decidir(tid, indice, &c.acao))?))
 }
 
+// ── Maestro: o Sonnet planeja, o Orion executa (só lê e propõe; plano com CLI espera o botão) ──
+
+fn maestro_service(st: &Estado) -> ApiResult<&std::sync::Arc<orion_core::maestro::Maestro>> {
+    st.maestro.as_ref().ok_or_else(|| ApiError::new(503, "Maestro indisponível: falta o gateway"))
+}
+
+fn maestro_result<T>(r: Result<T, orion_core::maestro::MaestroError>) -> ApiResult<T> {
+    r.map_err(|e| ApiError::new(e.status, e.message))
+}
+
+#[derive(Deserialize)]
+pub struct MaestroRequest {
+    #[serde(rename = "pedido")]
+    request: String,
+    #[serde(rename = "pasta")]
+    dir: Option<String>,
+}
+
+pub async fn create_maestro(_: Admin, State(st): State<Estado>, Json(c): Json<MaestroRequest>) -> ApiResult<(axum::http::StatusCode, Json<Value>)> {
+    // sem pasta: a pasta de trabalho da nuvem, senão a pasta atual
+    let dir = c.dir.filter(|p| !p.trim().is_empty()).unwrap_or_else(|| {
+        let n = st.settings.nuvem_dir.trim();
+        if n.is_empty() { std::env::current_dir().unwrap_or_default().to_string_lossy().into_owned() } else { n.to_string() }
+    });
+    let r = maestro_result(maestro_service(&st)?.create(&c.request, &dir))?;
+    tracing::info!(target: "orion.audit", "maestro criado id={}", r["id"]);
+    Ok((axum::http::StatusCode::ACCEPTED, Json(r)))
+}
+
+pub async fn list_maestro(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let items = maestro_service(&st)?.list(30);
+    Ok(Json(json!({"total": items.len(), "missoes": items})))
+}
+
+pub async fn get_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(maestro_result(maestro_service(&st)?.get(&id))?))
+}
+
+pub async fn approve_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(maestro_result(maestro_service(&st)?.approve(&id))?))
+}
+
+pub async fn cancel_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(maestro_result(maestro_service(&st)?.cancel(&id))?))
+}
+
+pub async fn delete_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(maestro_result(maestro_service(&st)?.delete(&id))?))
+}
+
 // ── cliente MCP (E7.3, E7.5) ─────────────────────────────────────────────
 
 /// O que o mcp.json subiu, e o que não.

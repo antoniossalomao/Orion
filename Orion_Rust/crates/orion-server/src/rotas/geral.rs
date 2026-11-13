@@ -638,7 +638,9 @@ pub async fn chave_guardar(_: Admin, State(st): State<Estado>, Json(c): Json<Cha
         let atual = st.live.current.lock().clone().unwrap_or_else(|| st.settings.clone());
         recarregar_gateway(&st, atual).await?;
     }
-    Ok(Json(json!({"ok": true, "reiniciar": !c.nome.starts_with("ORION_KEY_")})))
+    // a voz lê a chave do cofre a cada fala: vale na hora, sem reiniciar
+    let applies_now = c.nome.starts_with("ORION_KEY_") || c.nome == orion_core::gemini_voice::SECRET_NAME;
+    Ok(Json(json!({"ok": true, "reiniciar": !applies_now})))
 }
 
 #[derive(Deserialize)]
@@ -895,4 +897,14 @@ pub async fn vault_backup(_: Admin, State(st): State<Estado>) -> ApiResult<Json<
         .map_err(anyhow::Error::from)?
         .map_err(|e| ApiError::new(409, e.to_string()))?;
     Ok(Json(json!({"arquivo": zip.display().to_string(), "arquivos": n})))
+}
+
+/// Estado da voz do Orion para o app: aviso de indisponível (com `seq` para mostrar uma vez) e o
+/// gasto do mês contra o teto. Nunca devolve a chave.
+pub async fn voice_status(_: Admin, State(st): State<Estado>) -> Json<Value> {
+    let current = st.live.current.lock().clone().unwrap_or_else(|| st.settings.clone());
+    let (seq, notice) = orion_core::gemini_voice::notice();
+    let spend = crate::estado::gemini_voice_spend(&current).map(|(g, cap)| json!({"mes": g.month, "usd": (g.usd * 100.0).round() / 100.0, "segundos": g.seconds.round(), "teto_usd": cap}));
+    let has_key = tokio::task::spawn_blocking(|| orion_ai::secrets::get_secret(orion_core::gemini_voice::SECRET_NAME).is_some_and(|v| !v.trim().is_empty())).await.unwrap_or(false);
+    Json(json!({"motor": current.voice_tts_engine, "voz": orion_core::gemini_voice::VOICE, "modelo": orion_core::gemini_voice::MODEL, "chave": has_key, "aviso_seq": seq, "aviso": notice, "gasto": spend}))
 }

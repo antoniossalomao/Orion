@@ -82,5 +82,9 @@
   "Backup do vault: {} ({} arquivos)",
   "Nota gravada no vault: {}",
   "Cadastro do rosto: {v}/{v}",
-  "Resumo gravado no vault: {}"
+  "Resumo gravado no vault: {}",
+  "{} min de fala gerada neste mês. Ao chegar no teto, a voz fica indisponível até o dia 1º.",
+  "US$ {} de {}",
+  "A voz está indisponível: o crédito de voz deste mês (US$ {}) acabou. Volta no dia 1º.",
+  "A voz está indisponível: o Google devolveu um erro (HTTP {})."
 ]

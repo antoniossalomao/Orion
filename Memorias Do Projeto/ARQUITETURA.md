@@ -50,7 +50,7 @@ Toda chamada a um destino de fora grava uma linha em `external_calls` (sem o con
 | Microsoft (edge-tts) | Fala das respostas | Corte com `ORION_VOICE_SPEAK=false`; só o texto da resposta sai |
 | Telegram | Canal do celular | Token e IDs permitidos; default-deny |
 | Servidores MCP (Google Workspace, navegador, outros) | Ferramentas externas | Conforme `mcp.json`; classe de risco do arquivo |
-| CLIs delegadas (`claude -p`, `codex exec`, `gemini -p`) | Tarefa pesada, com as assinaturas oficiais | Tempo-limite, pasta de trabalho definida, contador diário |
+| CLIs delegadas (`claude -p`, `codex exec`, `gemini -p`) | Tarefa pesada, com as assinaturas oficiais; também o Maestro (plano pelo Sonnet e subtarefas por esforço) | Tempo-limite, pasta de trabalho definida, contador diário; no Maestro, plano com CLI só roda depois do botão Aprovar |
 | Modelo local embarcado (`orion-llama.exe`) ou Ollama opcional | Reserva, sem ferramentas e sem saída de dados | `ORION_LOCAL_MODEL_PATH` para GGUF instalado; legado `ORION_LOCAL_MODEL`/loopback |
 | Hugging Face (pesos) | Instalar GGUF, Whisper e modelos de visão | Só seleção explícita no orion-setup; catálogo com revisão, tamanho e SHA-256 fixados |
 | NuGet da Microsoft | ONNX Runtime DirectML e DirectML do motor de visão | Só seleção explícita no instalador; versão, tamanho e SHA-256 fixados |

@@ -6,10 +6,8 @@ use crate::theme as t;
 use crate::ui::*;
 use crate::views::login::field_style;
 use iced::alignment::{Horizontal, Vertical};
-use iced::mouse;
-use iced::widget::canvas::{self, Frame, Geometry, Path};
-use iced::widget::{button, canvas as cv, column, container, mouse_area, opaque, row, scrollable, stack, text_input};
-use iced::{Background, Border, Color, Length, Point, Rectangle, Renderer, Task, Theme};
+use iced::widget::{button, column, container, mouse_area, opaque, row, scrollable, stack, text_input};
+use iced::{Background, Border, Color, Length, Task};
 
 pub struct PalItem {
     pub icon: &'static str,
@@ -197,23 +195,9 @@ pub fn isso(app: &App) -> El<'_> {
     opaque(stack![base, around, sel_pos, hint, ask_pos])
 }
 
-/// Sete pontos de céu da mini barra (72×32): (10,8) signal · (62,9) star · cinturão (28,17) (36,16) (44,15) ok · (14,27) star · (60,26) conceito.
-struct IslandSky;
-impl canvas::Program<Msg> for IslandSky {
-    type State = ();
-    fn draw(&self, _s: &(), r: &Renderer, _t: &Theme, b: Rectangle, _c: mouse::Cursor) -> Vec<Geometry> {
-        let mut f = Frame::new(r, b.size());
-        for (x, y, rad, c) in [(10.0, 8.0, 2.4, t::SIGNAL), (62.0, 9.0, 1.4, t::STAR), (28.0, 17.0, 2.0, t::OK), (36.0, 16.0, 2.0, t::OK), (44.0, 15.0, 2.0, t::OK), (14.0, 27.0, 1.4, t::STAR), (60.0, 26.0, 2.4, t::N_CONCEITO)] {
-            f.fill(&Path::circle(Point::new(x, y), rad * 3.0), t::alpha(c, 0.18));
-            f.fill(&Path::circle(Point::new(x, y), rad), c);
-        }
-        vec![f.into_geometry()]
-    }
-}
-
 pub fn island(app: &App) -> El<'_> {
     let status=app.resources.audio.as_ref().map(|v|format!("{} · {}",crate::i18n::text(match v["status"].as_str().unwrap_or(""){"recording"=>"Gravando…","transcribing"=>"Transcrevendo…","thinking"=>"Pensando…","speaking"=>"Falando…",_=>"Voz"}),v["reply"].as_str().or_else(||v["transcript"].as_str()).unwrap_or(""))).unwrap_or_default();
-    let pill = container(row![cv(IslandSky).width(72).height(32), tx(status, 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(t::SP_3).align_y(Vertical::Center))
+    let pill = container(row![iced::widget::canvas(crate::presence::Sphere { engine: &app.presence }).width(36).height(36), tx(status, 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(t::SP_3).align_y(Vertical::Center))
         .height(Length::Fixed(44.0))
         .padding(pad(0.0, t::SP_2, 0.0, t::SP_25))
         .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PILL.into() }, shadow: shadow(), ..Default::default() });
@@ -229,7 +213,9 @@ pub fn caption<'a>(lines:&[String]) -> El<'a> {
 pub fn config_target(msg: &str) -> Option<crate::app::Sec> {
     use crate::app::Sec;
     let m = msg.to_lowercase();
-    if m.contains("cota") || m.contains("orçamento") || m.contains("limite") {
+    if m.contains("voz está indisponível") {
+        Some(Sec::Voz)
+    } else if m.contains("cota") || m.contains("orçamento") || m.contains("limite") {
         Some(Sec::Uso)
     } else if m.contains("chave de api") || (m.contains("modelo") && m.contains("configur")) {
         Some(Sec::Modelos)

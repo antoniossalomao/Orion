@@ -129,6 +129,10 @@ pub struct Settings {
     pub telegram_2fa: bool,
     pub voice_speak: bool,
     pub voice_tts_voice: String,
+    /// `gemini` (Charon calmo, sem reserva) ou `edge` (Edge TTS com reserva na voz do Windows).
+    pub voice_tts_engine: String,
+    /// Teto mensal da voz Gemini em dólares; acima dele a voz fica indisponível até o mês virar.
+    pub voice_tts_budget_usd: f64,
     pub wake_enabled: bool,
     pub wake_engine: String,
     pub wake_model: Option<PathBuf>,
@@ -508,6 +512,12 @@ impl Settings {
             telegram_events: e.s("telegram_events", ""),
             voice_speak: e.b("voice_speak", true)?,
             voice_tts_voice: e.s("voice_tts_voice", "pt-BR-AntonioNeural"),
+            voice_tts_engine: match e.s("voice_tts_engine", "gemini").trim().to_lowercase().as_str() {
+                "edge" => "edge".into(),
+                "gemini" => "gemini".into(),
+                _ => return erro("ORION_VOICE_TTS_ENGINE: use gemini ou edge".to_string()),
+            },
+            voice_tts_budget_usd: e.num("voice_tts_budget_usd", 10.0f64, Some(0.0), Some(1000.0))?,
             wake_enabled: e.b("wake_enabled", false)?,
             wake_engine,
             wake_model: e.path_opt("wake_model"),

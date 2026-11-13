@@ -119,6 +119,17 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
     push("02-inicio", cena(|a| {
         a.update(Msg::NewChat);
     }));
+    // esfera de presença no meio da fala (nível de voz simulado, quadro avançado ~1,5 s)
+    push("02b-inicio-falando", cena(|a| {
+        a.update(Msg::NewChat);
+        a.presence.state = crate::presence::PresenceState::Speaking;
+        let t0 = std::time::Instant::now();
+        for i in 0..90u64 {
+            crate::presence::publish(Some([0.9, 0.7, 0.8, 0.5, 0.6, 0.4, 0.3, 0.2]));
+            a.presence.advance(t0 + std::time::Duration::from_millis(16 * i), false);
+        }
+        crate::presence::publish(None);
+    }));
     push("03-chat-ram", cena(|a| {
         a.update(Msg::OpenConv(0));
     }));
@@ -150,6 +161,20 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
             a.update(Msg::Go(vw));
         }));
     }
+    // Maestro: uma missão aberta no meio da execução e outra esperando aprovação
+    push("14b-maestro", cena(|a| {
+        a.more = true;
+        a.update(Msg::Go(View::Nuvem));
+        a.maestro = vec![
+            serde_json::json!({"id": "m1", "pedido": "Pesquisar caches de resposta para o gateway e propor a implementação em Rust", "estado": "rodando", "resumo": "Pesquisa, proposta de código e revisão",
+                "subtarefas": [
+                    {"id": "s1", "titulo": "Pesquisar estratégias de cache", "agente": "orion", "esforco": "baixo", "estado": "ok", "agente_usado": "orion"},
+                    {"id": "s2", "titulo": "Propor o módulo de cache", "agente": "codex", "esforco": "alto", "estado": "rodando", "agente_usado": ""},
+                    {"id": "s3", "titulo": "Revisar a proposta", "agente": "claude", "esforco": "medio", "estado": "pendente", "agente_usado": ""}]}),
+            serde_json::json!({"id": "m2", "pedido": "Revisar a segurança das rotas novas do servidor", "estado": "aguarda_aprovacao", "resumo": "Duas revisões independentes e um resumo", "subtarefas": [{"estado": "pendente"}, {"estado": "pendente"}]}),
+        ];
+        a.maestro_open = Some("m1".into());
+    }));
     push("22-memoria-forcas", cena(|a| {
         a.update(Msg::Go(View::Memoria));
         a.mem.forces_open = true;

@@ -25,6 +25,11 @@ struct Shared {
     object_input: Option<Arc<GrayFrame>>,
     objects: Option<(u64, Instant, Vec<DetectedObject>, String, f32)>,
     object_note: Option<String>,
+    /// Rosto roda em fio próprio, como os objetos: a inferência nunca trava a leitura dos quadros.
+    face_input: Option<Arc<GrayFrame>>,
+    face: Option<(Instant, Option<orion_core::face_neural::Face>)>,
+    face_accel: Option<String>,
+    face_note: Option<String>,
 }
 
 struct Worker {
@@ -121,20 +126,12 @@ fn run(stream: Arc<CameraStream>, stop: Arc<AtomicBool>, shared: Arc<Mutex<Share
     let (object_stop, object_shared) = (stop.clone(), shared.clone());
     let objects = std::thread::Builder::new().name("orion-camera-objects".into())
         .spawn(move || object_worker(object_model, object_stop, object_shared));
+    let (face_stop, face_shared) = (stop.clone(), shared.clone());
+    let faces = std::thread::Builder::new().name("orion-camera-face".into())
+        .spawn(move || face_worker(face_stop, face_shared));
     // o motor carrega no próprio fio: a janela abre a câmera na hora, os gestos chegam logo depois
-    let (mut engine, mut note) = load_engine();
+    let (mut engine, note) = load_engine();
     let accel = engine.as_ref().map(|e| e.accel().label().to_string());
-    let face_engine = match orion_core::face_neural::shared() {
-        Ok(engine) => Some(engine),
-        Err(e) => {
-            tracing::info!("rosto indisponível: {e}");
-            let message = "Rosto indisponível: confira a instalação dos recursos de visão".to_string();
-            note = Some(match note { Some(note) => format!("{note} · {message}"), None => message });
-            None
-        }
-    };
-    let mut last_face: Option<orion_core::face_neural::Face> = None;
-    let mut face_at: Option<Instant> = None;
     let mut seen = 0u64;
     while !stop.load(Ordering::Relaxed) {
         if let Some(err) = stream.error() {
@@ -149,23 +146,25 @@ fn run(stream: Arc<CameraStream>, stop: Arc<AtomicBool>, shared: Arc<Mutex<Share
         };
         seen = frame.seq;
         if stop.load(Ordering::Relaxed) { break; }
-        if face_at.is_none_or(|t| t.elapsed() >= Duration::from_millis(200)) {
-            face_at = Some(Instant::now());
-            last_face = match (&face_engine, frame.rgb.as_ref()) {
-                (Some(engine), Some(rgb)) => engine.lock().detect(rgb).ok().and_then(|v| v.into_iter().next()),
-                _ => None,
-            };
-        }
+        let (last_face, face_accel) = {
+            let sh = shared.lock();
+            let face = sh.face.as_ref().filter(|(at, _)| at.elapsed() < Duration::from_millis(600)).and_then(|(_, f)| f.clone());
+            (face, sh.face_accel.clone())
+        };
         let mut snap = analyze(&frame, engine.as_mut(), accel.clone(), note.clone(), last_face.as_ref(), &shared);
-        snap.face_accel = face_engine.as_ref().map(|e| e.lock().accel.label().into());
+        snap.face_accel = face_accel;
         let mut sh = shared.lock();
         sh.object_input = Some(frame.clone());
+        sh.face_input = Some(frame.clone());
         if let Some((seq, at, detected, backend, ms)) = &sh.objects {
             if frame.seq.saturating_sub(*seq) <= 8 && at.elapsed() < Duration::from_millis(700) {
                 snap.objects = detected.clone();
             }
             snap.object_accel = Some(backend.clone());
             snap.object_ms = Some(*ms);
+        }
+        if let Some(message) = &sh.face_note {
+            snap.note = Some(match snap.note { Some(note) => format!("{note} · {message}"), None => message.clone() });
         }
         if let Some(message) = &sh.object_note {
             snap.note = Some(match snap.note { Some(note) => format!("{note} · {message}"), None => message.clone() });
@@ -176,6 +175,28 @@ fn run(stream: Arc<CameraStream>, stop: Arc<AtomicBool>, shared: Arc<Mutex<Share
     drop(stream);
     stop.store(true, Ordering::Relaxed);
     if let Ok(thread) = objects { let _ = thread.join(); }
+    if let Ok(thread) = faces { let _ = thread.join(); }
+}
+
+/// Detecta o rosto a ~8 por segundo num fio separado (GPU quando há DirectML); o laço dos quadros só lê o último resultado.
+fn face_worker(stop: Arc<AtomicBool>, shared: Arc<Mutex<Shared>>) {
+    let engine = match orion_core::face_neural::shared() {
+        Ok(engine) => engine,
+        Err(e) => {
+            tracing::info!("rosto indisponível: {e}");
+            shared.lock().face_note = Some("Rosto indisponível: confira a instalação dos recursos de visão".into());
+            return;
+        }
+    };
+    shared.lock().face_accel = Some(engine.lock().accel.label().to_string());
+    while !stop.load(Ordering::Relaxed) {
+        let frame = shared.lock().face_input.take();
+        let Some(frame) = frame else { std::thread::sleep(Duration::from_millis(16)); continue; };
+        let Some(rgb) = &frame.rgb else { continue; };
+        let found = engine.lock().detect(rgb).ok().and_then(|v| v.into_iter().next());
+        shared.lock().face = Some((Instant::now(), found));
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 fn object_worker(model: Option<std::path::PathBuf>, stop: Arc<AtomicBool>, shared: Arc<Mutex<Shared>>) {

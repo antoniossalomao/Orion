@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 
 #[derive(Debug, Clone)]
 pub enum Lm {
+    VoiceStatus(Result<Value, String>),
     Boot(Result<bool, String>),
     Initialized(Result<(), String>),
     LanguageSaved(Result<(), String>),
@@ -53,6 +54,7 @@ pub enum Lm {
     Lembretes(Result<Value, String>),
     /// Lista da nuvem; com a nuvem desligada (403) fica vazia, sem erro na tela.
     Nuvem(Result<Value, String>),
+    Maestro(Result<Value, String>),
     Modelos(Result<Value, String>),
     ModeloTestado(Result<Value, String>),
     Chat(Chat),
@@ -344,7 +346,8 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
         Sec::Tools => pull_tool_permissions(api),
         Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills), crate::resources::load(api),crate::resources::load_management(api,&["mcp","accounts","calendar","plugins"])]),
         Sec::Automation=>Task::batch([crate::resources::load(api),crate::resources::load_management(api,&["routines","downloads"])]),
-        Sec::Voz | Sec::Camera | Sec::Memoria | Sec::Fontes | Sec::Privacidade | Sec::Sistema => crate::resources::load(api),
+        Sec::Voz => Task::batch([crate::resources::load(api), get("/voz/estado", Lm::VoiceStatus), get("/config/chaves", Lm::Keys)]),
+        Sec::Camera | Sec::Memoria | Sec::Fontes | Sec::Privacidade | Sec::Sistema => crate::resources::load(api),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
         Sec::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
         Sec::Modelos => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget), get("/config/chaves", Lm::Keys)]),
@@ -419,7 +422,7 @@ pub fn pull_page(api: &Api, v: View) -> Task<Msg> {
         View::Conhecimento => get("/facts", Lm::Facts),
         View::Memoria => get("/grafo/completo?limite=2000", Lm::Grafo),
         View::Projetos => get("/projects", Lm::Projects),
-        View::Nuvem => Task::batch([get("/tarefas-bg", Lm::Tarefas), get("/nuvem", Lm::Nuvem)]),
+        View::Nuvem => Task::batch([get("/tarefas-bg", Lm::Tarefas), get("/nuvem", Lm::Nuvem), get("/maestro", Lm::Maestro)]),
         View::Aprovacoes => Task::batch([get("/painel", Lm::Painel), get("/approvals", Lm::Approvals)]),
         _ => Task::none(),
     }
@@ -501,6 +504,8 @@ impl App {
                 match result{Ok(())=>{self.p.shortcut=on;if let Err(e)=crate::uiprefs::save_shortcut(on){self.toast(&e.to_string());}},Err(e)=>self.toast(&e)}
                 Some((Task::none(),false))
             },
+            Msg::Toggle("wake")=>Some((self.update_resources(crate::resources::Event::VoiceToggle("wake_enabled")),false)),
+            Msg::Toggle("clap")=>Some((self.update_resources(crate::resources::Event::VoiceToggle("clap_enabled")),false)),
             Msg::Mic=>Some((self.update_resources(if self.mic_rec{crate::resources::Event::AudioStop(false)}else{crate::resources::Event::AudioStart(false)}),false)),
             Msg::Live=>Some((self.update_resources(if self.voice{crate::resources::Event::AudioStop(true)}else{crate::resources::Event::AudioStart(true)}),false)),
             Msg::TogA("src",i)=>{let key=["vault","repo","calendar","email","web"].get(*i).copied()?; Some((self.update_resources(crate::resources::Event::Source(key)),false))},
@@ -781,7 +786,9 @@ impl App {
             Msg::Go(v) => Some((pull_page(&api, *v), true)),
             Msg::Poll => {
                 let extra = if self.view == View::Nuvem { pull_page(&api, View::Nuvem) } else if self.set_open && self.sec == Sec::Locais { pull_sec(&api, Sec::Locais) } else { Task::none() };
-                Some((Task::batch([pull_basic(&api), extra]), false))
+                let a2 = api.clone();
+                let voice_status = Task::perform(async move { a2.get("/voz/estado").await }, |r| Msg::L(Lm::VoiceStatus(r)));
+                Some((Task::batch([pull_basic(&api), extra, voice_status]), false))
             }
             Msg::OpenSettings(Some(sec)) | Msg::SetSec(sec) => Some((pull_sec(&api, *sec), true)),
             Msg::NuvemTrazer(i) => {
@@ -810,6 +817,18 @@ impl App {
                 self.lembretes.retain(|l| l.0 != id);
                 Some((acao(&api, async move { a2.post(&format!("/lembretes/{id}/feito"), json!({})).await }, "Lembrete concluído", true), false))
             }
+            Msg::MaestroApprove(id) => {
+                let (a2, id) = (api.clone(), id.clone());
+                Some((acao(&api, async move { a2.post(&format!("/maestro/{id}/aprovar"), json!({})).await }, "Plano aprovado: o Maestro começou", true), false))
+            }
+            Msg::MaestroCancel(id) => {
+                let (a2, id) = (api.clone(), id.clone());
+                Some((acao(&api, async move { a2.post(&format!("/maestro/{id}/cancelar"), json!({})).await }, "Missão cancelada", true), false))
+            }
+            Msg::MaestroDelete(id) => {
+                let (a2, id) = (api.clone(), id.clone());
+                Some((acao(&api, async move { a2.delete(&format!("/maestro/{id}")).await }, "Missão apagada", true), false))
+            }
             Msg::CloudCancel(i) => {
                 let id = self.cloud.get(*i)?.id;
                 let a2 = api.clone();
@@ -835,6 +854,10 @@ impl App {
                 let id = self.locais.get(*i)?.id.clone();
                 let a2 = api.clone();
                 Some((acao(&api, async move { a2.post(&format!("/modelos-locais/{id}/baixar"), json!({})).await }, "Download iniciado", false), false))
+            }
+            Msg::VisionInstall => {
+                let a2 = api.clone();
+                Some((acao(&api, async move { a2.post("/modelos-locais/visao/baixar", json!({})).await }, "Baixando os recursos de visão. Quando terminar, desligue e ligue a câmera", false), false))
             }
             Msg::ModelPause(i) => {
                 let id = self.locais.get(*i)?.id.clone();
@@ -1307,6 +1330,19 @@ impl App {
                     }
                 }
             }
+            Lm::VoiceStatus(r) => {
+                if let Ok(v) = r {
+                    let seq = v["aviso_seq"].as_u64().unwrap_or(0);
+                    // mostra o aviso de voz indisponível uma vez por ocorrência nova
+                    if seq != self.voice_notice_seq {
+                        self.voice_notice_seq = seq;
+                        if let Some(msg) = v["aviso"].as_str() {
+                            self.toast(msg);
+                        }
+                    }
+                    self.voice_status = Some(v);
+                }
+            }
             Lm::Keys(r) => {
                 if let Ok(v) = r {
                     if let Some(o) = v.as_object() {
@@ -1428,6 +1464,10 @@ impl App {
                         .map(|a| a.iter().filter_map(|l| Some((l["id"].as_i64()?, l["titulo"].as_str().unwrap_or("").to_string(), l["quando"].as_f64()?))).collect())
                         .unwrap_or_default();
                 }
+                Err(e) => self.net_fail(e),
+            },
+            Lm::Maestro(r) => match r {
+                Ok(v) => self.maestro = v["missoes"].as_array().cloned().unwrap_or_default(),
                 Err(e) => self.net_fail(e),
             },
             Lm::Tarefas(r) => match r {
