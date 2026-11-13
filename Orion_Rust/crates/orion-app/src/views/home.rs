@@ -5,7 +5,7 @@ use crate::icons::icon;
 use crate::theme as t;
 use crate::ui::*;
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, column, container, rich_text, row, span, stack};
+use iced::widget::{button, column, container, rich_text, row, span};
 use iced::{Background, Border, Length};
 
 pub fn local_hour() -> u32 {
@@ -68,8 +68,7 @@ fn recent_projects(app: &App) -> Vec<usize> {
 }
 
 pub fn view(app: &App) -> El<'_> {
-    // fundo sólido com nebulosas desfocadas (a constelação animada saiu da tela inicial)
-    let sky: El<'_> = iced::widget::canvas(crate::views::nebulosas::Nebulosas).width(Length::Fill).height(Length::Fill).into();
+
     let hour = app.hour.unwrap_or_else(local_hour);
     let size = (app.win.width * 0.05).clamp(34.0, 46.0);
     let hello_spans: Vec<iced::widget::text::Span<'_, (), iced::Font>> = vec![
@@ -144,5 +143,6 @@ pub fn view(app: &App) -> El<'_> {
         content = content.push(container(recent).padding(pad(t::SP_2, 0.0, 0.0, 0.0)));
     }
     let c = container(content).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).padding(pad(t::SP_10, t::SP_4, t::SP_14, t::SP_4));
-    stack![sky, c].width(Length::Fill).height(Length::Fill).into()
+    // o fundo de espaço vem do `shell`, atrás da barra do topo também
+    c.into()
 }

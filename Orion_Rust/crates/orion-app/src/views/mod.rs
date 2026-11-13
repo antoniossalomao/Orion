@@ -111,6 +111,12 @@ fn shell(app: &App) -> El<'_> {
     let side: Option<El> = if app.collapsed || drawer { None } else { Some(row![sidebar::view(app), vline_full()].into()) };
     let body = row![stage(app), if app.show_ctx() { ctx::view(app) } else { sp_w(0.0) }].height(Length::Fill);
     let main = column![topbar::view(app), body].width(Length::Fill).height(Length::Fill);
+    // tela inicial: o espaço fica atrás da barra do topo também (barra transparente)
+    let main: El = if app.view == View::Home {
+        stack![iced::widget::canvas(nebulosas::Nebulosas).width(Length::Fill).height(Length::Fill), main].width(Length::Fill).height(Length::Fill).into()
+    } else {
+        main.into()
+    };
     let mut r = row![].width(Length::Fill).height(Length::Fill);
     if let Some(s) = side {
         r = r.push(s);

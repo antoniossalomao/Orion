@@ -25,12 +25,13 @@ pub fn mix(c: Color, p: f32) -> Color {
     alpha(c, p)
 }
 
-pub const BG: Color = rgb(0x15, 0x16, 0x18);
-pub const SIDE: Color = rgb(0x11, 0x12, 0x14);
-pub const RAISE: Color = rgb(0x1b, 0x1c, 0x1f);
-pub const RAISE2: Color = rgb(0x22, 0x23, 0x27);
-pub const SEL: Color = rgb(0x26, 0x27, 0x2b);
-pub const HOVER: Color = rgb(0x1e, 0x1f, 0x22);
+// Grafite escuro levemente azulado (tokens da especificação v1), no lugar do cinza neutro (13/11/2026).
+pub const BG: Color = rgb(0x0c, 0x0e, 0x13);
+pub const SIDE: Color = rgb(0x0a, 0x0c, 0x10);
+pub const RAISE: Color = rgb(0x14, 0x17, 0x1f);
+pub const RAISE2: Color = rgb(0x1a, 0x1e, 0x29);
+pub const SEL: Color = rgb(0x22, 0x28, 0x38);
+pub const HOVER: Color = rgb(0x18, 0x1c, 0x26);
 pub const LINE: Color = rgba(255, 255, 255, 0.065);
 pub const LINE2: Color = rgba(255, 255, 255, 0.11);
 pub const LINE3: Color = rgba(255, 255, 255, 0.20);
