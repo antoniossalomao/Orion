@@ -197,7 +197,7 @@ pub fn isso(app: &App) -> El<'_> {
 
 pub fn island(app: &App) -> El<'_> {
     let status=app.resources.audio.as_ref().map(|v|format!("{} · {}",crate::i18n::text(match v["status"].as_str().unwrap_or(""){"recording"=>"Gravando…","transcribing"=>"Transcrevendo…","thinking"=>"Pensando…","speaking"=>"Falando…",_=>"Voz"}),v["reply"].as_str().or_else(||v["transcript"].as_str()).unwrap_or(""))).unwrap_or_default();
-    let pill = container(row![iced::widget::canvas(crate::presenca::Esfera { motor: &app.presenca }).width(36).height(36), tx(status, 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(t::SP_3).align_y(Vertical::Center))
+    let pill = container(row![iced::widget::canvas(crate::presence::Sphere { engine: &app.presence }).width(36).height(36), tx(status, 13.0, t::FG2), tip(ib("close", Some(Msg::Live), false), crate::i18n::text("Parar de ouvir"))].spacing(t::SP_3).align_y(Vertical::Center))
         .height(Length::Fixed(44.0))
         .padding(pad(0.0, t::SP_2, 0.0, t::SP_25))
         .style(|_| container::Style { background: Some(t::ISLAND_BG.into()), border: Border { color: t::LINE2, width: 1.0, radius: t::R_PILL.into() }, shadow: shadow(), ..Default::default() });

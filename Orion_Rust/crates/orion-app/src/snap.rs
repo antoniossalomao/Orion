@@ -122,13 +122,13 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
     // esfera de presença no meio da fala (nível de voz simulado, quadro avançado ~1,5 s)
     push("02b-inicio-falando", cena(|a| {
         a.update(Msg::NewChat);
-        a.presenca.estado = crate::presenca::Estado::Falando;
+        a.presence.state = crate::presence::PresenceState::Speaking;
         let t0 = std::time::Instant::now();
         for i in 0..90u64 {
-            crate::presenca::publicar(Some([0.9, 0.7, 0.8, 0.5, 0.6, 0.4, 0.3, 0.2]));
-            a.presenca.avancar(t0 + std::time::Duration::from_millis(16 * i), false);
+            crate::presence::publish(Some([0.9, 0.7, 0.8, 0.5, 0.6, 0.4, 0.3, 0.2]));
+            a.presence.advance(t0 + std::time::Duration::from_millis(16 * i), false);
         }
-        crate::presenca::publicar(None);
+        crate::presence::publish(None);
     }));
     push("03-chat-ram", cena(|a| {
         a.update(Msg::OpenConv(0));
@@ -173,7 +173,7 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
                     {"id": "s3", "titulo": "Revisar a proposta", "agente": "claude", "esforco": "medio", "estado": "pendente", "agente_usado": ""}]}),
             serde_json::json!({"id": "m2", "pedido": "Revisar a segurança das rotas novas do servidor", "estado": "aguarda_aprovacao", "resumo": "Duas revisões independentes e um resumo", "subtarefas": [{"estado": "pendente"}, {"estado": "pendente"}]}),
         ];
-        a.maestro_aberta = Some("m1".into());
+        a.maestro_open = Some("m1".into());
     }));
     push("22-memoria-forcas", cena(|a| {
         a.update(Msg::Go(View::Memoria));

@@ -250,50 +250,52 @@ pub async fn decidir_proposta_bg(_: Admin, State(st): State<Estado>, Path((tid, 
 
 // ── Maestro: o Sonnet planeja, o Orion executa (só lê e propõe; plano com CLI espera o botão) ──
 
-fn maestro(st: &Estado) -> ApiResult<&std::sync::Arc<orion_core::maestro::Maestro>> {
+fn maestro_service(st: &Estado) -> ApiResult<&std::sync::Arc<orion_core::maestro::Maestro>> {
     st.maestro.as_ref().ok_or_else(|| ApiError::new(503, "Maestro indisponível: falta o gateway"))
 }
 
-fn me<T>(r: Result<T, orion_core::maestro::MaestroError>) -> ApiResult<T> {
-    r.map_err(|e| ApiError::new(e.status, e.mensagem))
+fn maestro_result<T>(r: Result<T, orion_core::maestro::MaestroError>) -> ApiResult<T> {
+    r.map_err(|e| ApiError::new(e.status, e.message))
 }
 
 #[derive(Deserialize)]
-pub struct MaestroPedido {
-    pedido: String,
-    pasta: Option<String>,
+pub struct MaestroRequest {
+    #[serde(rename = "pedido")]
+    request: String,
+    #[serde(rename = "pasta")]
+    dir: Option<String>,
 }
 
-pub async fn criar_maestro(_: Admin, State(st): State<Estado>, Json(c): Json<MaestroPedido>) -> ApiResult<(axum::http::StatusCode, Json<Value>)> {
+pub async fn create_maestro(_: Admin, State(st): State<Estado>, Json(c): Json<MaestroRequest>) -> ApiResult<(axum::http::StatusCode, Json<Value>)> {
     // sem pasta: a pasta de trabalho da nuvem, senão a pasta atual
-    let pasta = c.pasta.filter(|p| !p.trim().is_empty()).unwrap_or_else(|| {
+    let dir = c.dir.filter(|p| !p.trim().is_empty()).unwrap_or_else(|| {
         let n = st.settings.nuvem_dir.trim();
         if n.is_empty() { std::env::current_dir().unwrap_or_default().to_string_lossy().into_owned() } else { n.to_string() }
     });
-    let r = me(maestro(&st)?.criar(&c.pedido, &pasta))?;
+    let r = maestro_result(maestro_service(&st)?.create(&c.request, &dir))?;
     tracing::info!(target: "orion.audit", "maestro criado id={}", r["id"]);
     Ok((axum::http::StatusCode::ACCEPTED, Json(r)))
 }
 
-pub async fn listar_maestro(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
-    let itens = maestro(&st)?.listar(30);
-    Ok(Json(json!({"total": itens.len(), "missoes": itens})))
+pub async fn list_maestro(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
+    let items = maestro_service(&st)?.list(30);
+    Ok(Json(json!({"total": items.len(), "missoes": items})))
 }
 
-pub async fn ver_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
-    Ok(Json(me(maestro(&st)?.obter(&id))?))
+pub async fn get_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(maestro_result(maestro_service(&st)?.get(&id))?))
 }
 
-pub async fn aprovar_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
-    Ok(Json(me(maestro(&st)?.aprovar(&id))?))
+pub async fn approve_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(maestro_result(maestro_service(&st)?.approve(&id))?))
 }
 
-pub async fn cancelar_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
-    Ok(Json(me(maestro(&st)?.cancelar(&id))?))
+pub async fn cancel_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(maestro_result(maestro_service(&st)?.cancel(&id))?))
 }
 
-pub async fn apagar_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
-    Ok(Json(me(maestro(&st)?.apagar(&id))?))
+pub async fn delete_maestro(_: Admin, State(st): State<Estado>, Path(id): Path<String>) -> ApiResult<Json<Value>> {
+    Ok(Json(maestro_result(maestro_service(&st)?.delete(&id))?))
 }
 
 // ── cliente MCP (E7.3, E7.5) ─────────────────────────────────────────────

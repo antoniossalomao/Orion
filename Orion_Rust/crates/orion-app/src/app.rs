@@ -341,9 +341,9 @@ pub struct App {
     pub window_active: bool,
     pub sky_frame: crate::sky_frame::SkyFrame,
     /// Esfera de presença do Orion (tela inicial e ilha de voz).
-    pub presenca: crate::presenca::Motor,
+    pub presence: crate::presence::Engine,
     /// Último aviso de voz indisponível já mostrado (`seq` de `/voz/estado`).
-    pub voz_aviso_seq: u64,
+    pub voice_notice_seq: u64,
     pub system_reduces_motion: bool,
     pub loading: Option<String>,
     pub message_heights: std::collections::HashMap<(String, usize), f32>,
@@ -407,7 +407,7 @@ pub struct App {
     /// Quais chaves de provedor já estão no cofre (só sim/não).
     pub keys: std::collections::BTreeMap<String, bool>,
     /// `/voz/estado`: chave, gasto do mês e aviso de voz indisponível.
-    pub voz: Option<serde_json::Value>,
+    pub voice_status: Option<serde_json::Value>,
     pub request_id: u64,
     pub facts: Vec<data::Fact>,
     pub edit_fact: Option<(usize, String)>,
@@ -421,7 +421,7 @@ pub struct App {
     /// Missões do Maestro (`/maestro`), a mais nova primeiro.
     pub maestro: Vec<serde_json::Value>,
     /// Missão do Maestro aberta em detalhe.
-    pub maestro_aberta: Option<String>,
+    pub maestro_open: Option<String>,
     pub mcp: Vec<data::Mcp>,
     pub cloud_extra: Vec<(String, String)>,
     pub skills: Vec<data::SkillRow>,
@@ -510,7 +510,7 @@ pub struct App {
     pub at: Marks,
     pub t0: Instant,
     /// Segundos do fundo animado da tela inicial (parado com movimento reduzido).
-    pub fundo_t: f32,
+    pub backdrop_t: f32,
     pub hour: Option<u32>,
     pub toast_pinned: bool,
     /// Aviso de novidades ainda não mostrado nesta versão (novidades.rs).
@@ -746,10 +746,10 @@ pub enum Msg {
     LembreteFeito(i64),
     NuvemDescartar(usize),
     /// Maestro: abrir/fechar o detalhe, aprovar o plano, cancelar ou apagar a missão (por id).
-    MaestroAbrir(String),
-    MaestroAprovar(String),
-    MaestroCancelar(String),
-    MaestroApagar(String),
+    MaestroToggle(String),
+    MaestroApprove(String),
+    MaestroCancel(String),
+    MaestroDelete(String),
     QcapText(String),
     QcapKind(usize),
     QcapSave,
@@ -808,7 +808,7 @@ pub enum Msg {
     // janela
     Tick(Instant),
     /// Quadro da esfera de presença (~30 por segundo, só com ela visível).
-    Presenca(Instant),
+    Presence(Instant),
     WindowActive(bool),
     BootProgress,
     MessageSize(String, usize, f32),
@@ -847,8 +847,8 @@ impl App {
             user: std::env::var("ORION_USER").ok().filter(|s| !s.trim().is_empty()).unwrap_or_default(),
             window_active: true,
             sky_frame: crate::sky_frame::SkyFrame::new(Size::new(1439.0 * 100.0 / 205.0, 862.0), 1.0),
-            presenca: crate::presenca::Motor::default(),
-            voz_aviso_seq: 0,
+            presence: crate::presence::Engine::default(),
+            voice_notice_seq: 0,
             dpi: 1.0,
             system_reduces_motion: crate::sky_frame::system_reduces_motion(),
             loading: None,
@@ -899,7 +899,7 @@ impl App {
             artifact_busy: false,
             imgs_pedidas: std::collections::HashSet::new(),
             keys: std::collections::BTreeMap::new(),
-            voz: None,
+            voice_status: None,
             request_id: 0,
             facts: data::facts(),
             edit_fact: None,
@@ -909,7 +909,7 @@ impl App {
             lembretes: vec![],
             nuvem: vec![],
             maestro: vec![],
-            maestro_aberta: None,
+            maestro_open: None,
             mcp: data::mcp(),
             cloud_extra: vec![],
             skills: data::skills_demo(),
@@ -981,7 +981,7 @@ impl App {
             cur_sid: None,
             at: Marks::default(),
             t0: Instant::now(),
-            fundo_t: 0.0,
+            backdrop_t: 0.0,
             hour: None,
             toast_pinned: false,
             news_pending: crate::novidades::pending(),
@@ -1072,33 +1072,33 @@ impl App {
         let hud = if self.window_active && self.island.busy() && self.island.shows_hud() { iced::time::every(Duration::from_millis(250)).map(|_| Msg::Face(crate::island::FaceMsg::PreviewTick)) } else { Subscription::none() };
         // módulo de câmera: último quadro a cada ~66 ms, só com o módulo aberto
         let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
-        let presenca = if self.window_active && !self.fundo && !self.mini && self.presenca_visivel() { iced::time::every(Duration::from_millis(33)).map(Msg::Presenca) } else { Subscription::none() };
-        Subscription::batch([sky_tick, tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress, resources, presenca])
+        let presence = if self.window_active && !self.fundo && !self.mini && self.presence_visible() { iced::time::every(Duration::from_millis(33)).map(Msg::Presence) } else { Subscription::none() };
+        Subscription::batch([sky_tick, tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress, resources, presence])
     }
 
     /// A esfera aparece na tela inicial e na ilha de voz.
-    pub fn presenca_visivel(&self) -> bool {
+    pub fn presence_visible(&self) -> bool {
         self.logged && self.onboarding.is_none() && (self.view == View::Home || self.voice)
     }
 
     /// Estado da esfera a partir do que o Orion está fazendo agora.
-    pub fn presenca_estado(&self) -> crate::presenca::Estado {
-        use crate::presenca::Estado;
+    pub fn presence_state(&self) -> crate::presence::PresenceState {
+        use crate::presence::PresenceState as State;
         let audio = self.resources.audio.as_ref().and_then(|v| v["status"].as_str()).unwrap_or("");
         match audio {
-            "speaking" => return Estado::Falando,
-            "recording" => return Estado::Ouvindo,
-            "thinking" | "transcribing" => return Estado::Pensando,
+            "speaking" => return State::Speaking,
+            "recording" => return State::Listening,
+            "thinking" | "transcribing" => return State::Thinking,
             _ => {}
         }
         if self.mic_rec {
-            Estado::Ouvindo
+            State::Listening
         } else if self.streaming.is_some() {
-            Estado::Pensando
+            State::Thinking
         } else if !self.pend_list().is_empty() {
-            Estado::Aguarda
+            State::Waiting
         } else {
-            Estado::Repouso
+            State::Idle
         }
     }
 
@@ -1190,7 +1190,7 @@ impl App {
     fn update_core(&mut self, msg: Msg) -> Task<Msg> {
         if let Msg::Resources(event)=msg { return self.update_resources(event); }
         let _timing = Timing::new("update", self.view);
-        if !matches!(&msg, Msg::Tick(_) | Msg::SkyTick(_) | Msg::Presenca(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
+        if !matches!(&msg, Msg::Tick(_) | Msg::SkyTick(_) | Msg::Presence(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
         if let Msg::Face(m) = msg { return self.update_face(m); }
         if let Msg::Camera(m) = msg { return self.update_camera(m); }
@@ -1289,11 +1289,11 @@ impl App {
             self.short_edit = None;
         }
         match msg {
-            Msg::Presenca(now) => {
-                self.presenca.estado = self.presenca_estado();
-                self.presenca.avancar(now, self.p.reduced || self.system_reduces_motion);
+            Msg::Presence(now) => {
+                self.presence.state = self.presence_state();
+                self.presence.advance(now, self.p.reduced || self.system_reduces_motion);
                 if !self.p.reduced && !self.system_reduces_motion {
-                    self.fundo_t = now.duration_since(self.t0).as_secs_f32();
+                    self.backdrop_t = now.duration_since(self.t0).as_secs_f32();
                 }
             }
             Msg::Tick(now) => {
@@ -2215,8 +2215,8 @@ impl App {
             }
             Msg::ResumePw(s) => { zeroize::Zeroize::zeroize(&mut self.resume_pw); self.resume_pw = s.take(); }
             Msg::Poll => {}
-            Msg::MaestroAbrir(id) => self.maestro_aberta = if self.maestro_aberta.as_deref() == Some(id.as_str()) { None } else { Some(id) },
-            Msg::MaestroAprovar(_) | Msg::MaestroCancelar(_) | Msg::MaestroApagar(_) => {}
+            Msg::MaestroToggle(id) => self.maestro_open = if self.maestro_open.as_deref() == Some(id.as_str()) { None } else { Some(id) },
+            Msg::MaestroApprove(_) | Msg::MaestroCancel(_) | Msg::MaestroDelete(_) => {}
             Msg::ToolPermission(index) => {
                 let mut values = self.p.tools.unwrap_or([false; 3]);
                 if index == 3 { values = [!values.iter().all(|v| *v); 3]; }

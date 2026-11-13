@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 
 #[derive(Debug, Clone)]
 pub enum Lm {
-    Voz(Result<Value, String>),
+    VoiceStatus(Result<Value, String>),
     Boot(Result<bool, String>),
     Initialized(Result<(), String>),
     LanguageSaved(Result<(), String>),
@@ -346,7 +346,7 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
         Sec::Tools => pull_tool_permissions(api),
         Sec::Conectores => Task::batch([get("/mcp/servidores", Lm::Mcp), get("/skills", Lm::Skills), crate::resources::load(api),crate::resources::load_management(api,&["mcp","accounts","calendar","plugins"])]),
         Sec::Automation=>Task::batch([crate::resources::load(api),crate::resources::load_management(api,&["routines","downloads"])]),
-        Sec::Voz => Task::batch([crate::resources::load(api), get("/voz/estado", Lm::Voz), get("/config/chaves", Lm::Keys)]),
+        Sec::Voz => Task::batch([crate::resources::load(api), get("/voz/estado", Lm::VoiceStatus), get("/config/chaves", Lm::Keys)]),
         Sec::Camera | Sec::Memoria | Sec::Fontes | Sec::Privacidade | Sec::Sistema => crate::resources::load(api),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
         Sec::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
@@ -787,8 +787,8 @@ impl App {
             Msg::Poll => {
                 let extra = if self.view == View::Nuvem { pull_page(&api, View::Nuvem) } else if self.set_open && self.sec == Sec::Locais { pull_sec(&api, Sec::Locais) } else { Task::none() };
                 let a2 = api.clone();
-                let voz = Task::perform(async move { a2.get("/voz/estado").await }, |r| Msg::L(Lm::Voz(r)));
-                Some((Task::batch([pull_basic(&api), extra, voz]), false))
+                let voice_status = Task::perform(async move { a2.get("/voz/estado").await }, |r| Msg::L(Lm::VoiceStatus(r)));
+                Some((Task::batch([pull_basic(&api), extra, voice_status]), false))
             }
             Msg::OpenSettings(Some(sec)) | Msg::SetSec(sec) => Some((pull_sec(&api, *sec), true)),
             Msg::NuvemTrazer(i) => {
@@ -817,15 +817,15 @@ impl App {
                 self.lembretes.retain(|l| l.0 != id);
                 Some((acao(&api, async move { a2.post(&format!("/lembretes/{id}/feito"), json!({})).await }, "Lembrete concluído", true), false))
             }
-            Msg::MaestroAprovar(id) => {
+            Msg::MaestroApprove(id) => {
                 let (a2, id) = (api.clone(), id.clone());
                 Some((acao(&api, async move { a2.post(&format!("/maestro/{id}/aprovar"), json!({})).await }, "Plano aprovado: o Maestro começou", true), false))
             }
-            Msg::MaestroCancelar(id) => {
+            Msg::MaestroCancel(id) => {
                 let (a2, id) = (api.clone(), id.clone());
                 Some((acao(&api, async move { a2.post(&format!("/maestro/{id}/cancelar"), json!({})).await }, "Missão cancelada", true), false))
             }
-            Msg::MaestroApagar(id) => {
+            Msg::MaestroDelete(id) => {
                 let (a2, id) = (api.clone(), id.clone());
                 Some((acao(&api, async move { a2.delete(&format!("/maestro/{id}")).await }, "Missão apagada", true), false))
             }
@@ -1330,17 +1330,17 @@ impl App {
                     }
                 }
             }
-            Lm::Voz(r) => {
+            Lm::VoiceStatus(r) => {
                 if let Ok(v) = r {
                     let seq = v["aviso_seq"].as_u64().unwrap_or(0);
                     // mostra o aviso de voz indisponível uma vez por ocorrência nova
-                    if seq != self.voz_aviso_seq {
-                        self.voz_aviso_seq = seq;
+                    if seq != self.voice_notice_seq {
+                        self.voice_notice_seq = seq;
                         if let Some(msg) = v["aviso"].as_str() {
                             self.toast(msg);
                         }
                     }
-                    self.voz = Some(v);
+                    self.voice_status = Some(v);
                 }
             }
             Lm::Keys(r) => {

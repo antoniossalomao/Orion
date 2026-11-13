@@ -91,30 +91,30 @@ pub fn view(app: &App) -> El<'_> {
 
     // presença do Orion acima da saudação (esfera de poeira que respira e reage à voz)
     // centralizada, logo acima da barra de chat (pedido do Antônio)
-    let esfera = container(iced::widget::canvas(crate::presenca::Esfera { motor: &app.presenca }).width(Length::Fixed(280.0)).height(Length::Fixed(230.0))).width(Length::Fill).center_x(Length::Fill);
+    let sphere = container(iced::widget::canvas(crate::presence::Sphere { engine: &app.presence }).width(Length::Fixed(280.0)).height(Length::Fixed(230.0))).width(Length::Fill).center_x(Length::Fill);
     // tarefas rápidas: só texto apagado, sem moldura (discreto, pedido do Antônio)
-    let rapida = |label: &'static str, msg: Msg| -> El<'_> {
+    let quick_task = |label: &'static str, msg: Msg| -> El<'_> {
         button(tx(crate::i18n::text(label), 12.0, t::FG3))
             .padding(pad(t::SP_05, t::SP_15, t::SP_05, t::SP_15))
             .on_press(msg)
             .style(|_, st| button::Style { background: None, text_color: t::FG3, border: Border { color: if matches!(st, button::Status::Hovered) { t::LINE2 } else { iced::Color::TRANSPARENT }, width: 1.0, radius: t::R_PILL.into() }, shadow: Default::default(), snap: true })
             .into()
     };
-    let mut rapidas = row![grow()].spacing(t::SP_1).align_y(Vertical::Center);
+    let mut quick_tasks = row![grow()].spacing(t::SP_1).align_y(Vertical::Center);
     if let Some(bi) = app.convs.iter().position(|c| c.id == "brief") {
-        rapidas = rapidas.push(rapida("Ler o briefing da manhã", Msg::OpenConv(bi)));
+        quick_tasks = quick_tasks.push(quick_task("Ler o briefing da manhã", Msg::OpenConv(bi)));
     }
-    rapidas = rapidas.push(rapida("Resumir o vault da semana", Msg::Fill("Resuma o que mudou no vault esta semana")));
-    rapidas = rapidas.push(rapida("Explorar a memória", Msg::Go(View::Memoria)));
-    let rapidas = rapidas.push(grow());
+    quick_tasks = quick_tasks.push(quick_task("Resumir o vault da semana", Msg::Fill("Resuma o que mudou no vault esta semana")));
+    quick_tasks = quick_tasks.push(quick_task("Explorar a memória", Msg::Go(View::Memoria)));
+    let quick_tasks = quick_tasks.push(grow());
 
-    let mut content = column![eyebrow, container(hello).padding(pad(t::SP_1, 0.0, t::SP_2, 0.0)), esfera, crate::views::composer::view(app, true)]
+    let mut content = column![eyebrow, container(hello).padding(pad(t::SP_1, 0.0, t::SP_2, 0.0)), sphere, crate::views::composer::view(app, true)]
         .spacing(t::SP_3)
         .width(Length::Fixed(660.0));
     if !app.projects.is_empty() {
         content = content.push(container(recent).padding(pad(t::SP_2, 0.0, 0.0, 0.0)));
     }
-    content = content.push(container(rapidas).padding(pad(t::SP_1, 0.0, 0.0, 0.0)));
+    content = content.push(container(quick_tasks).padding(pad(t::SP_1, 0.0, 0.0, 0.0)));
     let c = container(content).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill).padding(pad(t::SP_10, t::SP_4, t::SP_14, t::SP_4));
     // o fundo de espaço vem do `shell`, atrás da barra do topo também
     c.into()

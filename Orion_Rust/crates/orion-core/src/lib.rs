@@ -79,7 +79,7 @@ pub mod vigia;
 pub mod visao_cli;
 pub mod visao_local;
 pub mod voice;
-pub mod voz_gemini;
+pub mod gemini_voice;
 pub mod wake;
 
 pub use config::Settings;

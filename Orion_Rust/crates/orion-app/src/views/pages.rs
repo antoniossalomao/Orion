@@ -376,20 +376,20 @@ fn mission_card<'a>(app: &'a App, m: &'a serde_json::Value) -> El<'a> {
     let (id, state) = (s("id"), s("estado"));
     let (label, color) = maestro_status(&state);
     let active = ["planejando", "rodando", "integrando"].contains(&state.as_str());
-    let open = app.maestro_aberta.as_deref() == Some(id.as_str());
+    let open = app.maestro_open.as_deref() == Some(id.as_str());
     let steps = m["subtarefas"].as_array().map(Vec::as_slice).unwrap_or(&[]);
     let done = steps.iter().filter(|x| x["estado"] == "ok").count();
 
     let mut actions = row![].spacing(t::SP_1).align_y(Vertical::Center);
     if ["aguarda_aprovacao", "interrompida"].contains(&state.as_str()) {
-        actions = actions.push(btn(crate::i18n::text("Aprovar"), Kind::Primary, true, None, Some(Msg::MaestroAprovar(id.clone()))));
+        actions = actions.push(btn(crate::i18n::text("Aprovar"), Kind::Primary, true, None, Some(Msg::MaestroApprove(id.clone()))));
     }
     if active || state == "aguarda_aprovacao" {
-        actions = actions.push(btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::MaestroCancelar(id.clone()))));
+        actions = actions.push(btn(crate::i18n::text("Cancelar"), Kind::Ghost, true, None, Some(Msg::MaestroCancel(id.clone()))));
     } else {
-        actions = actions.push(tip(ib("trash", Some(Msg::MaestroApagar(id.clone())), false), crate::i18n::text("Apagar")));
+        actions = actions.push(tip(ib("trash", Some(Msg::MaestroDelete(id.clone())), false), crate::i18n::text("Apagar")));
     }
-    actions = actions.push(tip(ib(if open { "chevD" } else { "chevR" }, Some(Msg::MaestroAbrir(id.clone())), false), crate::i18n::text(if open { "Fechar" } else { "Ver" })));
+    actions = actions.push(tip(ib(if open { "chevD" } else { "chevR" }, Some(Msg::MaestroToggle(id.clone())), false), crate::i18n::text(if open { "Fechar" } else { "Ver" })));
 
     // estado · etapas · resumo, numa linha só de metadado
     let mut meta = row![txf(label, 12.0, if color == t::FG4 || color == t::FG3 { t::FG3 } else { color }, t::UI_MED)].spacing(t::SP_2).align_y(Vertical::Center);

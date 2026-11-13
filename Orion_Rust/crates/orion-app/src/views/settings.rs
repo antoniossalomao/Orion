@@ -559,12 +559,12 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Fala")));
             c = c.push(setting(crate::i18n::text("Resposta falada"), crate::i18n::text("Só quando o pedido foi por voz"), badge(crate::i18n::text("só por voz"), Tone::Plain)));
             // Voz do Orion: Gemini (Charon, tom calmo), chave própria e teto mensal, sem voz de reserva.
-            let voz = app.voz.as_ref();
-            let motor = voz.and_then(|v| v["motor"].as_str()).unwrap_or("gemini");
-            if motor == "gemini" {
+            let voice_status = app.voice_status.as_ref();
+            let engine = voice_status.and_then(|v| v["motor"].as_str()).unwrap_or("gemini");
+            if engine == "gemini" {
                 c = c.push(setting(crate::i18n::text("Voz do Orion"), crate::i18n::text("Charon, tom calmo (Gemini). Sem voz de reserva: se o crédito acabar, a fala avisa que está indisponível."), badge("Charon", Tone::Plain)));
-                const NOME: &str = "ORION_VOZ_GEMINI_KEY";
-                if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == NOME) {
+                const KEY_NAME: &str = "ORION_VOZ_GEMINI_KEY";
+                if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == KEY_NAME) {
                     let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0));
                     if !f.busy {
                         input = input.on_input(|s| Msg::KeyInput(s.into())).on_submit(Msg::KeySave);
@@ -580,24 +580,24 @@ fn section<'a>(app: &'a App) -> El<'a> {
                         ]),
                     ));
                 } else {
-                    let tem = voz.and_then(|v| v["chave"].as_bool()).unwrap_or_else(|| app.keys.get(NOME).copied().unwrap_or(false));
-                    let desc = if tem { crate::i18n::text("Guardada no cofre do sistema. Só a voz usa esta chave.").to_string() } else { crate::i18n::text("Sem chave: a voz fica indisponível. Gere uma em aistudio.google.com/apikey num projeto com faturamento.").to_string() };
-                    c = c.push(setting(crate::i18n::text("Chave da voz"), &desc, btn(if tem { crate::i18n::text("Trocar") } else { crate::i18n::text("Chave") }, Kind::Normal, true, None, Some(Msg::KeyOpen(NOME.to_string())))));
+                    let has_key = voice_status.and_then(|v| v["chave"].as_bool()).unwrap_or_else(|| app.keys.get(KEY_NAME).copied().unwrap_or(false));
+                    let desc = if has_key { crate::i18n::text("Guardada no cofre do sistema. Só a voz usa esta chave.").to_string() } else { crate::i18n::text("Sem chave: a voz fica indisponível. Gere uma em aistudio.google.com/apikey num projeto com faturamento.").to_string() };
+                    c = c.push(setting(crate::i18n::text("Chave da voz"), &desc, btn(if has_key { crate::i18n::text("Trocar") } else { crate::i18n::text("Chave") }, Kind::Normal, true, None, Some(Msg::KeyOpen(KEY_NAME.to_string())))));
                 }
-                if let Some(g) = voz.and_then(|v| v.get("gasto")).filter(|g| g.is_object()) {
+                if let Some(g) = voice_status.and_then(|v| v.get("gasto")).filter(|g| g.is_object()) {
                     let usd = g["usd"].as_f64().unwrap_or(0.0);
-                    let teto = g["teto_usd"].as_f64().unwrap_or(10.0);
+                    let cap = g["teto_usd"].as_f64().unwrap_or(10.0);
                     let min = (g["segundos"].as_f64().unwrap_or(0.0) / 60.0).round();
                     let desc = crate::i18n::formatted("{} min de fala gerada neste mês. Ao chegar no teto, a voz fica indisponível até o dia 1º.", format!("{min:.0} min de fala gerada neste mês. Ao chegar no teto, a voz fica indisponível até o dia 1º."));
-                    c = c.push(setting(crate::i18n::text("Crédito de voz do mês"), &desc, badge(&crate::i18n::formatted("US$ {} de {}", format!("US$ {usd:.2} de {teto:.0}")), if usd >= teto { Tone::Warn } else { Tone::Plain })));
+                    c = c.push(setting(crate::i18n::text("Crédito de voz do mês"), &desc, badge(&crate::i18n::formatted("US$ {} de {}", format!("US$ {usd:.2} de {cap:.0}")), if usd >= cap { Tone::Warn } else { Tone::Plain })));
                 }
-                if let Some(aviso) = voz.and_then(|v| v["aviso"].as_str()) {
-                    c = c.push(lede(&crate::i18n::status(aviso)));
+                if let Some(notice) = voice_status.and_then(|v| v["aviso"].as_str()) {
+                    c = c.push(lede(&crate::i18n::status(notice)));
                 }
             }
             c = c.push(setting(crate::i18n::text("Idioma"), "", sel_pop(["Português (Brasil)", "English (US)"][p.voice_lang].into(), Pop::SetVoiceLang, app, menus::simple_menu(&["Português (Brasil)", "English (US)"], p.voice_lang, "vlang"))));
             // estilo e velocidade só valem para a voz Edge; o Charon tem tom fixo no código
-            if motor != "gemini" {
+            if engine != "gemini" {
                 c = c.push(setting(crate::i18n::text("Estilo"), "", sel_pop(["Masculina, grave", "Masculina, clara"][p.voice_style].into(), Pop::SetVoiceStyle, app, menus::simple_menu(&["Masculina, grave", "Masculina, clara"], p.voice_style, "vstyle"))));
                 c = c.push(setting(crate::i18n::text("Velocidade"), "", pick_seg(&["Normal", crate::i18n::text("Rápido")], p.voice_speed, "vspeed")));
             }
