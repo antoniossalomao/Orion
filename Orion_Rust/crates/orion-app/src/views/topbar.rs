@@ -42,15 +42,13 @@ pub fn view(app: &App) -> El<'_> {
     if app.p.auto {
         r = r.push(pill(t::ACCENT, crate::i18n::text("Autônomo"), t::mix(t::ACCENT, 0.45), true, Some(Msg::Toggle("auto"))));
     }
-    let pend = app.pend_count();
     if app.streaming.is_some() {
         let a = 0.3 + 0.7 * (0.5 + 0.5 * (app.spin * 1.5).cos());
         r = r.push(pill(t::alpha(t::SIGNAL, a), crate::i18n::text("Pensando"), t::LINE2, false, None));
     } else if app.voice {
         r = r.push(pill(t::OK, crate::i18n::text("Ouvindo"), t::LINE2, false, None));
-    } else if pend > 0 {
-        r = r.push(pill(t::SIGNAL, &crate::i18n::formatted("Aguardando você · {pend}", format!("Aguardando você · {pend}")), t::mix(t::SIGNAL, 0.4), true, Some(Msg::Go(View::Aprovacoes))));
     }
+    // sem pílula "Aguardando você" no topo: as aprovações seguem no contador da barra lateral
     if !drawer {
         r = r.push(tip(ib("inbox", Some(Msg::QcapOpen), false), crate::i18n::text("Captura rápida (Ctrl + Alt + O)")));
         r = r.push(tip(ib("scan", Some(Msg::IssoOpen), false), crate::i18n::text("Isso? Captura a tela e pergunta (Ctrl + Alt + I)")));

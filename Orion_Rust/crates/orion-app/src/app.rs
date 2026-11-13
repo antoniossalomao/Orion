@@ -846,7 +846,8 @@ impl App {
             view: View::Home,
             conv: None,
             convs: data::convs(),
-            collapsed: false,
+            // barra lateral começa recolhida (pedido do Antônio); Ctrl+B ou o botão abre
+            collapsed: true,
             more: false,
             side_q: String::new(),
             drawer: false,

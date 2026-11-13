@@ -7,10 +7,10 @@ use iced::{Color, Point, Rectangle, Renderer, Theme};
 
 /// (x, y, raio relativo ao menor lado, cor, intensidade)
 const NEBULOSAS: [(f32, f32, f32, (u8, u8, u8), f32); 4] = [
-    (0.22, 0.28, 0.55, (110, 128, 196), 0.10), // azul Rigel, alto à esquerda
-    (0.82, 0.36, 0.48, (150, 120, 196), 0.08), // violeta à direita
-    (0.55, 0.92, 0.60, (70, 120, 150), 0.07),  // azul-petróleo embaixo
-    (0.50, 0.50, 0.30, (140, 155, 210), 0.04), // brilho leve no centro, atrás da esfera
+    (0.22, 0.28, 0.55, (110, 128, 196), 0.05), // azul Rigel, alto à esquerda
+    (0.82, 0.36, 0.48, (150, 120, 196), 0.04), // violeta à direita
+    (0.55, 0.92, 0.60, (70, 120, 150), 0.035),  // azul-petróleo embaixo
+    (0.50, 0.50, 0.30, (140, 155, 210), 0.02), // brilho leve no centro, atrás da esfera
 ];
 
 pub struct Nebulosas;
