@@ -201,9 +201,14 @@ impl<'a, Message> canvas::Program<Message> for Esfera<'a> {
         let (cos_y, sin_y) = (m.rot.cos(), m.rot.sin());
         let (cos_x, sin_x) = (0.38f32.cos(), 0.38f32.sin());
 
-        // halo suave atrás da esfera
-        let halo = Color::from_rgba(cor[0], cor[1], cor[2], 0.05 * m.brilho * (1.0 + m.nivel * 0.4));
-        f.fill(&Path::circle(Point::new(cx, cy), raio * 1.25), halo);
+        // halo suave atrás da esfera: degradê radial (círculos concêntricos de alfa baixo), sem borda
+        // dura, para não virar um disco cinza em cima do fundo escuro
+        let forca = 0.05 * m.brilho * (1.0 + m.nivel * 0.4);
+        const PASSOS: usize = 18;
+        for i in 0..PASSOS {
+            let k = 1.0 - i as f32 / PASSOS as f32;
+            f.fill(&Path::circle(Point::new(cx, cy), raio * (0.6 + 0.85 * k)), Color::from_rgba(cor[0], cor[1], cor[2], forca / PASSOS as f32 * 2.0));
+        }
 
         let tam_base = (w.min(h) / 260.0).clamp(0.8, 1.6);
         let mut camadas: Vec<canvas::path::Builder> = (0..CAMADAS).map(|_| canvas::path::Builder::new()).collect();
@@ -235,7 +240,7 @@ impl<'a, Message> canvas::Program<Message> for Esfera<'a> {
         }
         for (i, c) in camadas.into_iter().enumerate() {
             let prof = (i as f32 + 0.5) / CAMADAS as f32;
-            let a = ((0.08 + 0.62 * prof * prof) * m.brilho * (1.0 + m.nivel * 0.3 * REACAO)).min(1.0);
+            let a = ((0.12 + 0.70 * prof * prof) * m.brilho * (1.0 + m.nivel * 0.3 * REACAO)).min(1.0);
             f.fill(&c.build(), Color::from_rgba(cor[0], cor[1], cor[2], a));
         }
         vec![f.into_geometry()]

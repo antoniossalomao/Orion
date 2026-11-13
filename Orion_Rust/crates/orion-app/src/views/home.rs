@@ -91,7 +91,7 @@ pub fn view(app: &App) -> El<'_> {
 
     // presença do Orion acima da saudação (esfera de poeira que respira e reage à voz)
     // centralizada, logo acima da barra de chat (pedido do Antônio)
-    let esfera = container(iced::widget::canvas(crate::presenca::Esfera { motor: &app.presenca }).width(Length::Fixed(200.0)).height(Length::Fixed(180.0))).width(Length::Fill).center_x(Length::Fill);
+    let esfera = container(iced::widget::canvas(crate::presenca::Esfera { motor: &app.presenca }).width(Length::Fixed(280.0)).height(Length::Fixed(230.0))).width(Length::Fill).center_x(Length::Fill);
     // tarefas rápidas: só texto apagado, sem moldura (discreto, pedido do Antônio)
     let rapida = |label: &'static str, msg: Msg| -> El<'_> {
         button(tx(crate::i18n::text(label), 12.0, t::FG3))
