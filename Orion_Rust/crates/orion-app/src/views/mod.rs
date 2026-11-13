@@ -8,6 +8,7 @@ pub mod conflito;
 pub mod ctx;
 pub mod editor;
 pub mod home;
+pub mod nebulosas;
 pub mod island;
 pub mod login;
 pub mod onboarding;

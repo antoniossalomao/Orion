@@ -76,6 +76,9 @@ pub struct GeminiSpeaker {
     orcamento_usd: f64,
     arquivo: PathBuf,
     gasto: Mutex<Gasto>,
+    /// Dólares previstos das falas em andamento: entram na conta antes de chamar o Google, para
+    /// falas simultâneas (Telegram e leitura em voz alta, por exemplo) não passarem do teto.
+    reservado: Mutex<f64>,
     client: reqwest::Client,
     base: String,
     chave: Box<dyn Fn() -> Option<String> + Send + Sync>,
@@ -94,6 +97,7 @@ impl GeminiSpeaker {
             orcamento_usd,
             arquivo,
             gasto: Mutex::new(gasto),
+            reservado: Mutex::new(0.0),
             client: reqwest::Client::builder().timeout(Duration::from_secs(60)).build().unwrap_or_default(),
             base,
             chave,
@@ -134,10 +138,25 @@ impl GeminiSpeaker {
         let Some(chave) = (self.chave)() else {
             return Err(indisponivel("falta a chave da voz (Configurações › Voz › Chave da voz)."));
         };
-        let g = self.gasto();
-        if g.usd >= self.orcamento_usd {
-            return Err(indisponivel(&format!("o crédito de voz deste mês (US$ {:.2}) acabou. Volta no dia 1º.", self.orcamento_usd)));
+        // reserva o custo previsto (~15 caracteres por segundo de fala, com folga) junto com a checagem
+        let previsto = custo_usd(texto.chars().count() as f64 / 15.0 * 1.3 + 1.0, Utc::now().year());
+        {
+            let g = self.gasto();
+            let mut r = self.reservado.lock();
+            if g.usd + *r + previsto > self.orcamento_usd {
+                return Err(indisponivel(&format!("o crédito de voz deste mês (US$ {:.2}) acabou. Volta no dia 1º.", self.orcamento_usd)));
+            }
+            *r += previsto;
         }
+        let resultado = self.chamar(&chave, texto).await;
+        {
+            let mut r = self.reservado.lock();
+            *r = (*r - previsto).max(0.0);
+        }
+        resultado
+    }
+
+    async fn chamar(&self, chave: &str, texto: &str) -> Result<Vec<u8>, SpeakError> {
         let corpo = json!({
             "contents": [{"parts": [{"text": format!("{TOM} {texto}")}]}],
             "generationConfig": {
@@ -262,6 +281,16 @@ mod tests {
         let e = sp.synthesize("Olá").await.unwrap_err();
         assert!(e.0.starts_with("A voz está indisponível"));
         assert!(aviso().1.is_some());
+    }
+
+    #[tokio::test]
+    async fn custo_previsto_entra_na_conta_antes_da_chamada() {
+        // teto menor que o custo previsto de uma fala curta: recusa sem chamar o Google
+        let dir = tempfile::tempdir().unwrap();
+        let sp = GeminiSpeaker::com(dir.path(), 0.0001, "http://127.0.0.1:9".into(), Box::new(|| Some("k".into())));
+        let e = sp.synthesize("Olá").await.unwrap_err();
+        assert!(e.0.contains("crédito de voz deste mês"));
+        assert_eq!(*sp.reservado.lock(), 0.0);
     }
 
     #[tokio::test]

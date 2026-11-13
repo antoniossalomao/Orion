@@ -1030,8 +1030,8 @@ impl App {
         let moving = busy || orbiting || self.streaming.is_some() || self.toast.is_some() || self.news_pending;
         // a ilha anima a ~60 quadros/s só enquanto lê ou muda de forma; parada, não acorda a janela
         let island = if self.window_active && !self.fundo && self.island_visible() && self.island.animating(self.now) { iced::time::every(Duration::from_millis(16)).map(Msg::Tick) } else { Subscription::none() };
-        // F01.29: céu do login e da tela inicial; parado (reduzir movimento) só recolhe o quadro pendente
-        let sky_visible = self.window_active && !self.fundo && !self.mini && self.onboarding.is_none() && (!self.logged || self.view == View::Home);
+        // F01.29: céu do login (a tela inicial usa nebulosas estáticas); parado (reduzir movimento) só recolhe o quadro pendente
+        let sky_visible = self.window_active && !self.fundo && !self.mini && self.onboarding.is_none() && !self.logged;
         let sky_animates = !self.p.reduced && !self.system_reduces_motion;
         let sky_tick = if sky_visible { iced::time::every(Duration::from_millis(if sky_animates { 50 } else { 250 })).map(Msg::SkyTick) } else { Subscription::none() };
         let tick = if self.window_active && !self.fundo && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };

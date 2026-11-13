@@ -68,7 +68,8 @@ fn recent_projects(app: &App) -> Vec<usize> {
 }
 
 pub fn view(app: &App) -> El<'_> {
-    let sky: El<'_> = app.sky_frame.frame.view(crate::sky_frame::Slot::App);
+    // fundo sólido com nebulosas desfocadas (a constelação animada saiu da tela inicial)
+    let sky: El<'_> = iced::widget::canvas(crate::views::nebulosas::Nebulosas).width(Length::Fill).height(Length::Fill).into();
     let hour = app.hour.unwrap_or_else(local_hour);
     let size = (app.win.width * 0.05).clamp(34.0, 46.0);
     let hello_spans: Vec<iced::widget::text::Span<'_, (), iced::Font>> = vec![

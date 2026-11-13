@@ -237,12 +237,14 @@ impl TelegramChannel {
         }
         let bytes = speaker.synthesize(text).await.map_err(|_| terr("síntese indisponível", None))?;
         let mut measure = orion_ai::saidas::medir("telegram", "audio", "", bytes.len(), "audio");
-        let (nome, mime) = crate::voice::tipo_do_audio(&bytes[..bytes.len().min(16)]).map(|(n, m)| (if n.ends_with(".wav") { "orion.wav" } else { "orion.mp3" }, m)).unwrap_or(("orion.mp3", "audio/mpeg"));
+        // `sendAudio` só aceita MP3/M4A; a voz Gemini devolve WAV, que vai como arquivo (`sendDocument`)
+        let wav = crate::voice::tipo_do_audio(&bytes[..bytes.len().min(16)]).is_some_and(|(_, m)| m == "audio/wav");
+        let (metodo, campo, nome, mime) = if wav { ("sendDocument", "document", "orion.wav", "audio/wav") } else { ("sendAudio", "audio", "orion.mp3", "audio/mpeg") };
         let part = reqwest::multipart::Part::bytes(bytes).file_name(nome).mime_str(mime).map_err(|_| terr("tipo inválido", None))?;
         let response = self
             .client
-            .post(format!("{}/bot{}/sendAudio", self.base, self.token))
-            .multipart(reqwest::multipart::Form::new().text("chat_id", chat_id.to_string()).part("audio", part))
+            .post(format!("{}/bot{}/{metodo}", self.base, self.token))
+            .multipart(reqwest::multipart::Form::new().text("chat_id", chat_id.to_string()).part(campo, part))
             .timeout(Duration::from_secs(60))
             .send()
             .await

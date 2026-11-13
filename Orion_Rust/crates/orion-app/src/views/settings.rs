@@ -588,11 +588,11 @@ fn section<'a>(app: &'a App) -> El<'a> {
                     let usd = g["usd"].as_f64().unwrap_or(0.0);
                     let teto = g["teto_usd"].as_f64().unwrap_or(10.0);
                     let min = (g["segundos"].as_f64().unwrap_or(0.0) / 60.0).round();
-                    let desc = format!("{min:.0} min de fala gerada neste mês. Ao chegar no teto, a voz fica indisponível até o dia 1º.");
-                    c = c.push(setting(crate::i18n::text("Crédito de voz do mês"), &desc, badge(&format!("US$ {usd:.2} de {teto:.0}"), if usd >= teto { Tone::Warn } else { Tone::Plain })));
+                    let desc = crate::i18n::formatted("{} min de fala gerada neste mês. Ao chegar no teto, a voz fica indisponível até o dia 1º.", format!("{min:.0} min de fala gerada neste mês. Ao chegar no teto, a voz fica indisponível até o dia 1º."));
+                    c = c.push(setting(crate::i18n::text("Crédito de voz do mês"), &desc, badge(&crate::i18n::formatted("US$ {} de {}", format!("US$ {usd:.2} de {teto:.0}")), if usd >= teto { Tone::Warn } else { Tone::Plain })));
                 }
                 if let Some(aviso) = voz.and_then(|v| v["aviso"].as_str()) {
-                    c = c.push(lede(aviso));
+                    c = c.push(lede(&crate::i18n::status(aviso)));
                 }
             }
             c = c.push(setting(crate::i18n::text("Idioma"), "", sel_pop(["Português (Brasil)", "English (US)"][p.voice_lang].into(), Pop::SetVoiceLang, app, menus::simple_menu(&["Português (Brasil)", "English (US)"], p.voice_lang, "vlang"))));
