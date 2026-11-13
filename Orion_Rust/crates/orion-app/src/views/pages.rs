@@ -272,7 +272,94 @@ fn nuvem(app: &App) -> El<'_> {
     if rows.is_empty() {
         rows.push(li(column![li_title(vec![tx(crate::i18n::text("Nenhuma tarefa ainda"), 14.0, t::FG3).into()]), li_desc("Peça com /tarefa: o Orion segue sozinho, só lê e propõe, e avisa quando terminar.")].into(), li_right(vec![])));
     }
-    page(crate::i18n::text("Segundo plano"), crate::i18n::text("Tarefas longas que o Orion faz sozinho: só lê e propõe, dentro do tempo e dos passos que você deu. Crie com /tarefa."), Some(btn(crate::i18n::text("Nova tarefa"), Kind::Normal, true, Some("cloud"), Some(Msg::CloudNew))), list(rows))
+    let corpo: El = if app.maestro.is_empty() {
+        list(rows)
+    } else {
+        column![h3("Maestro", true), container(tx(crate::i18n::text("Missões grandes: o Claude Sonnet divide o pedido, escolhe agente e esforço de cada parte e junta o resultado. Só lê e propõe; plano que usa CLI espera você aprovar. Crie com /maestro."), 12.5, t::FG3)).padding(pad(0.0, t::SP_1, t::SP_2, t::SP_1)), list(maestro_rows(app)), h3("Tarefas", false), list(rows)].into()
+    };
+    page(crate::i18n::text("Segundo plano"), crate::i18n::text("Tarefas longas que o Orion faz sozinho: só lê e propõe, dentro do tempo e dos passos que você deu. Crie com /tarefa."), Some(btn(crate::i18n::text("Nova tarefa"), Kind::Normal, true, Some("cloud"), Some(Msg::CloudNew))), corpo)
+}
+
+fn estado_maestro(e: &str) -> (&'static str, Tone) {
+    match e {
+        "planejando" => (crate::i18n::text("planejando"), Tone::Info),
+        "aguarda_aprovacao" => (crate::i18n::text("aguarda aprovação"), Tone::Warn),
+        "rodando" => (crate::i18n::text("rodando"), Tone::Info),
+        "integrando" => (crate::i18n::text("juntando"), Tone::Info),
+        "concluida" | "ok" => (crate::i18n::text("concluída"), Tone::Ok),
+        "falhou" => (crate::i18n::text("falhou"), Tone::Err),
+        "cancelada" => (crate::i18n::text("cancelada"), Tone::Plain),
+        "interrompida" => (crate::i18n::text("interrompida"), Tone::Warn),
+        "pulada" => (crate::i18n::text("pulada"), Tone::Plain),
+        _ => (crate::i18n::text("pendente"), Tone::Plain),
+    }
+}
+
+fn esforco_maestro(e: &str) -> &'static str {
+    match e {
+        "baixo" => crate::i18n::text("baixo"),
+        "alto" => crate::i18n::text("alto"),
+        _ => crate::i18n::text("médio"),
+    }
+}
+
+/// Missões do Maestro: estado e ações na linha; plano, subtarefas e resultado ao abrir.
+fn maestro_rows(app: &App) -> Vec<El<'_>> {
+    let mut rows = vec![];
+    for m in &app.maestro {
+        let s = |k: &str| m[k].as_str().unwrap_or("").to_string();
+        let (id, estado) = (s("id"), s("estado"));
+        let (rotulo, tone) = estado_maestro(&estado);
+        let ativa = ["planejando", "rodando", "integrando"].contains(&estado.as_str());
+        let mut right: Vec<El> = vec![];
+        if ativa {
+            right.push(spinner(app.spin, 10.0));
+        }
+        right.push(badge(rotulo, tone));
+        if ["aguarda_aprovacao", "interrompida"].contains(&estado.as_str()) {
+            right.push(btn(crate::i18n::text("Aprovar"), Kind::Primary, true, None, Some(Msg::MaestroAprovar(id.clone()))));
+        }
+        if ativa || estado == "aguarda_aprovacao" {
+            right.push(btn(crate::i18n::text("Cancelar"), Kind::Normal, true, None, Some(Msg::MaestroCancelar(id.clone()))));
+        } else {
+            right.push(tip(ib("trash", Some(Msg::MaestroApagar(id.clone())), false), crate::i18n::text("Apagar")));
+        }
+        let aberta = app.maestro_aberta.as_deref() == Some(id.as_str());
+        right.push(tip(ib(if aberta { "chevD" } else { "chevR" }, Some(Msg::MaestroAbrir(id.clone())), false), crate::i18n::text(if aberta { "Fechar" } else { "Ver" })));
+        let subs = m["subtarefas"].as_array().cloned().unwrap_or_default();
+        let feitas = subs.iter().filter(|x| x["estado"] == "ok").count();
+        let mut desc = s("resumo");
+        if !subs.is_empty() {
+            desc = format!("{}{}{feitas}/{}", desc, if desc.is_empty() { "" } else { " · " }, subs.len());
+        }
+        let titulo: String = s("pedido").chars().take(90).collect();
+        let mut left = column![li_title(vec![badge("Maestro", Tone::Info), tx(titulo, 14.0, t::FG).into()]), li_desc(desc)];
+        if aberta {
+            let mut det = column![].spacing(t::SP_2).padding(pad(t::SP_2, 0.0, 0.0, 0.0));
+            for x in &subs {
+                let xs = |k: &str| x[k].as_str().unwrap_or("").to_string();
+                let (r, tn) = estado_maestro(&xs("estado"));
+                let quem = if xs("agente_usado").is_empty() { xs("agente") } else { xs("agente_usado") };
+                let linha = row![badge(&format!("{quem} · {}", esforco_maestro(&xs("esforco"))), Tone::Plain), tx(xs("titulo"), 13.0, t::FG2), grow(), badge(r, tn)].spacing(t::SP_2).align_y(Vertical::Center);
+                det = det.push(linha);
+                if xs("estado") == "falhou" {
+                    det = det.push(tx(xs("saida").chars().take(300).collect::<String>(), 12.0, t::FG3));
+                }
+            }
+            let erro = s("erro");
+            if !erro.is_empty() {
+                det = det.push(tx(erro, 12.5, t::DANGER));
+            }
+            let resultado = s("resultado");
+            if !resultado.is_empty() {
+                det = det.push(container(txf(crate::i18n::text("Resultado"), t::TEXT_EYEBROW, t::FG3, t::UI_MED)).padding(pad(t::SP_2, 0.0, 0.0, 0.0)));
+                det = det.push(iced::widget::text(resultado).size(13.0).font(t::UI).color(t::FG));
+            }
+            left = left.push(det);
+        }
+        rows.push(li(left.into(), li_right(right)));
+    }
+    rows
 }
 
 pub fn src_rows(app: &App) -> Vec<El<'_>> {

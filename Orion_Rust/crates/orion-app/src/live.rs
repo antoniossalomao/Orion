@@ -54,6 +54,7 @@ pub enum Lm {
     Lembretes(Result<Value, String>),
     /// Lista da nuvem; com a nuvem desligada (403) fica vazia, sem erro na tela.
     Nuvem(Result<Value, String>),
+    Maestro(Result<Value, String>),
     Modelos(Result<Value, String>),
     ModeloTestado(Result<Value, String>),
     Chat(Chat),
@@ -421,7 +422,7 @@ pub fn pull_page(api: &Api, v: View) -> Task<Msg> {
         View::Conhecimento => get("/facts", Lm::Facts),
         View::Memoria => get("/grafo/completo?limite=2000", Lm::Grafo),
         View::Projetos => get("/projects", Lm::Projects),
-        View::Nuvem => Task::batch([get("/tarefas-bg", Lm::Tarefas), get("/nuvem", Lm::Nuvem)]),
+        View::Nuvem => Task::batch([get("/tarefas-bg", Lm::Tarefas), get("/nuvem", Lm::Nuvem), get("/maestro", Lm::Maestro)]),
         View::Aprovacoes => Task::batch([get("/painel", Lm::Painel), get("/approvals", Lm::Approvals)]),
         _ => Task::none(),
     }
@@ -815,6 +816,18 @@ impl App {
                 let (a2, id) = (api.clone(), *id);
                 self.lembretes.retain(|l| l.0 != id);
                 Some((acao(&api, async move { a2.post(&format!("/lembretes/{id}/feito"), json!({})).await }, "Lembrete concluído", true), false))
+            }
+            Msg::MaestroAprovar(id) => {
+                let (a2, id) = (api.clone(), id.clone());
+                Some((acao(&api, async move { a2.post(&format!("/maestro/{id}/aprovar"), json!({})).await }, "Plano aprovado: o Maestro começou", true), false))
+            }
+            Msg::MaestroCancelar(id) => {
+                let (a2, id) = (api.clone(), id.clone());
+                Some((acao(&api, async move { a2.post(&format!("/maestro/{id}/cancelar"), json!({})).await }, "Missão cancelada", true), false))
+            }
+            Msg::MaestroApagar(id) => {
+                let (a2, id) = (api.clone(), id.clone());
+                Some((acao(&api, async move { a2.delete(&format!("/maestro/{id}")).await }, "Missão apagada", true), false))
             }
             Msg::CloudCancel(i) => {
                 let id = self.cloud.get(*i)?.id;
@@ -1451,6 +1464,10 @@ impl App {
                         .map(|a| a.iter().filter_map(|l| Some((l["id"].as_i64()?, l["titulo"].as_str().unwrap_or("").to_string(), l["quando"].as_f64()?))).collect())
                         .unwrap_or_default();
                 }
+                Err(e) => self.net_fail(e),
+            },
+            Lm::Maestro(r) => match r {
+                Ok(v) => self.maestro = v["missoes"].as_array().cloned().unwrap_or_default(),
                 Err(e) => self.net_fail(e),
             },
             Lm::Tarefas(r) => match r {

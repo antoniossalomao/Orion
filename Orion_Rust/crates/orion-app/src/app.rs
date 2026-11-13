@@ -418,6 +418,10 @@ pub struct App {
     pub lembretes: Vec<(i64, String, f64)>,
     /// Tarefas na nuvem pelas CLIs oficiais (`/nuvem`); vazio com a nuvem desligada.
     pub nuvem: Vec<data::NuvemItem>,
+    /// Missões do Maestro (`/maestro`), a mais nova primeiro.
+    pub maestro: Vec<serde_json::Value>,
+    /// Missão do Maestro aberta em detalhe.
+    pub maestro_aberta: Option<String>,
     pub mcp: Vec<data::Mcp>,
     pub cloud_extra: Vec<(String, String)>,
     pub skills: Vec<data::SkillRow>,
@@ -741,6 +745,11 @@ pub enum Msg {
     /// F12.10: concluir o lembrete com esse id.
     LembreteFeito(i64),
     NuvemDescartar(usize),
+    /// Maestro: abrir/fechar o detalhe, aprovar o plano, cancelar ou apagar a missão (por id).
+    MaestroAbrir(String),
+    MaestroAprovar(String),
+    MaestroCancelar(String),
+    MaestroApagar(String),
     QcapText(String),
     QcapKind(usize),
     QcapSave,
@@ -899,6 +908,8 @@ impl App {
             cloud: data::cloud(),
             lembretes: vec![],
             nuvem: vec![],
+            maestro: vec![],
+            maestro_aberta: None,
             mcp: data::mcp(),
             cloud_extra: vec![],
             skills: data::skills_demo(),
@@ -2204,6 +2215,8 @@ impl App {
             }
             Msg::ResumePw(s) => { zeroize::Zeroize::zeroize(&mut self.resume_pw); self.resume_pw = s.take(); }
             Msg::Poll => {}
+            Msg::MaestroAbrir(id) => self.maestro_aberta = if self.maestro_aberta.as_deref() == Some(id.as_str()) { None } else { Some(id) },
+            Msg::MaestroAprovar(_) | Msg::MaestroCancelar(_) | Msg::MaestroApagar(_) => {}
             Msg::ToolPermission(index) => {
                 let mut values = self.p.tools.unwrap_or([false; 3]);
                 if index == 3 { values = [!values.iter().all(|v| *v); 3]; }

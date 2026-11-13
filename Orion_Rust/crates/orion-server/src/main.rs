@@ -498,6 +498,9 @@ async fn encerrar_fundo(st: &estado::Estado, tarefa_telegram: Option<tokio::task
     if let Some(t) = tarefa_telegram {
         t.abort();
     }
+    if let Some(m) = &st.maestro {
+        m.encerrar();
+    }
     if let Some(m) = &st.mcp {
         m.stop().await;
     }

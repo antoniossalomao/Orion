@@ -161,6 +161,20 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
             a.update(Msg::Go(vw));
         }));
     }
+    // Maestro: uma missão aberta no meio da execução e outra esperando aprovação
+    push("14b-maestro", cena(|a| {
+        a.more = true;
+        a.update(Msg::Go(View::Nuvem));
+        a.maestro = vec![
+            serde_json::json!({"id": "m1", "pedido": "Pesquisar caches de resposta para o gateway e propor a implementação em Rust", "estado": "rodando", "resumo": "Pesquisa, proposta de código e revisão",
+                "subtarefas": [
+                    {"id": "s1", "titulo": "Pesquisar estratégias de cache", "agente": "orion", "esforco": "baixo", "estado": "ok", "agente_usado": "orion"},
+                    {"id": "s2", "titulo": "Propor o módulo de cache", "agente": "codex", "esforco": "alto", "estado": "rodando", "agente_usado": ""},
+                    {"id": "s3", "titulo": "Revisar a proposta", "agente": "claude", "esforco": "medio", "estado": "pendente", "agente_usado": ""}]}),
+            serde_json::json!({"id": "m2", "pedido": "Revisar a segurança das rotas novas do servidor", "estado": "aguarda_aprovacao", "resumo": "Duas revisões independentes e um resumo", "subtarefas": [{"estado": "pendente"}, {"estado": "pendente"}]}),
+        ];
+        a.maestro_aberta = Some("m1".into());
+    }));
     push("22-memoria-forcas", cena(|a| {
         a.update(Msg::Go(View::Memoria));
         a.mem.forces_open = true;

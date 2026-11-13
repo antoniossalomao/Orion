@@ -162,6 +162,13 @@ impl Delegator {
     }
 
     pub fn delegate(&self, tarefa: &str, pasta: &str, agente: Option<&str>) -> Value {
+        self.delegate_with(tarefa, pasta, agente, &|_| vec![])
+    }
+
+    /// Como [`delegate`](Self::delegate), com argumentos extras por CLI logo depois do programa
+    /// (modelo ou esforço escolhidos pelo Maestro, ex.: `--model sonnet`). Os extras vêm do código,
+    /// nunca do modelo, e também não passam por shell.
+    pub fn delegate_with(&self, tarefa: &str, pasta: &str, agente: Option<&str>, extras: &dyn Fn(&str) -> Vec<String>) -> Value {
         if tarefa.trim().is_empty() {
             return json!({"ok": false, "erro": "tarefa vazia"});
         }
@@ -205,6 +212,7 @@ impl Delegator {
             let _ = self.store.counter_incr(&chave, 1);
             // "Tarefa:" evita que um prompt iniciado por "-" vire opção da CLI.
             let mut argv = vec![exe.to_string_lossy().into_owned()];
+            argv.extend(extras(nome));
             argv.extend(ag.argv[1..].iter().map(|a| a.replace("{prompt}", &format!("Tarefa: {tarefa}"))));
             let inicio = Instant::now();
             let reg = |r: Option<&Saida>| {

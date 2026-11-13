@@ -38,6 +38,7 @@ pub mod progresso;
 pub mod subagente;
 pub mod legenda;
 pub mod ler_depois;
+pub mod maestro;
 pub mod mcp_client;
 pub mod mcp_export;
 pub mod mcp_indice;

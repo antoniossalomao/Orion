@@ -228,6 +228,18 @@ pub fn run_command(app: &mut App, word: &str, full: &str) -> Task<Msg> {
             app.cloud_extra.push(("Orion".into(), rest));
             app.toast("Tarefa em segundo plano iniciada");
         }
+        "maestro" => {
+            app.view = View::Nuvem;
+            let Some(api) = app.api.clone() else {
+                app.toast("O Maestro precisa do núcleo");
+                return Task::none();
+            };
+            if rest.trim().is_empty() {
+                app.toast("Diga a missão: /maestro pesquisar e propor um cache para o gateway");
+                return Task::none();
+            }
+            return Task::perform(async move { api.post("/maestro", serde_json::json!({"pedido": rest})).await }, |r| Msg::L(crate::live::Lm::Acao(r.map(|_| "Maestro: montando o plano".to_string()), true)));
+        }
         "nuvem" => {
             app.view = View::Nuvem;
             let Some(api) = app.api.clone() else {
