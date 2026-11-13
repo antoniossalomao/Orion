@@ -505,6 +505,8 @@ pub struct App {
     pub cur_sid: Option<String>,
     pub at: Marks,
     pub t0: Instant,
+    /// Segundos do fundo animado da tela inicial (parado com movimento reduzido).
+    pub fundo_t: f32,
     pub hour: Option<u32>,
     pub toast_pinned: bool,
     /// Aviso de novidades ainda não mostrado nesta versão (novidades.rs).
@@ -968,6 +970,7 @@ impl App {
             cur_sid: None,
             at: Marks::default(),
             t0: Instant::now(),
+            fundo_t: 0.0,
             hour: None,
             toast_pinned: false,
             news_pending: crate::novidades::pending(),
@@ -1278,6 +1281,9 @@ impl App {
             Msg::Presenca(now) => {
                 self.presenca.estado = self.presenca_estado();
                 self.presenca.avancar(now, self.p.reduced || self.system_reduces_motion);
+                if !self.p.reduced && !self.system_reduces_motion {
+                    self.fundo_t = now.duration_since(self.t0).as_secs_f32();
+                }
             }
             Msg::Tick(now) => {
                 // F05.01: a fila segue sozinha quando o upload ou a resposta anterior terminar.

@@ -113,7 +113,7 @@ fn shell(app: &App) -> El<'_> {
     let main = column![topbar::view(app), body].width(Length::Fill).height(Length::Fill);
     // tela inicial: o espaço fica atrás da barra do topo também (barra transparente)
     let main: El = if app.view == View::Home {
-        stack![iced::widget::canvas(nebulosas::Nebulosas).width(Length::Fill).height(Length::Fill), main].width(Length::Fill).height(Length::Fill).into()
+        stack![iced::widget::canvas(nebulosas::Nebulosas { t: app.fundo_t }).width(Length::Fill).height(Length::Fill), main].width(Length::Fill).height(Length::Fill).into()
     } else {
         main.into()
     };
