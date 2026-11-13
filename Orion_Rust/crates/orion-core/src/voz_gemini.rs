@@ -138,26 +138,34 @@ impl GeminiSpeaker {
         let Some(chave) = (self.chave)() else {
             return Err(indisponivel("falta a chave da voz (Configurações › Voz › Chave da voz)."));
         };
-        // reserva o custo previsto (~15 caracteres por segundo de fala, com folga) junto com a checagem
-        let previsto = custo_usd(texto.chars().count() as f64 / 15.0 * 1.3 + 1.0, Utc::now().year());
-        {
+        // reserva o custo previsto (~15 caracteres por segundo de fala, com folga) junto com a checagem.
+        // O teto da fala vai até 3x o previsto, mas nunca além do que sobra no mês: vira
+        // `maxOutputTokens`, então fala lenta ou números por extenso não estouram o teto mensal.
+        let ano = Utc::now().year();
+        let previsto = custo_usd(texto.chars().count() as f64 / 15.0 * 1.3 + 1.0, ano);
+        let teto = {
             let g = self.gasto();
             let mut r = self.reservado.lock();
-            if g.usd + *r + previsto > self.orcamento_usd {
+            let sobra = self.orcamento_usd - g.usd - *r;
+            if previsto > sobra {
                 return Err(indisponivel(&format!("o crédito de voz deste mês (US$ {:.2}) acabou. Volta no dia 1º.", self.orcamento_usd)));
             }
-            *r += previsto;
-        }
+            let teto = (previsto * 3.0).min(sobra);
+            *r += teto;
+            teto
+        };
         // devolve a reserva em qualquer saída, inclusive quando a fala é cancelada no meio
-        let _reserva = Reserva { total: &self.reservado, valor: previsto };
-        self.chamar(&chave, texto).await
+        let _reserva = Reserva { total: &self.reservado, valor: teto };
+        let max_tokens = ((teto / preco_por_milhao(ano) * 1_000_000.0).floor() as u64).max(1);
+        self.chamar(&chave, texto, max_tokens).await
     }
 
-    async fn chamar(&self, chave: &str, texto: &str) -> Result<Vec<u8>, SpeakError> {
+    async fn chamar(&self, chave: &str, texto: &str, max_tokens: u64) -> Result<Vec<u8>, SpeakError> {
         let corpo = json!({
             "contents": [{"parts": [{"text": format!("{TOM} {texto}")}]}],
             "generationConfig": {
                 "responseModalities": ["AUDIO"],
+                "maxOutputTokens": max_tokens,
                 "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": VOZ}}}
             }
         });
