@@ -471,10 +471,10 @@ impl Maestro {
     }
 
     async fn run_subtask(&self, m: &Mission, s: &Subtask) -> Result<(String, String), String> {
-        let prompt = subtask_prompt(m, s);
         if s.agent_name == ORION {
-            return self.run_orion(m, s, prompt).await.map(|t| (ORION.to_string(), t));
+            return self.run_orion(m, s).await.map(|t| (ORION.to_string(), t));
         }
+        let prompt = subtask_prompt(m, s);
         let Some(d) = self.delegator.clone() else { return Err("nenhuma CLI disponível".into()) };
         let (agent_name, effort, dir) = (s.agent_name.clone(), s.effort.clone(), m.dir.clone());
         let r = tokio::task::spawn_blocking(move || d.delegate_with(&prompt, &dir, Some(&agent_name), &|n| effort_args(n, &effort))).await.map_err(|_| "a subtarefa caiu".to_string())?;
@@ -486,10 +486,30 @@ impl Maestro {
     }
 
     /// Agente do Orion em modo só leitura, numa conversa própria por subtarefa.
-    async fn run_orion(&self, m: &Mission, s: &Subtask, prompt: String) -> Result<String, String> {
+    /// Agente do Orion em modo só leitura, numa conversa própria por subtarefa. Só o pedido do
+    /// Antônio entra como texto dele; a instrução gerada pelo planejador e os resultados de outros
+    /// agentes entram como conteúdo externo, com proveniência (REGRAS.md: conteúdo externo é dado),
+    /// para nunca virarem fato "dito pelo Antônio" na consolidação da memória.
+    async fn run_orion(&self, m: &Mission, s: &Subtask) -> Result<String, String> {
         let channel = format!("{CHANNEL}:{}:{}", m.id, s.id);
         let _ = self.open_session(&channel, &s.title);
-        let req = TurnRequest { channel: channel, text: prompt, read_only: true, ..Default::default() };
+        let external_item = |kind: &str, key: &str, body: String| {
+            use sha2::Digest;
+            let digest = hex::encode(sha2::Sha256::digest(body.as_bytes()));
+            crate::extensions::context::ExternalData { connection: CHANNEL.into(), kind: kind.into(), key: key.into(), truncated: false, text: body, digest }
+        };
+        let mut external = vec![external_item("plano", &s.id, s.task.clone())];
+        for d in &s.depends_on {
+            if let Some(dep) = m.subtasks.iter().find(|x| &x.id == d) {
+                external.push(external_item("resultado", &dep.id, truncate(&dep.output, MAX_CONTEXT)));
+            }
+        }
+        let text_in = format!(
+            "{}\n\n(Maestro: faça a parte do pedido descrita no item \"plano\" do conteúdo externo, usando os \"resultado\" como referência. \
+             Responda em português, direto. Não edite arquivos: proponha.)",
+            truncate(&m.request, 1500)
+        );
+        let req = TurnRequest { channel, text: text_in, external, read_only: true, ..Default::default() };
         let mut text = String::new();
         let mut steps = 0usize;
         let mut error = None;
@@ -513,10 +533,12 @@ impl Maestro {
         if tokio::time::timeout(std::time::Duration::from_secs(ORION_MINUTES * 60), consume).await.is_err() {
             error = Some(format!("passou de {ORION_MINUTES} minutos"));
         }
+        // erro vale mesmo com texto parcial: etapa incompleta não pode liberar quem depende dela
         match error {
             Some(e) if text.trim().is_empty() => Err(e),
-            _ if text.trim().is_empty() => Err("sem resposta".into()),
-            _ => Ok(text),
+            Some(e) => Err(format!("{e}\n\n(resposta parcial)\n{}", truncate(text.trim(), 1500))),
+            None if text.trim().is_empty() => Err("sem resposta".into()),
+            None => Ok(text),
         }
     }
 
