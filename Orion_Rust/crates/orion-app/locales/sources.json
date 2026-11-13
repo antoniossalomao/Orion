@@ -1418,7 +1418,6 @@
   "US$ {} de {}": "ui-1344",
   "A voz está indisponível: o crédito de voz deste mês (US$ {}) acabou. Volta no dia 1º.": "ui-1345",
   "A voz está indisponível: o Google devolveu um erro (HTTP {}).": "ui-1346",
-  "Missões grandes: o Claude Sonnet divide o pedido, escolhe agente e esforço de cada parte e junta o resultado. Só lê e propõe; plano que usa CLI espera você aprovar. Crie com /maestro.": "ui-1347",
   "Maestro": "ui-1348",
   "Tarefas": "ui-1349",
   "planejando": "ui-1350",
@@ -1439,5 +1438,6 @@
   "Maestro: montando o plano": "ui-1365",
   "O Maestro precisa do núcleo": "ui-1366",
   "Diga a missão: /maestro pesquisar e propor um cache para o gateway": "ui-1367",
-  "Missão grande: o Maestro divide e distribui entre os agentes": "ui-1368"
+  "Missão grande: o Maestro divide e distribui entre os agentes": "ui-1368",
+  "O Sonnet divide o pedido, distribui entre os agentes e junta o resultado. Plano com CLI espera sua aprovação.": "ui-1347"
 }

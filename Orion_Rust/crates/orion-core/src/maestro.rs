@@ -174,13 +174,14 @@ pub fn ler_plano(texto: &str, clis: &[String]) -> Result<(String, Vec<Subtarefa>
     let resumo = cortar(v["resumo"].as_str().unwrap_or("").trim(), 300);
     let itens = v["subtarefas"].as_array().cloned().unwrap_or_default();
     let mut subs: Vec<Subtarefa> = vec![];
-    for (i, it) in itens.iter().take(MAX_SUBTAREFAS).enumerate() {
+    // id original do planejador -> id normalizado; dependência só resolve por esse mapa
+    let mut ids: HashMap<String, String> = HashMap::new();
+    for it in itens.iter().take(MAX_SUBTAREFAS) {
         let tarefa = it["tarefa"].as_str().unwrap_or("").trim();
         if tarefa.is_empty() {
             continue;
         }
-        let id = format!("s{}", i + 1);
-        let original = it["id"].as_str().unwrap_or("").to_string();
+        let id = format!("s{}", subs.len() + 1);
         let mut agente = it["agente"].as_str().unwrap_or(ORION).trim().to_lowercase();
         if !AGENTES.contains(&agente.as_str()) || (agente != ORION && !clis.contains(&agente)) {
             agente = if clis.iter().any(|c| c == "claude") { "claude".into() } else { ORION.into() };
@@ -189,12 +190,13 @@ pub fn ler_plano(texto: &str, clis: &[String]) -> Result<(String, Vec<Subtarefa>
         if !ESFORCOS.contains(&esforco.as_str()) {
             esforco = "medio".into();
         }
-        // dependências só para subtarefas anteriores (sem ciclo), traduzidas para os ids normalizados
-        let depende: Vec<String> = it["depende"]
-            .as_array()
-            .map(|d| d.iter().filter_map(Value::as_str).filter_map(|x| subs.iter().find(|s| s.titulo == x || s.agente_usado == x || s.id == x).map(|s| s.id.clone())).collect())
-            .unwrap_or_default();
+        // só subtarefas anteriores já estão no mapa: sem ciclo e sem referência para frente
+        let mut depende: Vec<String> = it["depende"].as_array().map(|d| d.iter().filter_map(Value::as_str).filter_map(|x| ids.get(x).cloned()).collect()).unwrap_or_default();
+        depende.dedup();
         let titulo = cortar(it["titulo"].as_str().unwrap_or("").trim(), 80);
+        if let Some(original) = it["id"].as_str().filter(|o| !o.is_empty()) {
+            ids.entry(original.to_string()).or_insert_with(|| id.clone());
+        }
         subs.push(Subtarefa {
             id,
             titulo: if titulo.is_empty() { cortar(tarefa, 60) } else { titulo },
@@ -203,13 +205,8 @@ pub fn ler_plano(texto: &str, clis: &[String]) -> Result<(String, Vec<Subtarefa>
             esforco,
             depende,
             estado: "pendente".into(),
-            // guarda o id original só durante a leitura, para resolver `depende` das próximas
-            agente_usado: original,
-            saida: String::new(),
+            ..Default::default()
         });
-    }
-    for s in &mut subs {
-        s.agente_usado.clear();
     }
     if subs.is_empty() {
         return Err("o plano veio sem subtarefas".into());
