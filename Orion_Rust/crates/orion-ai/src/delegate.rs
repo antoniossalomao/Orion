@@ -163,8 +163,9 @@ impl Delegator {
 
     /// Só o agente pedido, sem passar para outro se ele falhar: usado quando o usuário escolheu uma
     /// assinatura específica (nunca trocar de provedor às escondidas).
-    pub fn delegate_only(&self, tarefa: &str, pasta: &str, agente: &str, extras: &dyn Fn(&str) -> Vec<String>) -> Value {
-        let mut r = self.delegate_with_filter(tarefa, pasta, Some(agente), extras, true);
+    /// `depois` entra logo após o subcomando (ex.: opções de `codex exec`).
+    pub fn delegate_only(&self, tarefa: &str, pasta: &str, agente: &str, extras: &dyn Fn(&str) -> Vec<String>, depois: &dyn Fn(&str) -> Vec<String>) -> Value {
+        let mut r = self.delegate_with_filter(tarefa, pasta, Some(agente), extras, depois, true);
         if r["ok"] != true && r.get("erro").is_none() {
             r["erro"] = json!("indisponível");
         }
@@ -179,10 +180,10 @@ impl Delegator {
     /// (modelo ou esforço escolhidos pelo Maestro, ex.: `--model sonnet`). Os extras vêm do código,
     /// nunca do modelo, e também não passam por shell.
     pub fn delegate_with(&self, tarefa: &str, pasta: &str, agente: Option<&str>, extras: &dyn Fn(&str) -> Vec<String>) -> Value {
-        self.delegate_with_filter(tarefa, pasta, agente, extras, false)
+        self.delegate_with_filter(tarefa, pasta, agente, extras, &|_| vec![], false)
     }
 
-    fn delegate_with_filter(&self, tarefa: &str, pasta: &str, agente: Option<&str>, extras: &dyn Fn(&str) -> Vec<String>, so_ele: bool) -> Value {
+    fn delegate_with_filter(&self, tarefa: &str, pasta: &str, agente: Option<&str>, extras: &dyn Fn(&str) -> Vec<String>, depois: &dyn Fn(&str) -> Vec<String>, so_ele: bool) -> Value {
         if tarefa.trim().is_empty() {
             return json!({"ok": false, "erro": "tarefa vazia"});
         }
@@ -229,7 +230,15 @@ impl Delegator {
             // "Tarefa:" evita que um prompt iniciado por "-" vire opção da CLI.
             let mut argv = vec![exe.to_string_lossy().into_owned()];
             argv.extend(extras(nome));
-            argv.extend(ag.argv[1..].iter().map(|a| a.replace("{prompt}", &format!("Tarefa: {tarefa}"))));
+            let prompt = format!("Tarefa: {tarefa}");
+            // `depois` entra após o subcomando; agente sem subcomando (argv de 1 item) não tem onde.
+            if let Some(sub) = ag.argv.get(1) {
+                argv.push(sub.replace("{prompt}", &prompt));
+            }
+            if ag.argv.get(1).is_some_and(|a| !a.contains("{prompt}")) {
+                argv.extend(depois(nome));
+            }
+            argv.extend(ag.argv.iter().skip(2).map(|a| a.replace("{prompt}", &prompt)));
             let inicio = Instant::now();
             let reg = |r: Option<&Saida>| {
                 saidas::registrar(
