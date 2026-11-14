@@ -535,6 +535,7 @@ fn painel_live(app: &App) -> El<'_> {
     let clis = p["clis"].as_array().cloned().unwrap_or_default();
     if !clis.is_empty() {
         col = col.push(h3(crate::i18n::text("CLIs de assinatura"), false));
+        col = col.push(tx("Entre uma vez no terminal: `claude login` ou `codex login`. O Orion só chama a CLI e nunca vê o token. Gemini usa chave de API.".to_string(), 12.0, t::FG3));
         for c in &clis {
             let nome = c["nome"].as_str().unwrap_or("cli").to_string();
             let estado = if !c["instalada"].as_bool().unwrap_or(false) {

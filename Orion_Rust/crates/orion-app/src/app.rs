@@ -210,6 +210,13 @@ impl Prefs {
             None => p.to_string(),
         }
     }
+    /// Escolha de assinatura a enviar ao servidor: só Claude (1) e Codex (2) rodam pela CLI.
+    pub fn assinatura(&self) -> Option<serde_json::Value> {
+        let agente = match self.prov { 1 => "claude", 2 => "codex", _ => return None };
+        let modelo = if self.prov == 1 { ["opus", "sonnet", "haiku"].get(self.model).copied().unwrap_or("sonnet") } else { "" };
+        let esforco = ["baixo", "medio", "alto"].get(self.effort).copied().unwrap_or("medio");
+        Some(serde_json::json!({"agente": agente, "modelo": modelo, "esforco": esforco}))
+    }
     pub fn has_effort(&self) -> bool {
         matches!(self.prov, 1..=3)
     }

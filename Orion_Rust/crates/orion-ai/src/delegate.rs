@@ -161,6 +161,16 @@ impl Delegator {
         }
     }
 
+    /// Só o agente pedido, sem passar para outro se ele falhar: usado quando o usuário escolheu uma
+    /// assinatura específica (nunca trocar de provedor às escondidas).
+    pub fn delegate_only(&self, tarefa: &str, pasta: &str, agente: &str, extras: &dyn Fn(&str) -> Vec<String>) -> Value {
+        let mut r = self.delegate_with_filter(tarefa, pasta, Some(agente), extras, true);
+        if r["ok"] != true && r.get("erro").is_none() {
+            r["erro"] = json!("indisponível");
+        }
+        r
+    }
+
     pub fn delegate(&self, tarefa: &str, pasta: &str, agente: Option<&str>) -> Value {
         self.delegate_with(tarefa, pasta, agente, &|_| vec![])
     }
@@ -169,6 +179,10 @@ impl Delegator {
     /// (modelo ou esforço escolhidos pelo Maestro, ex.: `--model sonnet`). Os extras vêm do código,
     /// nunca do modelo, e também não passam por shell.
     pub fn delegate_with(&self, tarefa: &str, pasta: &str, agente: Option<&str>, extras: &dyn Fn(&str) -> Vec<String>) -> Value {
+        self.delegate_with_filter(tarefa, pasta, agente, extras, false)
+    }
+
+    fn delegate_with_filter(&self, tarefa: &str, pasta: &str, agente: Option<&str>, extras: &dyn Fn(&str) -> Vec<String>, so_ele: bool) -> Value {
         if tarefa.trim().is_empty() {
             return json!({"ok": false, "erro": "tarefa vazia"});
         }
@@ -183,7 +197,9 @@ impl Delegator {
             }
         }
         let mut ordem: Vec<&str> = agente.into_iter().collect();
-        ordem.extend(nomes.iter().copied().filter(|n| Some(*n) != agente));
+        if !so_ele {
+            ordem.extend(nomes.iter().copied().filter(|n| Some(*n) != agente));
+        }
         let mut tentativas: Vec<Value> = vec![];
         for nome in ordem {
             let ag = self.agents.iter().find(|a| a.name == nome).unwrap();
