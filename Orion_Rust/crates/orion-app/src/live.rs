@@ -1086,8 +1086,14 @@ impl App {
         self.attach_thumbs.clear();
         let (path, body) = match edit {
             Some(id) => (format!("/historico/{id}/editar"), json!({"texto": text, "canal": "web"})),
-            None => ("/chat".to_string(), json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens})),
+            None => {
+                let mut b = json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens});
+                // Claude/Codex escolhidos no seletor: o servidor roda a CLI oficial, nunca cai na API.
+                if let Some(a) = self.p.assinatura() { b["assinatura"] = a; }
+                ("/chat".to_string(), b)
+            }
         };
+        if self.p.prov == 3 { self.toast("Gemini não usa a CLI (termos do Google): este turno vai pela API"); }
         let (task, handle) = Task::run(api.stream(&path, body), |e| Msg::L(Lm::Chat(e))).abortable();
         self.abort = Some(handle);
         task
