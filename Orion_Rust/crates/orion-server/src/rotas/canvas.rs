@@ -242,7 +242,8 @@ async fn run_turn(st: &Estado, ws: &str, node: &orion_core::canvas::Node, text: 
         if node.messages.iter().any(|m| m.role == "ai" && !m.model.is_empty() && m.model != "Orion") {
             use sha2::Digest;
             let mut transcript = String::new();
-            for m in node.messages.iter().filter(|m| m.role == "user" || m.role == "ai").rev().take(12).rev() {
+            let talk: Vec<&orion_core::canvas::Message> = node.messages.iter().filter(|m| m.role == "user" || m.role == "ai").collect();
+            for m in &talk[talk.len().saturating_sub(12)..] {
                 transcript.push_str(&format!("[{}] {}\n", if m.role == "user" { "Antônio" } else { m.model.as_str() }, m.text.chars().take(1500).collect::<String>()));
             }
             let digest = format!("{:x}", sha2::Sha256::digest(transcript.as_bytes()));
