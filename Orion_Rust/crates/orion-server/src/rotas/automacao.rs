@@ -272,7 +272,7 @@ pub async fn create_maestro(_: Admin, State(st): State<Estado>, Json(c): Json<Ma
         let n = st.settings.nuvem_dir.trim();
         if n.is_empty() { std::env::current_dir().unwrap_or_default().to_string_lossy().into_owned() } else { n.to_string() }
     });
-    let r = maestro_result(maestro_service(&st)?.create(&c.request, &dir))?;
+    let r = maestro_result(maestro_service(&st)?.create(&c.request, &dir, ""))?;
     tracing::info!(target: "orion.audit", "maestro criado id={}", r["id"]);
     Ok((axum::http::StatusCode::ACCEPTED, Json(r)))
 }
