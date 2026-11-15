@@ -209,13 +209,13 @@ impl CanvasStore {
         CanvasStore { path, d: Mutex::new(d) }
     }
 
-    fn save(&self, d: &Data) {
-        if let Ok(b) = serde_json::to_vec_pretty(d) {
-            let tmp = self.path.with_extension("json.tmp");
-            if std::fs::write(&tmp, b).is_ok() {
-                let _ = std::fs::rename(&tmp, &self.path);
-            }
-        }
+    /// Grava por arquivo temporário e renomeação; o erro volta ao chamador para a tela não mostrar como salvo o que não foi.
+    fn save(&self, d: &Data) -> Result<(), CanvasError> {
+        let fail = |e: String| CanvasError { message: format!("não consegui gravar o canvas: {e}"), status: 500 };
+        let b = serde_json::to_vec_pretty(d).map_err(|e| fail(e.to_string()))?;
+        let tmp = self.path.with_extension("json.tmp");
+        std::fs::write(&tmp, b).map_err(|e| fail(e.to_string()))?;
+        std::fs::rename(&tmp, &self.path).map_err(|e| fail(e.to_string()))
     }
 
     /// Muda sob a trava e grava. `f` devolve o resultado ou o motivo da recusa.
@@ -224,7 +224,7 @@ impl CanvasStore {
     fn edit<T>(&self, f: impl FnOnce(&mut Data) -> Result<T, CanvasError>) -> Result<T, CanvasError> {
         let mut g = self.d.lock();
         let r = f(&mut g)?;
-        self.save(&g);
+        self.save(&g)?;
         Ok(r)
     }
 

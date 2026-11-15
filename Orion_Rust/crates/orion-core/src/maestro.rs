@@ -427,7 +427,8 @@ impl Maestro {
         let Some(m) = self.missions.lock().get(&id).cloned() else { return };
         let clis = self.clis();
         let maestro_is_orion = self.canvas.maestro_agent() == ORION;
-        let planned: Result<(Plan, String), String> = if !maestro_is_orion && clis.is_empty() {
+        // só o Claude (padrão) mantém o atalho antigo de "sem CLI, o Orion faz tudo"; Codex escolhido e ausente é erro
+        let planned: Result<(Plan, String), String> = if !maestro_is_orion && clis.is_empty() && self.canvas.maestro_agent() == "claude" {
             // sem CLI: o próprio Orion faz o pedido inteiro, numa subtarefa só
             Ok((Plan { summary: String::new(), subtasks: vec![Subtask { id: "s1".into(), title: truncate(&m.request, 60), task: truncate(&m.request, MAX_TASK), agent_name: ORION.into(), effort: "medio".into(), state: "pendente".into(), ..Default::default() }], notes: vec![], pages: vec![] }, String::new()))
         } else {
