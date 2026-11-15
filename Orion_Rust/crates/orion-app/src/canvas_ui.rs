@@ -543,16 +543,17 @@ impl App {
             }
             Cv::Send(id) => {
                 let Some(api) = api else { return Task::none() };
-                let text = self.canvas.drafts.remove(&id).unwrap_or_default();
-                if text.trim().is_empty() || self.canvas.busy.contains(&id) {
+                // nó respondendo: o rascunho fica onde está até a resposta chegar
+                if self.canvas.busy.contains(&id) || self.canvas.drafts.get(&id).is_none_or(|d| d.trim().is_empty()) {
                     return Task::none();
                 }
+                let text = self.canvas.drafts.remove(&id).unwrap_or_default();
                 if let Some(n) = self.canvas.node_mut(&id) {
                     n.msgs.push(CMsg { role: "user".into(), text: text.clone(), ..Default::default() });
                 }
                 self.canvas.busy.insert(id.clone());
                 let (a, ws, nid) = (api.clone(), self.canvas.cur.clone(), id.clone());
-                Task::perform(async move { a.post(&format!("/canvas/{ws}/nos/{nid}/chat"), json!({"texto": text})).await }, move |r| Msg::Canvas(Cv::Reply(id.clone(), r)))
+                Task::perform(async move { a.post_long(&format!("/canvas/{ws}/nos/{nid}/chat"), json!({"texto": text})).await }, move |r| Msg::Canvas(Cv::Reply(id.clone(), r)))
             }
             Cv::Reply(id, r) => {
                 self.canvas.busy.remove(&id);
