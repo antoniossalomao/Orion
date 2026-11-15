@@ -4,6 +4,7 @@
 pub mod anim;
 pub mod app;
 pub mod camera_ui;
+pub mod canvas_ui;
 pub mod sky_frame;
 pub mod chart;
 pub mod data;

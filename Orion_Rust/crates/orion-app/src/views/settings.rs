@@ -38,6 +38,7 @@ const GROUPS: [(&str, &[Entry]); 2] = [
         &[
             (Sec::Sistema, "monitor", "Sistema", "ram memória inicialização win+shift+espaço mica bandeja atualizações backup drive pastas versão"),
             (Sec::Locais, "download", "Modelos locais", "llama.cpp qwen fallback baixar"),
+            (Sec::Terminais, "term", "Terminais", "maestro agentes claude codex orion planeja canvas"),
             (Sec::Voz, "wave", "Voz", "palavra orion palmas idioma estilo mini barra"),
             (Sec::Camera, "camera", "Câmera", "presença onde eu deixei rosto legenda objetos"),
             (Sec::Atalhos, "keys", "Atalhos", "teclado comandos"),
@@ -521,6 +522,25 @@ fn section<'a>(app: &'a App) -> El<'a> {
             let lic = crate::i18n::text("Todos os direitos reservados. Código-fonte privado; veja o arquivo LICENSE do repositório.");
             c = c.push(setting(crate::i18n::text("Licença"), lic, badge(crate::i18n::text("proprietária"), Tone::Plain)));
             if app.api.is_some(){c=c.push(crate::resources::settings(app,"storage"));}
+        }
+        Sec::Terminais => {
+            c = c.push(sh(crate::i18n::text("Maestro")));
+            c = c.push(lede(crate::i18n::text("O Maestro é o terminal que planeja as missões: divide o pedido, escolhe quem faz cada parte e monta o canvas. Escolha qual deles faz esse papel.")));
+            for o in &app.canvas.options {
+                let id = o["id"].as_str().unwrap_or("").to_string();
+                let nome = o["nome"].as_str().unwrap_or("").to_string();
+                let ok = o["disponivel"].as_bool().unwrap_or(false);
+                let is = app.canvas.maestro == id;
+                let can = ok && ["claude", "codex", "orion"].contains(&id.as_str());
+                let desc = if ok { o["detalhe"].as_str().unwrap_or("").to_string() } else { o["motivo"].as_str().unwrap_or("").to_string() };
+                let title: El = if is { row![tx(nome, 13.5, t::FG), badge(crate::i18n::text("Maestro"), Tone::Info)].spacing(t::SP_2).align_y(Vertical::Center).into() } else { tx(nome, 13.5, t::FG).into() };
+                let right: El = if is { badge(crate::i18n::text("em uso"), Tone::Ok) } else if can { btn(crate::i18n::text("Ser o Maestro"), Kind::Normal, true, None, Some(Msg::Canvas(crate::canvas_ui::Cv::SetMaestro(id)))) } else { badge(crate::i18n::text("indisponível"), Tone::Plain) };
+                c = c.push(setting_el(title, &desc, right));
+            }
+            if app.canvas.options.is_empty() {
+                c = c.push(lede(crate::i18n::text("Procurando os terminais instalados…")));
+            }
+            c = c.push(lede(crate::i18n::text("Claude e Codex rodam pela CLI da sua assinatura; o Orion nunca vê o login. O Gemini só atua como agente de subtarefa.")));
         }
         Sec::Locais => {
             let live = app.api.is_some();

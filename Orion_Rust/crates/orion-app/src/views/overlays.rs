@@ -46,12 +46,13 @@ pub fn pal_items(app: &App) -> Vec<PalItem> {
         PalItem { icon: "camera", title: if app.camera.is_some() { crate::i18n::text("Desligar a câmera").into() } else { crate::i18n::text("Abrir a câmera (gestos)").into() }, group: crate::i18n::text("Ação").into(), msg: Msg::Camera(if app.camera.is_some() { crate::camera_ui::CameraMsg::Close } else { crate::camera_ui::CameraMsg::Open }) },
         PalItem { icon: "bolt", title: if app.p.auto { crate::i18n::text("Desligar modo autônomo").into() } else { crate::i18n::text("Ligar modo autônomo").into() }, group: crate::i18n::text("Ação").into(), msg: Msg::Toggle("auto") },
     ];
-    let nav: [(View, &str, &str); 8] = [
+    let nav: [(View, &str, &str); 9] = [
         (View::Projetos, "folder", crate::i18n::text("Projetos")),
         (View::Memoria, "graph", crate::i18n::text("Memória")),
         (View::Aprovacoes, "shield", crate::i18n::text("Aprovações")),
         (View::Rotinas, "clock", crate::i18n::text("Rotinas")),
         (View::Nuvem, "cloud", crate::i18n::text("Segundo plano")),
+        (View::Maestro, "bolt", crate::i18n::text("Maestro")),
         (View::Conhecimento, "book", crate::i18n::text("Conhecimento")),
         (View::Arquivadas, "archive", crate::i18n::text("Arquivadas")),
         (View::Home, "plus", crate::i18n::text("Início")),

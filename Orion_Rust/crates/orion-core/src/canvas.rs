@@ -553,4 +553,21 @@ impl CanvasStore {
             Ok(created)
         })
     }
+    /// Resultado final da missão como nota ao lado dos nós dela (criada pelo Maestro quando termina).
+    pub fn add_result_note(&self, ws: &str, mission: &str, title: &str, text: &str) -> Result<(), CanvasError> {
+        self.edit(|d| {
+            let w = d.espacos.iter_mut().find(|w| w.id == ws).ok_or(CanvasError { message: "espaço não encontrado".into(), status: 404 })?;
+            if w.nos.len() >= MAX_NODES {
+                return refuse("o espaço está cheio", 409);
+            }
+            let mine: Vec<&Node> = w.nos.iter().filter(|n| n.missao == mission).collect();
+            let (x, y) = if mine.is_empty() { (0.0, 0.0) } else { (mine.iter().map(|n| n.x + n.w).fold(f64::MIN, f64::max) + 70.0, mine.iter().map(|n| n.y).fold(f64::MAX, f64::min)) };
+            let mut n = Self::build_node(&NodeInput { kind: "nota".into(), x, y, title: title.into(), text: text.into(), by_maestro: true, ..Default::default() })?;
+            n.w = 360.0;
+            n.h = 260.0;
+            n.missao = mission.into();
+            w.nos.push(n);
+            Ok(())
+        })
+    }
 }

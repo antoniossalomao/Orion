@@ -48,7 +48,18 @@ fn workspace_json(st: &Estado, id: &str) -> ApiResult<Value> {
         }
         nodes.push(v);
     }
-    let missoes: Vec<Value> = missions.values().map(|m| json!({"id": m["id"], "pedido": m["pedido"], "estado": m["estado"], "resumo": m["resumo"], "resultado": m["resultado"], "erro": m["erro"], "planejador": m["planejador"]})).collect();
+    // missões deste espaço (mesmo as que falharam ao planejar e ainda não têm nós)
+    let first = st.canvas.resolve("");
+    let all = st.maestro.as_ref().map(|m| m.list(100)).unwrap_or_default();
+    let missoes: Vec<Value> = all
+        .iter()
+        .filter(|m| {
+            let e = m["espaco"].as_str().unwrap_or("");
+            e == w.id || (e.is_empty() && w.id == first)
+        })
+        .take(8)
+        .map(|m| json!({"id": m["id"], "pedido": m["pedido"], "estado": m["estado"], "resumo": m["resumo"], "resultado": m["resultado"], "erro": m["erro"], "planejador": m["planejador"]}))
+        .collect();
     Ok(json!({"id": w.id, "nome": w.nome, "nos": nodes, "setas": w.setas, "missoes": missoes}))
 }
 

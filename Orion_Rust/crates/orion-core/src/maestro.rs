@@ -648,6 +648,10 @@ impl Maestro {
                 m.state = "falhou".into();
             }
         }) {
+            if m.state == "concluida" && !m.result.trim().is_empty() {
+                // o Maestro deixa o resultado no canvas, ao lado dos nós da missão
+                let _ = self.canvas.add_result_note(&m.workspace, &m.id, "Resultado da missão", &truncate(&m.result, crate::canvas::MAX_TEXT));
+            }
             let text = match (m.state.as_str(), failed) {
                 ("concluida", 0) => "missão concluída".to_string(),
                 ("concluida", n) => format!("missão concluída com {n} subtarefa(s) sem resultado"),

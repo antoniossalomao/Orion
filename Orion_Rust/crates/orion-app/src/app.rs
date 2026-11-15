@@ -16,6 +16,7 @@ pub enum View {
     Aprovacoes,
     Rotinas,
     Nuvem,
+    Maestro,
     Conhecimento,
     Arquivadas,
 }
@@ -29,6 +30,7 @@ impl View {
             View::Aprovacoes => crate::i18n::text("Aprovações"),
             View::Rotinas => crate::i18n::text("Rotinas"),
             View::Nuvem => crate::i18n::text("Segundo plano"),
+            View::Maestro => crate::i18n::text("Maestro"),
             View::Conhecimento => crate::i18n::text("Conhecimento"),
             View::Arquivadas => crate::i18n::text("Arquivadas"),
         }
@@ -73,6 +75,7 @@ pub enum Sec {
     Automation,
     Sistema,
     Locais,
+    Terminais,
     Voz,
     Camera,
     Atalhos,
@@ -97,6 +100,7 @@ impl Sec {
             "automacoes" | "automation" | "pesquisa" => Sec::Automation,
             "sistema" | "system" => Sec::Sistema,
             "locais" | "modelos locais" | "local" => Sec::Locais,
+            "terminais" | "terminal" | "maestro" => Sec::Terminais,
             "voz" | "voice" => Sec::Voz,
             "camera" => Sec::Camera,
             "atalhos" | "teclado" | "shortcuts" => Sec::Atalhos,
@@ -451,6 +455,8 @@ pub struct App {
     pub island: crate::island::Island,
     /// Módulo de câmera aberto (câmera ligada só enquanto existe).
     pub camera: Option<crate::camera_ui::CameraUi>,
+    /// Estado do canvas do Maestro.
+    pub canvas: crate::canvas_ui::CanvasUi,
     pub isso: Option<Isso>,
     pub voice: bool,
     pub mic_rec: bool,
@@ -581,6 +587,8 @@ pub enum Msg {
     Face(crate::island::FaceMsg),
     /// Módulo de câmera (vídeo, HUD e gestos).
     Camera(crate::camera_ui::CameraMsg),
+    /// Canvas do Maestro (espaços, nós, setas e chats por nó).
+    Canvas(crate::canvas_ui::Cv),
     LoginCancel,
     Recov(crate::recovery::Event),
     Onboarding(crate::onboarding::Event),
@@ -935,6 +943,7 @@ impl App {
             auto_senha: None,
             island: crate::island::Island::new(Instant::now()),
             camera: None,
+            canvas: Default::default(),
             isso: None,
             voice: false,
             mic_rec: false,
@@ -1078,9 +1087,10 @@ impl App {
         // HUD da câmera: um quadro novo a cada 250 ms só enquanto a leitura mostra o vídeo
         let hud = if self.window_active && self.island.busy() && self.island.shows_hud() { iced::time::every(Duration::from_millis(250)).map(|_| Msg::Face(crate::island::FaceMsg::PreviewTick)) } else { Subscription::none() };
         // módulo de câmera: último quadro a cada ~66 ms, só com o módulo aberto
+        let canvas = if self.canvas_subscription_active() { iced::time::every(crate::canvas_ui::POLL).map(|_| Msg::Canvas(crate::canvas_ui::Cv::Poll)) } else { Subscription::none() };
         let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
         let presence = if self.window_active && !self.fundo && !self.mini && self.presence_visible() { iced::time::every(Duration::from_millis(33)).map(Msg::Presence) } else { Subscription::none() };
-        Subscription::batch([sky_tick, tick, island, hud, camera, resize, keys, poll, fundo, fechar, focus, progress, resources, presence])
+        Subscription::batch([sky_tick, tick, island, hud, camera, canvas, resize, keys, poll, fundo, fechar, focus, progress, resources, presence])
     }
 
     /// A esfera aparece na tela inicial e na ilha de voz.
@@ -1201,6 +1211,7 @@ impl App {
         if let Msg::Onboarding(event) = msg { return self.update_onboarding(event); }
         if let Msg::Face(m) = msg { return self.update_face(m); }
         if let Msg::Camera(m) = msg { return self.update_camera(m); }
+        if let Msg::Canvas(m) = msg { return self.update_canvas(m); }
 
         if let Msg::L(m) = msg {
             return self.lm(m);
