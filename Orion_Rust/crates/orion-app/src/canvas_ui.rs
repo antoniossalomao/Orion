@@ -85,6 +85,8 @@ pub struct CanvasUi {
     pub busy: HashSet<String>,
     pub notes: HashMap<String, text_editor::Content>,
     pub dirty: HashSet<String>,
+    /// Títulos editados e ainda não gravados (gravados juntos, sem uma chamada por tecla).
+    pub dirty_title: HashSet<String>,
     pub mission_in: String,
     pub url_in: Option<String>,
     /// Quem é o Maestro (`claude`, `codex` ou `orion`) e as opções vindas do servidor.
@@ -110,6 +112,7 @@ impl Default for CanvasUi {
             busy: HashSet::new(),
             notes: HashMap::new(),
             dirty: HashSet::new(),
+            dirty_title: HashSet::new(),
             mission_in: String::new(),
             url_in: None,
             maestro: "claude".into(),
@@ -267,19 +270,31 @@ impl App {
         ((sw / 2.0 - self.canvas.pan.0) / z, (sh / 2.0 - self.canvas.pan.1) / z)
     }
 
+    /// Grava notas e títulos editados, um pedido por nó, com os dois campos juntos (nada por tecla).
     fn canvas_flush(&mut self) -> Task<Msg> {
         let Some(api) = self.api.clone() else { return Task::none() };
-        let ids: Vec<String> = self.canvas.dirty.drain().collect();
+        let mut ids: Vec<String> = self.canvas.dirty.iter().chain(self.canvas.dirty_title.iter()).cloned().collect();
+        ids.sort();
+        ids.dedup();
+        let (notes, titles) = (std::mem::take(&mut self.canvas.dirty), std::mem::take(&mut self.canvas.dirty_title));
         let ws = self.canvas.cur.clone();
         Task::batch(ids.into_iter().filter_map(|id| {
-            let text = self.canvas.node(&id)?.text.clone();
+            let n = self.canvas.node(&id)?;
+            let mut body = serde_json::Map::new();
+            if notes.contains(&id) {
+                body.insert("texto".into(), json!(n.text));
+            }
+            if titles.contains(&id) {
+                body.insert("titulo".into(), json!(n.title));
+            }
             let (a, ws) = (api.clone(), ws.clone());
-            Some(Task::perform(async move { a.put(&format!("/canvas/{ws}/nos/{id}"), json!({"texto": text})).await.map(|_| String::new()) }, |r| Msg::Canvas(Cv::Done(r.map(|_| String::new())))))
+            Some(Task::perform(async move { a.put(&format!("/canvas/{ws}/nos/{id}"), Value::Object(body)).await.map(|_| String::new()) }, |r| Msg::Canvas(Cv::Done(r))))
         }))
     }
 
+    /// Fica ligada na tela do Maestro e, enquanto sobrar edição sem gravar, em qualquer tela.
     pub fn canvas_subscription_active(&self) -> bool {
-        self.view == View::Maestro && self.api.is_some() && self.logged
+        self.api.is_some() && self.logged && (self.view == View::Maestro || !self.canvas.dirty.is_empty() || !self.canvas.dirty_title.is_empty())
     }
 
     pub fn update_canvas(&mut self, m: Cv) -> Task<Msg> {
@@ -289,6 +304,10 @@ impl App {
                 let Some(api) = api else { return Task::none() };
                 if self.canvas.dragging || self.canvas.cur.is_empty() {
                     return Task::none();
+                }
+                // fora da tela do Maestro só grava o que sobrou sem salvar
+                if self.view != View::Maestro {
+                    return self.canvas_flush();
                 }
                 // grava as notas editadas e só depois busca o espaço: a busca nunca lê o texto antigo
                 let flush = self.canvas_flush();
@@ -326,6 +345,9 @@ impl App {
                         }
                         if self.canvas.dirty.contains(&n.id) {
                             n.text = o.text.clone();
+                        }
+                        if self.canvas.dirty_title.contains(&n.id) {
+                            n.title = o.title.clone();
                         }
                     }
                     if n.kind == "nota" && !self.canvas.notes.contains_key(&n.id) {
@@ -510,15 +532,10 @@ impl App {
             }
             Cv::Title(id, t) => {
                 if let Some(n) = self.canvas.node_mut(&id) {
-                    n.title = t.clone();
+                    n.title = t;
                 }
-                let Some(api) = api else { return Task::none() };
-                let (a, ws) = (api.clone(), self.canvas.cur.clone());
-                // grava sem recarregar: o texto digitado já está na tela
-                Task::perform(async move { a.put(&format!("/canvas/{ws}/nos/{id}"), json!({"titulo": t})).await.map(|_| String::new()) }, |r| match r {
-                    Ok(_) => Msg::Noop,
-                    Err(e) => Msg::Canvas(Cv::Done(Err(e))),
-                })
+                self.canvas.dirty_title.insert(id);
+                Task::none()
             }
             Cv::Draft(id, t) => {
                 self.canvas.drafts.insert(id, t);
