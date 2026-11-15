@@ -290,8 +290,9 @@ impl App {
                 if self.canvas.dragging || self.canvas.cur.is_empty() {
                     return Task::none();
                 }
+                // grava as notas editadas e só depois busca o espaço: a busca nunca lê o texto antigo
                 let flush = self.canvas_flush();
-                Task::batch([flush, fetch_space(&api, &self.canvas.cur)])
+                flush.chain(fetch_space(&api, &self.canvas.cur))
             }
             Cv::Spaces(Ok(v)) => {
                 self.canvas.spaces = v["espacos"].as_array().map(|l| l.iter().map(|w| (s(w, "id"), s(w, "nome"), w["nos"].as_u64().unwrap_or(0) as usize)).collect()).unwrap_or_default();

@@ -238,6 +238,16 @@ async fn run_turn(st: &Estado, ws: &str, node: &orion_core::canvas::Node, text: 
             let digest = format!("{:x}", sha2::Sha256::digest(m.text.as_bytes()));
             external.push(orion_core::extensions::context::ExternalData { connection: "canvas".into(), kind: "chat".into(), key: m.from.clone(), truncated: false, text: m.text.clone(), digest });
         }
+        // o nó já conversou com Claude ou Codex: essas falas não estão na memória do Orion, então vão como dado
+        if node.messages.iter().any(|m| m.role == "ai" && !m.model.is_empty() && m.model != "Orion") {
+            use sha2::Digest;
+            let mut transcript = String::new();
+            for m in node.messages.iter().filter(|m| m.role == "user" || m.role == "ai").rev().take(12).rev() {
+                transcript.push_str(&format!("[{}] {}\n", if m.role == "user" { "Antônio" } else { m.model.as_str() }, m.text.chars().take(1500).collect::<String>()));
+            }
+            let digest = format!("{:x}", sha2::Sha256::digest(transcript.as_bytes()));
+            external.push(orion_core::extensions::context::ExternalData { connection: "canvas".into(), kind: "conversa-do-no".into(), key: node.title.clone(), truncated: false, text: transcript, digest });
+        }
         let req = TurnRequest { channel, text: text.to_string(), external, read_only: true, expected_session: Some(session.id), ..Default::default() };
         let mut out = String::new();
         let mut error = None;

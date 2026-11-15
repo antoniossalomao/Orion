@@ -190,7 +190,16 @@ pub struct TaskSeed {
 impl CanvasStore {
     pub fn open(data_dir: &std::path::Path) -> Self {
         let path = data_dir.join("canvas.json");
-        let mut d: Data = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        let mut d: Data = match std::fs::read(&path) {
+            Ok(b) => serde_json::from_slice(&b).unwrap_or_else(|e| {
+                // arquivo ilegível: guarda a cópia ao lado em vez de apagar o canvas sem avisar
+                let backup = path.with_extension(format!("json.corrompido-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|t| t.as_secs()).unwrap_or(0)));
+                let _ = std::fs::rename(&path, &backup);
+                tracing::warn!("canvas.json ilegível ({e}); cópia em {}", backup.display());
+                Data::default()
+            }),
+            Err(_) => Data::default(),
+        };
         if d.espacos.is_empty() {
             d.espacos = Data::default().espacos;
         }
@@ -210,12 +219,12 @@ impl CanvasStore {
     }
 
     /// Muda sob a trava e grava. `f` devolve o resultado ou o motivo da recusa.
+    /// A gravação acontece com a trava ainda tomada: duas mudanças simultâneas nunca gravam fora de ordem
+    /// nem escrevem o mesmo arquivo temporário ao mesmo tempo.
     fn edit<T>(&self, f: impl FnOnce(&mut Data) -> Result<T, CanvasError>) -> Result<T, CanvasError> {
         let mut g = self.d.lock();
         let r = f(&mut g)?;
-        let snapshot = g.clone();
-        drop(g);
-        self.save(&snapshot);
+        self.save(&g);
         Ok(r)
     }
 
