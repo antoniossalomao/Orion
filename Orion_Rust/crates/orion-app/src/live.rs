@@ -349,6 +349,7 @@ pub fn pull_sec(api: &Api, sec: Sec) -> Task<Msg> {
         Sec::Voz => Task::batch([crate::resources::load(api), get("/voz/estado", Lm::VoiceStatus), get("/config/chaves", Lm::Keys)]),
         Sec::Camera | Sec::Memoria | Sec::Fontes | Sec::Privacidade | Sec::Sistema => crate::resources::load(api),
         Sec::Locais => get("/modelos-locais", Lm::Modelos),
+        Sec::Terminais => crate::canvas_ui::fetch_config(api),
         Sec::Painel => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget)]),
         Sec::Modelos => Task::batch([get("/painel", Lm::Painel), get("/budget", Lm::Budget), get("/config/chaves", Lm::Keys)]),
         _ => Task::none(),
@@ -424,6 +425,7 @@ pub fn pull_page(api: &Api, v: View) -> Task<Msg> {
         View::Projetos => get("/projects", Lm::Projects),
         View::Nuvem => Task::batch([get("/tarefas-bg", Lm::Tarefas), get("/nuvem", Lm::Nuvem), get("/maestro", Lm::Maestro)]),
         View::Aprovacoes => Task::batch([get("/painel", Lm::Painel), get("/approvals", Lm::Approvals)]),
+        View::Maestro => crate::canvas_ui::fetch(api),
         _ => Task::none(),
     }
 }
@@ -1086,8 +1088,14 @@ impl App {
         self.attach_thumbs.clear();
         let (path, body) = match edit {
             Some(id) => (format!("/historico/{id}/editar"), json!({"texto": text, "canal": "web"})),
-            None => ("/chat".to_string(), json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens})),
+            None => {
+                let mut b = json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens});
+                // Claude/Codex escolhidos no seletor: o servidor roda a CLI oficial, nunca cai na API.
+                if let Some(a) = self.p.assinatura() { b["assinatura"] = a; }
+                ("/chat".to_string(), b)
+            }
         };
+        if self.p.prov == 3 { self.toast(crate::i18n::text("Gemini não usa a CLI (termos do Google): este turno vai pela API")); }
         let (task, handle) = Task::run(api.stream(&path, body), |e| Msg::L(Lm::Chat(e))).abortable();
         self.abort = Some(handle);
         task

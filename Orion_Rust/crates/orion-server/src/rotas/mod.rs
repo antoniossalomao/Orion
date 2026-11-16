@@ -4,6 +4,7 @@
 pub mod audios;
 pub mod automacao;
 pub mod base;
+pub mod canvas;
 pub mod captura;
 pub mod conversa;
 pub mod documentos;
@@ -195,6 +196,16 @@ pub fn router(st: Estado) -> Router {
         .route("/tarefas-bg/:id", get(ver_tarefa_bg))
         .route("/tarefas-bg/:id/cancelar", post(cancelar_tarefa_bg))
         .route("/tarefas-bg/:id/propostas/:indice", post(decidir_proposta_bg))
+        .route("/canvas", get(canvas::list).post(canvas::create_workspace))
+        .route("/canvas-config", get(canvas::config).put(canvas::set_config))
+        .route("/canvas/:id", get(canvas::get_workspace).patch(canvas::rename_workspace).delete(canvas::delete_workspace))
+        .route("/canvas/:id/nos", post(canvas::add_node))
+        .route("/canvas/:id/nos/:nid", axum::routing::put(canvas::update_node).delete(canvas::remove_node))
+        .route("/canvas/:id/nos/:nid/chat", post(canvas::node_chat))
+        .route("/canvas/:id/setas", post(canvas::add_edge))
+        .route("/canvas/:id/setas/:sid", delete(canvas::remove_edge))
+        .route("/canvas/:id/setas/:sid/enviar", post(canvas::send_edge))
+        .route("/canvas/:id/missao", post(canvas::create_mission))
         .route("/maestro", get(list_maestro).post(create_maestro))
         .route("/maestro/:id", get(get_maestro).delete(delete_maestro))
         .route("/maestro/:id/aprovar", post(approve_maestro))

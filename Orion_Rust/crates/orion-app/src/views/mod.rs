@@ -17,6 +17,7 @@ pub mod menus;
 pub mod mini;
 pub mod overlays;
 pub mod pages;
+pub mod maestro;
 pub mod settings;
 pub mod sidebar;
 pub mod topbar;
@@ -133,6 +134,7 @@ fn stage(app: &App) -> El<'_> {
         View::Home => home::view(app),
         View::Chat => chat::view(app),
         View::Memoria => memory::view(app),
+        View::Maestro => maestro::view(app),
         v => pages::view(app, v),
     };
     let p = crate::anim::PAGE.get();

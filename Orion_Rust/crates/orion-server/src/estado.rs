@@ -92,6 +92,8 @@ pub struct AppState {
     pub executor_rotinas: Option<Arc<orion_core::rotinas::Executor>>,
     pub tarefas_bg: Option<Arc<orion_core::tarefas_bg::TarefasBg>>,
     pub maestro: Option<Arc<orion_core::maestro::Maestro>>,
+    /// Canvas do Maestro: espaços, nós e quem é o Maestro.
+    pub canvas: Arc<orion_core::canvas::CanvasStore>,
     /// `None` sem `ORION_NUVEM=true` (opt-in).
     pub nuvem: Option<Arc<orion_core::nuvem::Nuvem>>,
     pub camera_descrever: Option<CameraDescrever>,
@@ -870,7 +872,8 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         None => (None, None),
     };
     // Maestro: o Sonnet planeja pela CLI da assinatura e o Orion executa (só lê e propõe)
-    let maestro = agent.as_ref().map(|a| orion_core::maestro::Maestro::new(&settings.data_dir, delegator.clone(), a.clone(), ops.clone(), Some(modos.clone())));
+    let canvas = Arc::new(orion_core::canvas::CanvasStore::open(&settings.data_dir));
+    let maestro = agent.as_ref().map(|a| orion_core::maestro::Maestro::new(&settings.data_dir, delegator.clone(), a.clone(), ops.clone(), Some(modos.clone()), canvas.clone()));
     let ler_depois = Arc::new(orion_core::ler_depois::LerDepois::new(
         memory.clone(),
         settings.vault_dir.clone(),
@@ -1208,6 +1211,7 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         executor_rotinas,
         tarefas_bg,
         maestro,
+        canvas,
         nuvem: settings.nuvem.then(|| {
             let pasta = if settings.nuvem_dir.trim().is_empty() { std::env::current_dir().unwrap_or_default() } else { std::path::PathBuf::from(settings.nuvem_dir.trim()) };
             Arc::new(orion_core::nuvem::Nuvem::new(memory.clone(), pasta, settings.codex_env.clone(), 180.0))

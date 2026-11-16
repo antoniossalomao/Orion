@@ -175,6 +175,10 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         ];
         a.maestro_open = Some("m1".into());
     }));
+    // Canvas do Maestro: missão montada pelo Maestro (tarefas, nota, página) e um chat do Antônio; depois o mapa
+    push("15-maestro-canvas", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 0); }));
+    push("15b-maestro-mapa", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 2); }));
+    push("15c-maestro-baixo", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 0); a.canvas.pan = (30.0, -690.0); a.canvas.sel = Some("p1".into()); }));
     push("22-memoria-forcas", cena(|a| {
         a.update(Msg::Go(View::Memoria));
         a.mem.forces_open = true;
@@ -352,4 +356,42 @@ fn streaming_com(a: &mut App, tools: Vec<(&str, &str, &str, &str)>, body: &str) 
     }));
     a.convs[ci].state = ConvState::Running;
     a.streaming = Some(crate::app::Stream { conv: ci, words: 0, total: usize::MAX });
+}
+
+/// Canvas de exemplo: o Maestro montou as tarefas, uma nota e uma página; o Antônio tem um chat com resposta.
+fn canvas_demo(a: &mut App, zoom: usize) {
+    use crate::canvas_ui::{CEdge, CMission, CMsg, CNode};
+    let n = |id: &str, kind: &str, x: f32, y: f32, w: f32, h: f32, title: &str| CNode { id: id.into(), kind: kind.into(), x, y, w, h, title: title.into(), ..Default::default() };
+    let mut chat = n("c1", "chat", 0.0, 0.0, 440.0, 380.0, "Auditoria do site");
+    chat.agent = "claude".into();
+    chat.msgs = vec![
+        CMsg { role: "user".into(), text: "Audite a página inicial: o que atrapalha a primeira leitura?".into(), ..Default::default() },
+        CMsg { role: "ai".into(), text: "Três pontos que **atrapalham a primeira leitura**:\n\n1. **Texto de apoio some no céu claro.** O contraste fica abaixo do mínimo.\n2. **Menu com seis itens** e o contato só no rodapé.\n3. **Galeria carrega tudo de uma vez** e pesa no celular.".into(), model: "Claude Sonnet".into(), ..Default::default() },
+    ];
+    let mut chat2 = n("c2", "chat", 520.0, 0.0, 440.0, 380.0, "Acessibilidade");
+    chat2.agent = "orion".into();
+    chat2.msgs = vec![CMsg { role: "dado".into(), from: "Auditoria do site".into(), text: "Três pontos: texto de apoio some no céu claro, menu com seis itens, galeria pesada.".into(), ..Default::default() }];
+    let task = |id: &str, x: f32, y: f32, title: &str, agent: &str, effort: &str, state: &str, out: &str| CNode { id: id.into(), kind: "tarefa".into(), x, y, w: 320.0, h: 210.0, title: title.into(), agent: agent.into(), effort: effort.into(), state: state.into(), out: out.into(), mission: "m1".into(), mission_state: "rodando".into(), by_maestro: true, ..Default::default() };
+    let t1 = task("t1", 0.0, 520.0, "Pesquisar estratégias de cache", "orion", "baixo", "ok", "LRU com teto de 64 MB e invalidação por versão do modelo.");
+    let t2 = task("t2", 390.0, 520.0, "Propor o módulo de cache", "codex", "alto", "rodando", "");
+    let t3 = task("t3", 390.0, 770.0, "Revisar a proposta", "claude", "medio", "pendente", "");
+    let mut note = n("n1", "nota", 780.0, 520.0, 260.0, 170.0, "Decisão");
+    note.text = "Manter a estrutura atual e ajustar só o texto de apoio.".into();
+    note.by_maestro = true;
+    let mut page = n("p1", "pagina", 780.0, 740.0, 320.0, 150.0, "Guia de contraste");
+    page.url = "https://www.w3.org/WAI/WCAG22/quickref/".into();
+    page.by_maestro = true;
+    let frame = n("f1", "moldura", -30.0, 490.0, 1180.0, 450.0, "Missão: cache do gateway");
+    let c = &mut a.canvas;
+    c.cur = "principal".into();
+    c.spaces = vec![("principal".into(), "Maestro".into(), 8), ("outro".into(), "Portfólio".into(), 3)];
+    c.nodes = vec![frame, chat, chat2, t1, t2, t3, note, page];
+    c.edges = vec![CEdge { id: "e1".into(), a: "c1".into(), b: "c2".into() }, CEdge { id: "e2".into(), a: "t1".into(), b: "t2".into() }, CEdge { id: "e3".into(), a: "t1".into(), b: "t3".into() }];
+    c.missions = vec![CMission { id: "m1".into(), request: "Pesquisar caches de resposta para o gateway e propor a implementação em Rust".into(), state: "rodando".into(), ..Default::default() }];
+    c.notes.insert("n1".into(), iced::widget::text_editor::Content::with_text("Manter a estrutura atual e ajustar só o texto de apoio."));
+    c.maestro = "claude".into();
+    c.loaded = true;
+    c.fitted = true;
+    c.zoom = zoom;
+    c.pan = if zoom == 0 { (30.0, 20.0) } else { (40.0, 30.0) };
 }

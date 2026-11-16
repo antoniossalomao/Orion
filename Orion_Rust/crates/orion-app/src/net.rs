@@ -579,6 +579,17 @@ impl Api {
         Ok(out)
     }
 
+    /// POST que espera uma resposta demorada (chat de nó: CLI ou modelo pode levar minutos); teto de 10 min.
+    pub async fn post_long(&self, path: &str, body: Value) -> Result<Value, String> {
+        let r = self.raw(reqwest::Method::POST, path, Some(body), true).await?;
+        let status = r.status;
+        let text = Self::texto(r).await;
+        if !(200..300).contains(&status) {
+            return Err(mensagem_http(status, &text, path));
+        }
+        Ok(serde_json::from_str(&text).unwrap_or(Value::Null))
+    }
+
     pub async fn get(&self, path: &str) -> Result<Value, String> {
         self.send(reqwest::Method::GET, path, None).await
     }
