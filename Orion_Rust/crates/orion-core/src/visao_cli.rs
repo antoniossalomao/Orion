@@ -41,7 +41,8 @@ pub fn ordem(configurado: &str) -> Vec<String> {
 
 /// Monta o comando da CLI oficial; `None` se ela não estiver instalada.
 pub fn argv_cli(nome: &str, imagem: &Path, pedido: &str) -> Option<Vec<String>> {
-    let exe = which(nome)?.to_string_lossy().into_owned();
+    // "gemini" é o nome lógico; o executável é o Antigravity CLI.
+    let exe = which(if nome == "gemini" { "agy" } else { nome })?.to_string_lossy().into_owned();
     let pasta = imagem.parent()?.to_string_lossy().into_owned();
     let img = imagem.to_string_lossy().into_owned();
     let instrucao = format!(
@@ -69,7 +70,7 @@ pub fn argv_cli(nome: &str, imagem: &Path, pedido: &str) -> Option<Vec<String>> 
             img,
             pedido.into(),
         ]),
-        "gemini" => Some(vec![exe, "-p".into(), instrucao, "--include-directories".into(), pasta]),
+        "gemini" => Some(vec![exe, "-p".into(), instrucao, "--add-dir".into(), pasta]),
         _ => None,
     }
 }

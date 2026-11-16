@@ -104,6 +104,10 @@ pub(crate) fn voice_key_card<'a>(app: &'a App) -> El<'a> {
     const KEY_NAME: &str = "ORION_VOZ_GEMINI_KEY";
     let voice_status = app.voice_status.as_ref();
     let mut c = column![].spacing(0);
+    // com a voz Edge não há chave nem crédito para configurar
+    if voice_status.and_then(|v| v["motor"].as_str()).unwrap_or("gemini") != "gemini" {
+        return c.into();
+    }
         if let Some(f) = app.key_form.as_ref().filter(|f| f.nome == KEY_NAME) {
             let mut input = text_input(crate::i18n::text("Cole a chave de API"), &f.value).id("api-key").secure(true).size(13).font(t::UI).padding(pad(t::SP_15, t::SP_25, t::SP_15, t::SP_25)).style(field_style(t::RAISE, t::FIELD_LINE, t::ACCENT, 8.0));
             if !f.busy {

@@ -30,9 +30,10 @@ pub struct CliAgent {
     pub daily_limit: i64,
 }
 
+/// O agente lógico "gemini" roda pelo Antigravity CLI (`agy`): o Gemini CLI saiu do ar em 18/06/2026.
 pub fn default_agents() -> Vec<CliAgent> {
     let a = |n: &str, argv: &[&str]| CliAgent { name: n.into(), argv: argv.iter().map(|s| s.to_string()).collect(), daily_limit: 20 };
-    vec![a("claude", &["claude", "-p", "{prompt}"]), a("codex", &["codex", "exec", "{prompt}"]), a("gemini", &["gemini", "-p", "{prompt}"])]
+    vec![a("claude", &["claude", "-p", "{prompt}"]), a("codex", &["codex", "exec", "{prompt}"]), a("gemini", &["agy", "-p", "{prompt}"])]
 }
 
 /// `shutil.which`.
