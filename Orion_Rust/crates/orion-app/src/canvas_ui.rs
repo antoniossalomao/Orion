@@ -12,8 +12,12 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
-/// Níveis de zoom: só o primeiro mostra o conteúdo dos nós (chat, nota); os outros viram mapa.
-pub const ZOOMS: [f32; 4] = [1.0, 0.7, 0.5, 0.35];
+/// Zoom contínuo entre [`ZOOM_MIN`] e 100%. Só em 100% os nós mostram o conteúdo (chat, nota); abaixo
+/// disso a tela vira mapa de cartões. Os botões andam por estes degraus.
+pub const ZOOM_STEPS: [f32; 7] = [1.0, 0.85, 0.7, 0.55, 0.4, 0.3, 0.2];
+pub const ZOOM_MIN: f32 = 0.2;
+/// Grade a que posição e tamanho se alinham ao arrastar.
+pub const GRID: f32 = 8.0;
 /// Altura do cabeçalho do nó (desenhado no canvas, em pixels do mundo).
 pub const HEAD: f32 = 40.0;
 pub const POLL: Duration = Duration::from_secs(2);
@@ -77,10 +81,25 @@ pub struct CanvasUi {
     pub nodes: Vec<CNode>,
     pub edges: Vec<CEdge>,
     pub missions: Vec<CMission>,
-    /// Câmera: deslocamento em pixels da tela e índice em [`ZOOMS`].
+    /// Câmera: deslocamento em pixels da tela e fator de zoom.
     pub pan: (f32, f32),
-    pub zoom: usize,
-    pub sel: Option<String>,
+    pub zoom: f32,
+    /// Nós selecionados (Shift+clique soma; Shift+arrastar no vazio seleciona por área).
+    pub sel: Vec<String>,
+    pub sel_edge: Option<String>,
+    /// Tamanho real da área do canvas, informado pelo próprio widget.
+    pub stage: (f32, f32),
+    /// Nós esperando confirmação para apagar (têm conteúdo).
+    pub confirm: Option<Vec<String>>,
+    /// Nome do espaço atual em edição.
+    pub rename: Option<String>,
+    pub confirm_space: bool,
+    /// Nós com posição ou tamanho ainda sendo gravados: a tela mantém o que o Antônio deixou.
+    pub moving: HashSet<String>,
+    /// Chats com pedido de parar já enviado.
+    pub stopping: HashSet<String>,
+    /// Arrasto em andamento: nó principal, posição inicial dele e a dos que vão junto.
+    pub drag: Option<(String, f32, f32, Vec<(String, f32, f32)>)>,
     pub drafts: HashMap<String, String>,
     pub busy: HashSet<String>,
     pub notes: HashMap<String, text_editor::Content>,
@@ -106,8 +125,16 @@ impl Default for CanvasUi {
             edges: vec![],
             missions: vec![],
             pan: (40.0, 40.0),
-            zoom: 0,
-            sel: None,
+            zoom: 1.0,
+            sel: vec![],
+            sel_edge: None,
+            stage: (0.0, 0.0),
+            confirm: None,
+            rename: None,
+            confirm_space: false,
+            moving: HashSet::new(),
+            stopping: HashSet::new(),
+            drag: None,
             drafts: HashMap::new(),
             busy: HashSet::new(),
             notes: HashMap::new(),
@@ -126,10 +153,17 @@ impl Default for CanvasUi {
 
 impl CanvasUi {
     pub fn z(&self) -> f32 {
-        ZOOMS[self.zoom.min(ZOOMS.len() - 1)]
+        self.zoom.clamp(ZOOM_MIN, 1.0)
     }
     pub fn detail(&self) -> bool {
-        self.zoom == 0
+        self.zoom >= 0.999
+    }
+    pub fn selected(&self, id: &str) -> bool {
+        self.sel.iter().any(|s| s == id)
+    }
+    /// Apagar pede confirmação quando há conteúdo a perder ou mais de um nó.
+    fn needs_confirm(&self, ids: &[String]) -> bool {
+        ids.len() > 1 || ids.iter().filter_map(|id| self.node(id)).any(|n| (n.kind == "chat" && !n.msgs.is_empty()) || (n.kind == "nota" && !n.text.trim().is_empty()) || n.kind == "tarefa")
     }
     pub fn node(&self, id: &str) -> Option<&CNode> {
         self.nodes.iter().find(|n| n.id == id)
@@ -139,7 +173,7 @@ impl CanvasUi {
     }
     /// Missão do Maestro ainda em andamento ou esperando o Antônio.
     pub fn active_missions(&self) -> impl Iterator<Item = &CMission> {
-        self.missions.iter().filter(|m| ["planejando", "aguarda_aprovacao", "rodando", "integrando"].contains(&m.state.as_str()))
+        self.missions.iter().filter(|m| ["planejando", "aguarda_aprovacao", "rodando", "integrando", "interrompida"].contains(&m.state.as_str()))
     }
     pub fn needs_poll(&self) -> bool {
         self.active_missions().next().is_some() || !self.busy.is_empty()
@@ -161,13 +195,46 @@ pub enum Cv {
     UrlIn(String),
     UrlGo,
     Added(Result<Value, String>),
+    /// Clique num nó (ou no vazio): troca a seleção.
     Select(Option<String>),
+    /// Shift+clique: soma ou tira o nó da seleção.
+    Toggle(String),
+    SelectEdge(String),
+    /// Seleção por área (Shift+arrastar no vazio).
+    Marquee(Vec<String>),
+    SelectAll,
+    Escape,
     Drag(String, f32, f32),
     Resize(String, f32, f32),
     Commit(String),
+    Committed(Vec<String>, Result<(), String>),
     Pan(f32, f32),
+    /// Degrau do zoom pelos botões (+1 afasta, -1 aproxima), em torno do centro.
     Zoom(i32),
+    /// Zoom pela roda (Ctrl+roda): fator e o ponto da tela que fica parado.
+    ZoomAt(f32, f32, f32),
+    /// Duplo clique num cartão do mapa: 100% com o nó no centro.
+    ZoomTo(String),
+    Zoom100,
     Fit,
+    /// Centraliza a câmera num ponto do mundo (clique no minimapa).
+    Center(f32, f32),
+    Stage(f32, f32),
+    /// Novo nó num ponto do mundo (duplo clique no vazio).
+    AddAt(&'static str, f32, f32),
+    /// × do nó ou Delete: apaga, pedindo confirmação se houver conteúdo.
+    AskDelete(Vec<String>),
+    DeleteSel,
+    ConfirmDelete,
+    CancelDelete,
+    Duplicate,
+    Stop(String),
+    RenameOpen,
+    RenameIn(String),
+    RenameGo,
+    SpaceDelAsk,
+    SpaceDelGo,
+    SpaceDeleted(Result<(), String>),
     Link(String, String),
     DelNode(String),
     DelEdge(String),
@@ -184,6 +251,16 @@ pub enum Cv {
     SetMaestro(String),
     /// Resposta de uma ação sem retorno útil: recarrega o espaço.
     Done(Result<String, String>),
+}
+
+/// Zoom dentro dos limites; perto de 100% gruda em 100% (é onde o conteúdo aparece).
+fn snap_zoom(z: f32) -> f32 {
+    let z = if z.is_finite() { z } else { 1.0 };
+    if z > 0.96 {
+        1.0
+    } else {
+        z.clamp(ZOOM_MIN, 1.0)
+    }
 }
 
 fn s(v: &Value, k: &str) -> String {
@@ -245,21 +322,24 @@ impl App {
         let (sw, sh) = self.canvas_stage();
         let c = &mut self.canvas;
         if c.nodes.is_empty() {
-            c.zoom = 0;
+            c.zoom = 1.0;
             c.pan = (40.0, 40.0);
             return;
         }
         let (x0, y0) = c.nodes.iter().fold((f32::MAX, f32::MAX), |a, n| (a.0.min(n.x), a.1.min(n.y)));
         let (x1, y1) = c.nodes.iter().fold((f32::MIN, f32::MIN), |a, n| (a.0.max(n.x + n.w), a.1.max(n.y + n.h)));
-        let (w, h) = (x1 - x0, y1 - y0);
-        let idx = ZOOMS.iter().position(|z| w * z + 80.0 <= sw && h * z + 80.0 <= sh).unwrap_or(ZOOMS.len() - 1);
-        c.zoom = idx;
-        let z = ZOOMS[idx];
-        c.pan = ((sw - w * z) / 2.0 - x0 * z, (sh - h * z) / 2.0 - y0 * z);
+        let (w, h) = ((x1 - x0).max(1.0), (y1 - y0).max(1.0));
+        let z = snap_zoom(((sw - 96.0) / w).min((sh - 96.0) / h));
+        c.zoom = z;
+        c.pan = (((sw - w * z) / 2.0 - x0 * z).round(), ((sh - h * z) / 2.0 - y0 * z).round());
     }
 
-    /// Tamanho aproximado da área do canvas (janela menos barra lateral, topo e barras do canvas).
+    /// Tamanho da área do canvas: o que o widget informou ou, antes do primeiro desenho, uma estimativa
+    /// (janela menos barra lateral, topo e barras do canvas).
     pub fn canvas_stage(&self) -> (f32, f32) {
+        if self.canvas.stage.0 > 1.0 && self.canvas.stage.1 > 1.0 {
+            return self.canvas.stage;
+        }
         let side = if self.collapsed || self.is_drawer_mode() { 0.0 } else { crate::theme::SIDE_W + 1.0 };
         ((self.win.width - side).max(320.0), (self.win.height - 46.0 - 92.0).max(240.0))
     }
@@ -268,6 +348,53 @@ impl App {
         let (sw, sh) = self.canvas_stage();
         let z = self.canvas.z();
         ((sw / 2.0 - self.canvas.pan.0) / z, (sh / 2.0 - self.canvas.pan.1) / z)
+    }
+
+    /// Muda o zoom mantendo parado o ponto `(ax, ay)` da tela.
+    fn canvas_zoom_to(&mut self, new: f32, ax: f32, ay: f32) {
+        let old = self.canvas.z();
+        let new = snap_zoom(new);
+        self.canvas.zoom = new;
+        self.canvas.pan = ((ax - (ax - self.canvas.pan.0) * new / old).round(), (ay - (ay - self.canvas.pan.1) * new / old).round());
+    }
+
+    /// Posição livre para um nó novo: desce em diagonal enquanto houver outro no mesmo canto.
+    fn canvas_free_spot(&self, mut x: f32, mut y: f32) -> (f32, f32) {
+        x = (x / GRID).round() * GRID;
+        y = (y / GRID).round() * GRID;
+        while self.canvas.nodes.iter().any(|n| (n.x - x).abs() < 12.0 && (n.y - y).abs() < 12.0) {
+            x += 32.0;
+            y += 32.0;
+        }
+        (x, y)
+    }
+
+    fn canvas_add(&mut self, kind: &'static str, x: f32, y: f32) -> Task<Msg> {
+        let Some(api) = self.api.clone() else { return Task::none() };
+        let (x, y) = self.canvas_free_spot(x, y);
+        let ws = self.canvas.cur.clone();
+        Task::perform(async move { api.post(&format!("/canvas/{ws}/nos"), json!({"tipo": kind, "x": x, "y": y})).await }, |r| Msg::Canvas(Cv::Added(r)))
+    }
+
+    /// Apaga os nós na tela e no servidor.
+    fn canvas_delete(&mut self, ids: Vec<String>) -> Task<Msg> {
+        let c = &mut self.canvas;
+        c.nodes.retain(|n| !ids.contains(&n.id));
+        c.edges.retain(|e| !ids.contains(&e.a) && !ids.contains(&e.b));
+        c.sel.retain(|s| !ids.contains(s));
+        for id in &ids {
+            c.notes.remove(id);
+            c.dirty.remove(id);
+            c.dirty_title.remove(id);
+            c.drafts.remove(id);
+            c.moving.remove(id);
+        }
+        let Some(api) = self.api.clone() else { return Task::none() };
+        let ws = self.canvas.cur.clone();
+        Task::batch(ids.into_iter().map(|id| {
+            let (a, ws) = (api.clone(), ws.clone());
+            Task::perform(async move { a.delete(&format!("/canvas/{ws}/nos/{id}")).await.map(|_| String::new()) }, |r| Msg::Canvas(Cv::Done(r)))
+        }))
     }
 
     /// Grava notas e títulos editados, um pedido por nó, com os dois campos juntos (nada por tecla).
@@ -288,7 +415,10 @@ impl App {
                 body.insert("titulo".into(), json!(n.title));
             }
             let (a, ws) = (api.clone(), ws.clone());
-            Some(Task::perform(async move { a.put(&format!("/canvas/{ws}/nos/{id}"), Value::Object(body)).await.map(|_| String::new()) }, |r| Msg::Canvas(Cv::Done(r))))
+            Some(Task::perform(async move { a.put(&format!("/canvas/{ws}/nos/{id}"), Value::Object(body)).await }, |r| match r {
+                Ok(_) => Msg::Noop,
+                Err(e) => Msg::Canvas(Cv::Done(Err(e))),
+            }))
         }))
     }
 
@@ -343,6 +473,9 @@ impl App {
                         if busy.contains(&n.id) {
                             n.msgs = o.msgs.clone();
                         }
+                        if self.canvas.moving.contains(&n.id) {
+                            (n.x, n.y, n.w, n.h) = (o.x, o.y, o.w, o.h);
+                        }
                         if self.canvas.dirty.contains(&n.id) {
                             n.text = o.text.clone();
                         }
@@ -366,9 +499,16 @@ impl App {
                         }
                     }
                 }
+                self.canvas.sel.retain(|id| merged.iter().any(|n| &n.id == id));
+                if self.canvas.confirm.as_ref().is_some_and(|ids| !ids.iter().all(|id| merged.iter().any(|n| &n.id == id))) {
+                    self.canvas.confirm = None;
+                }
                 self.canvas.nodes = merged;
                 self.canvas.edges = v["setas"].as_array().map(|l| l.iter().map(|e| CEdge { id: s(e, "id"), a: s(e, "de"), b: s(e, "para") }).collect()).unwrap_or_default();
                 self.canvas.missions = v["missoes"].as_array().map(|l| l.iter().map(|m| CMission { id: s(m, "id"), request: s(m, "pedido"), state: s(m, "estado"), summary: s(m, "resumo"), error: s(m, "erro") }).collect()).unwrap_or_default();
+                if self.canvas.sel_edge.as_ref().is_some_and(|id| !self.canvas.edges.iter().any(|e| &e.id == id)) {
+                    self.canvas.sel_edge = None;
+                }
                 self.canvas.loaded = true;
                 if !self.canvas.fitted {
                     self.canvas.fitted = true;
@@ -383,7 +523,7 @@ impl App {
                 self.canvas.options = v["opcoes"].as_array().cloned().unwrap_or_default();
                 Task::none()
             }
-            Cv::Spaces(Err(e)) | Cv::Space(Err(e)) | Cv::Config(Err(e)) | Cv::Added(Err(e)) | Cv::Done(Err(e)) => {
+            Cv::Spaces(Err(e)) | Cv::Space(Err(e)) | Cv::Config(Err(e)) | Cv::Added(Err(e)) | Cv::Done(Err(e)) | Cv::SpaceDeleted(Err(e)) => {
                 self.toast(&e);
                 Task::none()
             }
@@ -395,7 +535,14 @@ impl App {
                 self.canvas.nodes.clear();
                 self.canvas.edges.clear();
                 self.canvas.missions.clear();
-                self.canvas.sel = None;
+                self.canvas.sel.clear();
+                self.canvas.sel_edge = None;
+                self.canvas.confirm = None;
+                self.canvas.rename = None;
+                self.canvas.confirm_space = false;
+                self.canvas.moving.clear();
+                self.canvas.drag = None;
+                self.canvas.dragging = false;
                 let Some(api) = api else { return flush };
                 // espaço recém-criado ainda não está na lista da barra
                 let list = if self.canvas.spaces.iter().any(|w| w.0 == id) { Task::none() } else { fetch_list(&api) };
@@ -411,16 +558,14 @@ impl App {
                 })
             }
             Cv::Add(kind) => {
-                let Some(api) = api else { return Task::none() };
                 if kind == "pagina" {
                     return self.update_canvas(Cv::UrlOpen);
                 }
                 let (cx, cy) = self.world_center();
-                let (a, ws) = (api.clone(), self.canvas.cur.clone());
                 let (w, h) = if kind == "chat" { (420.0, 360.0) } else if kind == "nota" { (260.0, 170.0) } else { (560.0, 380.0) };
-                let body = json!({"tipo": kind, "x": cx - w / 2.0, "y": cy - h / 2.0});
-                Task::perform(async move { a.post(&format!("/canvas/{ws}/nos"), body).await }, |r| Msg::Canvas(Cv::Added(r)))
+                self.canvas_add(kind, cx - w / 2.0, cy - h / 2.0)
             }
+            Cv::AddAt(kind, x, y) => self.canvas_add(kind, x, y),
             Cv::UrlOpen => {
                 self.canvas.url_in = Some(String::new());
                 Task::none()
@@ -437,66 +582,211 @@ impl App {
                 }
                 let url = if url.contains("://") { url } else { format!("https://{url}") };
                 let (cx, cy) = self.world_center();
+                let (x, y) = self.canvas_free_spot(cx - 160.0, cy - 75.0);
                 let (a, ws) = (api.clone(), self.canvas.cur.clone());
-                Task::perform(async move { a.post(&format!("/canvas/{ws}/nos"), json!({"tipo": "pagina", "x": cx - 160.0, "y": cy - 75.0, "url": url})).await }, |r| Msg::Canvas(Cv::Added(r)))
+                Task::perform(async move { a.post(&format!("/canvas/{ws}/nos"), json!({"tipo": "pagina", "x": x, "y": y, "url": url})).await }, |r| Msg::Canvas(Cv::Added(r)))
             }
             Cv::Added(Ok(v)) => {
                 let n = parse_node(&v);
-                if n.kind == "nota" {
-                    self.canvas.notes.insert(n.id.clone(), text_editor::Content::new());
+                if n.id.is_empty() || self.canvas.node(&n.id).is_some() {
+                    return Task::none();
                 }
-                self.canvas.sel = Some(n.id.clone());
+                if n.kind == "nota" {
+                    self.canvas.notes.insert(n.id.clone(), text_editor::Content::with_text(&n.text));
+                }
+                self.canvas.sel = vec![n.id.clone()];
+                self.canvas.sel_edge = None;
                 self.canvas.nodes.push(n);
                 Task::none()
             }
             Cv::Select(id) => {
                 let flush = self.canvas_flush();
-                self.canvas.sel = id;
-                flush
+                self.canvas.sel_edge = None;
+                self.canvas.confirm = None;
+                let Some(id) = id else {
+                    self.canvas.sel.clear();
+                    return flush;
+                };
+                // clicar num nó de uma seleção múltipla mantém o grupo (para arrastar junto)
+                if !(self.canvas.sel.len() > 1 && self.canvas.selected(&id)) {
+                    self.canvas.sel = vec![id.clone()];
+                }
+                // o nó clicado vem para a frente; molduras ficam sempre atrás
+                let last = self.canvas.nodes.iter().rev().find(|n| n.kind != "moldura").map(|n| n.id.clone());
+                let is_frame = self.canvas.node(&id).is_none_or(|n| n.kind == "moldura");
+                if is_frame || last.as_deref() == Some(id.as_str()) {
+                    return flush;
+                }
+                if let Some(i) = self.canvas.nodes.iter().position(|n| n.id == id) {
+                    let n = self.canvas.nodes.remove(i);
+                    self.canvas.nodes.push(n);
+                }
+                let Some(api) = api else { return flush };
+                let ws = self.canvas.cur.clone();
+                let front = Task::perform(async move { api.put(&format!("/canvas/{ws}/nos/{id}"), json!({"frente": true})).await }, |r| match r {
+                    Ok(_) => Msg::Noop,
+                    Err(e) => Msg::Canvas(Cv::Done(Err(e))),
+                });
+                Task::batch([flush, front])
+            }
+            Cv::Toggle(id) => {
+                self.canvas.sel_edge = None;
+                if self.canvas.selected(&id) {
+                    self.canvas.sel.retain(|s| *s != id);
+                } else {
+                    self.canvas.sel.push(id);
+                }
+                Task::none()
+            }
+            Cv::SelectEdge(id) => {
+                self.canvas.sel.clear();
+                self.canvas.sel_edge = Some(id);
+                Task::none()
+            }
+            Cv::Marquee(ids) => {
+                self.canvas.sel = ids;
+                self.canvas.sel_edge = None;
+                Task::none()
+            }
+            Cv::SelectAll => {
+                self.canvas.sel = self.canvas.nodes.iter().map(|n| n.id.clone()).collect();
+                self.canvas.sel_edge = None;
+                Task::none()
+            }
+            Cv::Escape => {
+                let c = &mut self.canvas;
+                if c.confirm.take().is_some() || c.rename.take().is_some() || c.url_in.take().is_some() {
+                    return Task::none();
+                }
+                if c.confirm_space {
+                    c.confirm_space = false;
+                    return Task::none();
+                }
+                c.sel.clear();
+                c.sel_edge = None;
+                Task::none()
             }
             Cv::Drag(id, x, y) => {
-                self.canvas.dragging = true;
-                if let Some(n) = self.canvas.node_mut(&id) {
-                    n.x = x;
-                    n.y = y;
+                let c = &mut self.canvas;
+                c.dragging = true;
+                if c.drag.as_ref().is_none_or(|d| d.0 != id) {
+                    let Some(n) = c.node(&id).cloned() else { return Task::none() };
+                    // vão junto: os outros selecionados e, se for moldura, o que está inteiro dentro dela
+                    let mut group: Vec<String> = if c.selected(&id) { c.sel.iter().filter(|s| **s != id).cloned().collect() } else { vec![] };
+                    let frames: Vec<CNode> = c.nodes.iter().filter(|f| f.kind == "moldura" && (f.id == id || group.contains(&f.id))).cloned().collect();
+                    for f in &frames {
+                        for m in &c.nodes {
+                            let inside = m.x >= f.x && m.y >= f.y && m.x + m.w <= f.x + f.w && m.y + m.h <= f.y + f.h;
+                            if inside && m.id != f.id && m.id != id && !group.contains(&m.id) {
+                                group.push(m.id.clone());
+                            }
+                        }
+                    }
+                    let others = group.iter().filter_map(|g| c.node(g).map(|m| (m.id.clone(), m.x, m.y))).collect();
+                    c.drag = Some((id.clone(), n.x, n.y, others));
+                }
+                let Some((_, ox, oy, others)) = c.drag.clone() else { return Task::none() };
+                let (nx, ny) = ((x / GRID).round() * GRID, (y / GRID).round() * GRID);
+                let (dx, dy) = (nx - ox, ny - oy);
+                if let Some(n) = c.node_mut(&id) {
+                    n.x = nx;
+                    n.y = ny;
+                }
+                for (oid, x0, y0) in others {
+                    if let Some(n) = c.node_mut(&oid) {
+                        n.x = x0 + dx;
+                        n.y = y0 + dy;
+                    }
                 }
                 Task::none()
             }
             Cv::Resize(id, w, h) => {
                 self.canvas.dragging = true;
                 if let Some(n) = self.canvas.node_mut(&id) {
-                    n.w = w;
-                    n.h = h;
+                    n.w = (w / GRID).round() * GRID;
+                    n.h = (h / GRID).round() * GRID;
                 }
                 Task::none()
             }
             Cv::Commit(id) => {
                 self.canvas.dragging = false;
+                let group = self.canvas.drag.take().map(|d| d.3).unwrap_or_default();
                 let (Some(api), Some(n)) = (api, self.canvas.node(&id).cloned()) else { return Task::none() };
-                let (a, ws) = (api.clone(), self.canvas.cur.clone());
-                Task::perform(async move { a.put(&format!("/canvas/{ws}/nos/{id}"), json!({"x": n.x, "y": n.y, "w": n.w, "h": n.h})).await.map(|_| String::new()) }, |r| match r {
-                    Ok(_) => Msg::Noop,
-                    Err(e) => Msg::Canvas(Cv::Done(Err(e))),
-                })
+                let ws = self.canvas.cur.clone();
+                let mut ids = vec![id.clone()];
+                ids.extend(group.iter().map(|g| g.0.clone()));
+                self.canvas.moving.extend(ids.iter().cloned());
+                let done = ids.clone();
+                if group.is_empty() {
+                    return Task::perform(async move { api.put(&format!("/canvas/{ws}/nos/{id}"), json!({"x": n.x, "y": n.y, "w": n.w, "h": n.h})).await.map(|_| ()) }, move |r| Msg::Canvas(Cv::Committed(done.clone(), r)));
+                }
+                let moves: Vec<Value> = ids.iter().filter_map(|i| self.canvas.node(i)).map(|m| json!({"id": m.id, "x": m.x, "y": m.y})).collect();
+                Task::perform(async move { api.put(&format!("/canvas/{ws}/posicoes"), json!({"nos": moves})).await.map(|_| ()) }, move |r| Msg::Canvas(Cv::Committed(done.clone(), r)))
+            }
+            Cv::Committed(ids, r) => {
+                for id in &ids {
+                    self.canvas.moving.remove(id);
+                }
+                if let Err(e) = r {
+                    self.toast(&e);
+                }
+                Task::none()
             }
             Cv::Pan(dx, dy) => {
-                self.canvas.pan.0 += dx;
-                self.canvas.pan.1 += dy;
+                self.canvas.pan.0 = (self.canvas.pan.0 + dx).round();
+                self.canvas.pan.1 = (self.canvas.pan.1 + dy).round();
                 Task::none()
             }
             Cv::Zoom(step) => {
-                // zoom em torno do centro da área
+                // degrau seguinte na direção pedida, em torno do centro da área
                 let (sw, sh) = self.canvas_stage();
-                let old = self.canvas.z();
-                let idx = (self.canvas.zoom as i32 + step).clamp(0, ZOOMS.len() as i32 - 1) as usize;
-                self.canvas.zoom = idx;
-                let new = self.canvas.z();
-                let (cx, cy) = (sw / 2.0, sh / 2.0);
-                self.canvas.pan = (cx - (cx - self.canvas.pan.0) * new / old, cy - (cy - self.canvas.pan.1) * new / old);
+                let z = self.canvas.z();
+                let next = if step > 0 { ZOOM_STEPS.iter().copied().find(|s| *s < z - 0.01) } else { ZOOM_STEPS.iter().rev().copied().find(|s| *s > z + 0.01) };
+                if let Some(n) = next {
+                    self.canvas_zoom_to(n, sw / 2.0, sh / 2.0);
+                }
+                Task::none()
+            }
+            Cv::ZoomAt(factor, x, y) => {
+                let z = self.canvas.z();
+                // saindo de 100% a roda sempre dá um passo; o encaixe em 100% só vale na volta
+                let target = if factor < 1.0 && z >= 0.999 { z * factor.min(0.92) } else { z * factor };
+                self.canvas_zoom_to(target, x, y);
+                Task::none()
+            }
+            Cv::Zoom100 => {
+                let (sw, sh) = self.canvas_stage();
+                self.canvas_zoom_to(1.0, sw / 2.0, sh / 2.0);
+                Task::none()
+            }
+            Cv::ZoomTo(id) => {
+                let (sw, sh) = self.canvas_stage();
+                let Some(n) = self.canvas.node(&id).cloned() else { return Task::none() };
+                self.canvas.zoom = 1.0;
+                let py = if n.h > sh - 48.0 { 24.0 - n.y } else { sh / 2.0 - (n.y + n.h / 2.0) };
+                let px = if n.w > sw - 48.0 { 24.0 - n.x } else { sw / 2.0 - (n.x + n.w / 2.0) };
+                self.canvas.pan = (px.round(), py.round());
+                self.canvas.sel = vec![id];
+                self.canvas.sel_edge = None;
                 Task::none()
             }
             Cv::Fit => {
                 self.canvas_fit();
+                Task::none()
+            }
+            Cv::Center(wx, wy) => {
+                let (sw, sh) = self.canvas_stage();
+                let z = self.canvas.z();
+                self.canvas.pan = ((sw / 2.0 - wx * z).round(), (sh / 2.0 - wy * z).round());
+                Task::none()
+            }
+            Cv::Stage(w, h) => {
+                let first = self.canvas.stage.0 <= 1.0;
+                self.canvas.stage = (w, h);
+                // o primeiro enquadramento usou a estimativa: refaz com o tamanho real
+                if first && self.canvas.loaded && !self.canvas.dragging {
+                    self.canvas_fit();
+                }
                 Task::none()
             }
             Cv::Link(from, to) => {
@@ -507,20 +797,109 @@ impl App {
                 let (a, ws) = (api.clone(), self.canvas.cur.clone());
                 Task::perform(async move { a.post(&format!("/canvas/{ws}/setas"), json!({"de": from, "para": to})).await.map(|_| String::new()) }, |r| Msg::Canvas(Cv::Done(r)))
             }
-            Cv::DelNode(id) => {
-                self.canvas.nodes.retain(|n| n.id != id);
-                self.canvas.edges.retain(|e| e.a != id && e.b != id);
-                self.canvas.notes.remove(&id);
-                self.canvas.dirty.remove(&id);
-                if self.canvas.sel.as_deref() == Some(id.as_str()) {
-                    self.canvas.sel = None;
+            Cv::AskDelete(ids) => {
+                let ids: Vec<String> = ids.into_iter().filter(|i| self.canvas.node(i).is_some()).collect();
+                if ids.is_empty() {
+                    return Task::none();
+                }
+                if self.canvas.needs_confirm(&ids) {
+                    self.canvas.confirm = Some(ids);
+                    return Task::none();
+                }
+                self.canvas_delete(ids)
+            }
+            Cv::DeleteSel => {
+                if let Some(e) = self.canvas.sel_edge.take() {
+                    return self.update_canvas(Cv::DelEdge(e));
+                }
+                let ids = self.canvas.sel.clone();
+                self.update_canvas(Cv::AskDelete(ids))
+            }
+            Cv::ConfirmDelete => match self.canvas.confirm.take() {
+                Some(ids) => self.canvas_delete(ids),
+                None => Task::none(),
+            },
+            Cv::CancelDelete => {
+                self.canvas.confirm = None;
+                Task::none()
+            }
+            Cv::DelNode(id) => self.canvas_delete(vec![id]),
+            Cv::Duplicate => {
+                let Some(api) = api else { return Task::none() };
+                let ws = self.canvas.cur.clone();
+                let ids: Vec<String> = self.canvas.sel.iter().filter(|i| self.canvas.node(i).is_some_and(|n| n.kind != "tarefa")).cloned().collect();
+                Task::batch(ids.into_iter().map(|id| {
+                    let (a, ws) = (api.clone(), ws.clone());
+                    Task::perform(async move { a.post(&format!("/canvas/{ws}/nos/{id}/duplicar"), json!({})).await }, |r| Msg::Canvas(Cv::Added(r)))
+                }))
+            }
+            Cv::Stop(id) => {
+                let Some(api) = api else { return Task::none() };
+                if !self.canvas.busy.contains(&id) || !self.canvas.stopping.insert(id.clone()) {
+                    return Task::none();
+                }
+                let ws = self.canvas.cur.clone();
+                Task::perform(async move { api.post(&format!("/canvas/{ws}/nos/{id}/parar"), json!({})).await }, |r| match r {
+                    Ok(_) => Msg::Noop,
+                    Err(e) => Msg::Canvas(Cv::Done(Err(e))),
+                })
+            }
+            Cv::RenameOpen => {
+                let name = self.canvas.spaces.iter().find(|w| w.0 == self.canvas.cur).map(|w| w.1.clone()).unwrap_or_default();
+                self.canvas.rename = Some(name);
+                self.canvas.confirm_space = false;
+                Task::none()
+            }
+            Cv::RenameIn(t) => {
+                self.canvas.rename = Some(t.chars().take(60).collect());
+                Task::none()
+            }
+            Cv::RenameGo => {
+                let Some(name) = self.canvas.rename.take().map(|n| n.trim().to_string()).filter(|n| !n.is_empty()) else { return Task::none() };
+                let cur = self.canvas.cur.clone();
+                if let Some(w) = self.canvas.spaces.iter_mut().find(|w| w.0 == cur) {
+                    if w.1 == name {
+                        return Task::none();
+                    }
+                    w.1 = name.clone();
                 }
                 let Some(api) = api else { return Task::none() };
-                let (a, ws) = (api.clone(), self.canvas.cur.clone());
-                Task::perform(async move { a.delete(&format!("/canvas/{ws}/nos/{id}")).await.map(|_| String::new()) }, |r| Msg::Canvas(Cv::Done(r)))
+                Task::perform(async move { api.patch(&format!("/canvas/{cur}"), json!({"nome": name})).await }, |r| match r {
+                    Ok(_) => Msg::Noop,
+                    Err(e) => Msg::Canvas(Cv::Done(Err(e))),
+                })
+            }
+            Cv::SpaceDelAsk => {
+                self.canvas.confirm_space = !self.canvas.confirm_space;
+                self.canvas.rename = None;
+                Task::none()
+            }
+            Cv::SpaceDelGo => {
+                self.canvas.confirm_space = false;
+                let Some(api) = api else { return Task::none() };
+                let cur = self.canvas.cur.clone();
+                Task::perform(async move { api.delete(&format!("/canvas/{cur}")).await.map(|_| ()) }, |r| Msg::Canvas(Cv::SpaceDeleted(r)))
+            }
+            Cv::SpaceDeleted(Ok(())) => {
+                // a lista volta sem o espaço apagado e o primeiro vira o atual
+                let c = &mut self.canvas;
+                c.cur.clear();
+                c.nodes.clear();
+                c.edges.clear();
+                c.missions.clear();
+                c.sel.clear();
+                c.sel_edge = None;
+                c.loaded = false;
+                match api {
+                    Some(api) => fetch(&api),
+                    None => Task::none(),
+                }
             }
             Cv::DelEdge(id) => {
                 self.canvas.edges.retain(|e| e.id != id);
+                if self.canvas.sel_edge.as_deref() == Some(id.as_str()) {
+                    self.canvas.sel_edge = None;
+                }
                 let Some(api) = api else { return Task::none() };
                 let (a, ws) = (api.clone(), self.canvas.cur.clone());
                 Task::perform(async move { a.delete(&format!("/canvas/{ws}/setas/{id}")).await.map(|_| String::new()) }, |r| Msg::Canvas(Cv::Done(r)))
@@ -557,6 +936,7 @@ impl App {
             }
             Cv::Reply(id, r) => {
                 self.canvas.busy.remove(&id);
+                self.canvas.stopping.remove(&id);
                 match r {
                     Ok(v) => {
                         let n = parse_node(&v);
