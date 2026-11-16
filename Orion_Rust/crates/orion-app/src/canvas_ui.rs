@@ -686,7 +686,9 @@ impl App {
                     c.drag = Some((id.clone(), n.x, n.y, others));
                 }
                 let Some((_, ox, oy, others)) = c.drag.clone() else { return Task::none() };
-                let (nx, ny) = ((x / GRID).round() * GRID, (y / GRID).round() * GRID);
+                // sozinho, o nó encaixa na grade; em grupo, o que encaixa é o deslocamento (ninguém sai do lugar relativo)
+                let snap = |v: f32| (v / GRID).round() * GRID;
+                let (nx, ny) = if others.is_empty() { (snap(x), snap(y)) } else { (ox + snap(x - ox), oy + snap(y - oy)) };
                 let (dx, dy) = (nx - ox, ny - oy);
                 if let Some(n) = c.node_mut(&id) {
                     n.x = nx;

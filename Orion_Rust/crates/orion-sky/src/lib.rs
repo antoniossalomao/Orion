@@ -248,7 +248,7 @@ impl OrionSky {
             let y = rng.next_f32();
             let r = 0.25 + z * z * 1.1;
             let a = 0.12 + z * 0.55;
-            let ph = rng.next_f32() * 6.28;
+            let ph = rng.next_f32() * std::f32::consts::TAU;
             let sp = 0.15 + rng.next_f32() * 0.35;
             let tint = if rng.next_f32() < 0.15 {
                 (255, 220, 190)

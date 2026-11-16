@@ -219,8 +219,10 @@ pub async fn node_chat(_: Admin, State(st): State<Estado>, Path((ws, id)): Path<
     let (st2, ws2, node2, key2) = (st.clone(), ws.clone(), node.clone(), key.clone());
     let task = {
         let mut running = RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        // o guarda nasce fora da tarefa: se ela for abortada antes de rodar, o nó é solto do mesmo jeito
+        let turn = Turn(key2);
         let task = tokio::spawn(async move {
-            let _turn = Turn(key2);
+            let _turn = turn;
             let r = run_turn(&st2, &ws2, &node2, &text).await;
             let now = st2.memory.now();
             match r {

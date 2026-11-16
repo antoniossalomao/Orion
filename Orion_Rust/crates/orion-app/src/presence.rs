@@ -89,7 +89,7 @@ static GEO: LazyLock<Geo> = LazyLock::new(|| {
         let (x, y, z) = (rnd() * 2.0 - 1.0, rnd() * 2.0 - 1.0, rnd() * 2.0 - 1.0);
         let l = (x * x + y * y + z * z).sqrt().max(1e-6);
         let f = 2.2 + i as f32 * 1.3;
-        *o = [x / l * f, y / l * f, z / l * f, 0.6 + rnd() * 0.9, rnd() * 6.28];
+        *o = [x / l * f, y / l * f, z / l * f, 0.6 + rnd() * 0.9, rnd() * std::f32::consts::TAU];
     }
     Geo { pts, waves }
 });

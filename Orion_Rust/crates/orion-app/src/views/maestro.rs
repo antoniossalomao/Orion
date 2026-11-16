@@ -952,7 +952,11 @@ fn board(app: &App) -> El<'_> {
     }
     if c.detail() {
         let (sw, sh) = app.canvas_stage();
-        for n in &c.nodes {
+        // camadas na ordem do id, não na ordem visual: trazer um nó para a frente não troca a posição dos
+        // widgets, então foco e rolagem continuam no nó certo
+        let mut ordered: Vec<&CNode> = c.nodes.iter().collect();
+        ordered.sort_by(|a, b| a.id.cmp(&b.id));
+        for n in ordered {
             // fora da área visível não monta o conteúdo: o custo acompanha o que está na tela. Fica um
             // espaço vazio no lugar para a posição das camadas não mudar (o foco de um campo é guardado por posição)
             let (x, y) = (n.x + c.pan.0, n.y + c.pan.1);
