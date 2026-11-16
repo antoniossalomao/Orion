@@ -1,6 +1,6 @@
 # Plano: canvas de chats (estilo Maestri)
 
-Estado: **implementado em 15/11/2026** (F1 a F4; ver ORION.md, decisão do dia). Diferenças do plano: zoom em degraus (100% mostra o conteúdo, abaixo vira mapa de cartões), nó de página é só o link (sem captura nem navegador embutido) e o Maestro monta o canvas sozinho a partir do plano. Em 16/11/2026: parar uma resposta em andamento, zoom contínuo no cursor, minimapa, seleção múltipla e polimento (ver ORION.md). Pendentes: captura de página e aceite no Windows real.
+Estado: **implementado em 15/11/2026** (F1 a F4; ver ORION.md, decisão do dia). Diferenças do plano: zoom em degraus (100% mostra o conteúdo, abaixo vira mapa de cartões), nó de página é só o link (sem captura nem navegador embutido) e o Maestro monta o canvas sozinho a partir do plano. Em 16/11/2026: parar uma resposta em andamento, zoom contínuo no cursor, minimapa, seleção múltipla e polimento (ver ORION.md). Captura de página (F5) descartada pelo Antônio em 16/11/2026: o nó continua só link. Pendente: aceite no Windows real.
 
 ## Objetivo
 Uma tela "Canvas" no app: espaço infinito com pan e zoom, onde ficam **nós de chat** (cada um é uma conversa do Orion, com seu próprio modelo ou assinatura), notas, frames e, depois, páginas web. Setas ligam nós. Espaços de trabalho salvos e reabertos. Não há terminal: nenhum processo novo, nenhum PTY.
