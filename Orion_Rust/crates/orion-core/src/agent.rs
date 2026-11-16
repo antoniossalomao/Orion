@@ -204,6 +204,12 @@ impl Agent {
         self.locks.lock().entry(session_id.into()).or_insert_with(|| Arc::new(tokio::sync::Mutex::new(()))).clone()
     }
 
+    /// Toma a trava da conversa para um turno que não passa pelo agente (CLI de assinatura). `None` se já
+    /// há um turno em andamento: dois turnos nunca escrevem na mesma conversa ao mesmo tempo.
+    pub fn try_session_guard(&self, session_id: &str) -> Option<tokio::sync::OwnedMutexGuard<()>> {
+        self.lock(session_id).try_lock_owned().ok()
+    }
+
     pub fn busy(&self, session_id: &str) -> bool {
         self.locks.lock().get(session_id).is_some_and(|l| l.try_lock().is_err())
     }

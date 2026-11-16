@@ -25,7 +25,7 @@ Hoje o app tem **um** `streaming: Option<Stream>` e `/chat` escolhe a sessão pe
 - **Um canal por nó** (`canvas:<id do nó>`, no mesmo formato que o Maestro já usa), cada um com sua sessão. A trava por sessão do `Agent` já permite paralelismo entre sessões.
 - No app, trocar o `streaming` único por um mapa `nó → streaming`, com abortar por nó.
 - O modelo escolhido vem **por nó** (campo `assinatura` do `/chat` do PR #106).
-- Dependência: os dois achados abertos do PR #106 (trava da sessão no turno por assinatura e edição de mensagem com assinatura) precisam estar corrigidos, porque aqui eles aparecem com vários chats ativos.
+- Dependência: os dois achados abertos do PR #106 (trava da sessão no turno por assinatura e edição de mensagem com assinatura) precisam estar corrigidos, porque aqui eles aparecem com vários chats ativos. **Corrigidos em 16/11/2026.**
 
 ## Fases
 
