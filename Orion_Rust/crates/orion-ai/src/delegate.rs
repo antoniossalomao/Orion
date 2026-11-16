@@ -46,11 +46,17 @@ pub fn which(nome: &str) -> Option<PathBuf> {
     } else {
         vec![String::new()]
     };
-    for dir in std::env::split_paths(&std::env::var_os("PATH")?) {
-        for e in &exts {
-            let c = dir.join(format!("{nome}{e}"));
-            if c.is_file() {
-                return Some(c);
+    // Binário de verdade primeiro, em todo o PATH; shim `.cmd`/`.bat` só se não houver outro. Um shim do npm
+    // numa pasta anterior não pode esconder o `.exe` oficial de uma pasta posterior (a delegação recusa shim).
+    let dirs: Vec<PathBuf> = std::env::split_paths(&std::env::var_os("PATH")?).collect();
+    let shim = |e: &str| e == ".cmd" || e == ".bat";
+    for shims in [false, true] {
+        for dir in &dirs {
+            for e in exts.iter().filter(|e| shim(e) == shims) {
+                let c = dir.join(format!("{nome}{e}"));
+                if c.is_file() {
+                    return Some(c);
+                }
             }
         }
     }
