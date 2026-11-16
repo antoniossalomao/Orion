@@ -129,6 +129,12 @@ impl Delegator {
                 cmd.env(k, v);
             }
         }
+        // Windows: sem isso o app gráfico abre uma janela de console para a CLI.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        }
         // Windows: CLI em Python escreve no pipe com a codepage local; força UTF-8.
         cmd.env("PYTHONUTF8", "1").env("PYTHONIOENCODING", "utf-8");
         let mut filho = cmd.spawn()?;
