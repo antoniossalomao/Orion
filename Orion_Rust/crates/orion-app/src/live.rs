@@ -1087,7 +1087,12 @@ impl App {
         self.attach.clear();
         self.attach_thumbs.clear();
         let (path, body) = match edit {
-            Some(id) => (format!("/historico/{id}/editar"), json!({"texto": text, "canal": "web"})),
+            Some(id) => {
+                let mut b = json!({"texto": text, "canal": "web"});
+                // editar e reenviar continua na assinatura escolhida (REGRAS.md: nada de provedor trocado às escondidas)
+                if let Some(a) = self.p.assinatura() { b["assinatura"] = a; }
+                (format!("/historico/{id}/editar"), b)
+            }
             None => {
                 let mut b = json!({"texto": text, "canal": "web", "anexos": attachments, "imagens": imagens});
                 // Claude/Codex escolhidos no seletor: o servidor roda a CLI oficial, nunca cai na API.

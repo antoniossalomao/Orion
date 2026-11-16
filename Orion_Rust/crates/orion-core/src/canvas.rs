@@ -30,7 +30,7 @@ pub const CHAT_AGENTS: [&str; 3] = ["orion", "claude", "codex"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Message {
-    /// user | ai | dado
+    /// user | ai | dado | erro (falha ou interrupção do turno: aparece na tela, nunca entra em prompt)
     #[serde(rename = "papel")]
     pub role: String,
     #[serde(rename = "texto")]
@@ -403,7 +403,53 @@ impl CanvasStore {
                     n.model = if n.agent == "claude" && ["opus", "sonnet", "haiku"].contains(&m) { m.to_string() } else { String::new() };
                 }
             }
-            Ok(n.clone())
+            // trazer para a frente: o nó vai para o fim da lista (a tela desenha nessa ordem)
+            let out = n.clone();
+            if patch.get("frente").and_then(Value::as_bool) == Some(true) {
+                if let Some(i) = w.nos.iter().position(|n| n.id == id) {
+                    let n = w.nos.remove(i);
+                    w.nos.push(n);
+                }
+            }
+            Ok(out)
+        })
+    }
+
+    /// Move vários nós de uma vez (arrastar uma seleção ou uma moldura com o que está dentro): uma gravação só.
+    /// Ids desconhecidos são ignorados. Devolve quantos mudaram.
+    pub fn move_nodes(&self, ws: &str, moves: &[(String, f64, f64)]) -> Result<usize, CanvasError> {
+        self.edit(|d| {
+            let w = d.espacos.iter_mut().find(|w| w.id == ws).ok_or(CanvasError { message: "espaço não encontrado".into(), status: 404 })?;
+            let mut changed = 0;
+            for (id, x, y) in moves.iter().take(MAX_NODES) {
+                if !x.is_finite() || !y.is_finite() {
+                    continue;
+                }
+                if let Some(n) = w.nos.iter_mut().find(|n| &n.id == id) {
+                    n.x = x.clamp(-50_000.0, 50_000.0);
+                    n.y = y.clamp(-50_000.0, 50_000.0);
+                    changed += 1;
+                }
+            }
+            Ok(changed)
+        })
+    }
+
+    /// Cópia de um nó, deslocada. O chat copiado leva agente e modelo, sem as mensagens; tarefa não se copia
+    /// (só nasce do plano do Maestro).
+    pub fn duplicate_node(&self, ws: &str, id: &str) -> Result<Node, CanvasError> {
+        self.edit(|d| {
+            let w = d.espacos.iter_mut().find(|w| w.id == ws).ok_or(CanvasError { message: "espaço não encontrado".into(), status: 404 })?;
+            if w.nos.len() >= MAX_NODES {
+                return refuse(format!("no máximo {MAX_NODES} nós por espaço"), 409);
+            }
+            let src = w.nos.iter().find(|n| n.id == id).cloned().ok_or(CanvasError { message: "nó não encontrado".into(), status: 404 })?;
+            if src.kind == "tarefa" {
+                return refuse("nós de tarefa só nascem do plano do Maestro", 422);
+            }
+            let n = Node { id: orion_store::uuid_hex()[..10].to_string(), x: (src.x + 32.0).clamp(-50_000.0, 50_000.0), y: (src.y + 32.0).clamp(-50_000.0, 50_000.0), messages: vec![], missao: String::new(), subtarefa: String::new(), by_maestro: false, ..src };
+            w.nos.push(n.clone());
+            Ok(n)
         })
     }
 
@@ -430,6 +476,10 @@ impl CanvasStore {
             let n = w.nos.iter_mut().find(|n| n.id == id).ok_or(CanvasError { message: "nó não encontrado".into(), status: 404 })?;
             if n.kind != "chat" {
                 return refuse("só chats têm mensagens", 409);
+            }
+            // um aviso de erro substitui o anterior em vez de empilhar
+            if m.role == "erro" && n.messages.last().is_some_and(|l| l.role == "erro") {
+                n.messages.pop();
             }
             n.messages.push(Message { text: clip(&m.text, 16_000), ..m });
             let extra = n.messages.len().saturating_sub(MAX_MESSAGES);

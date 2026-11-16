@@ -86,5 +86,10 @@
   "{} min de fala gerada neste mês. Ao chegar no teto, a voz fica indisponível até o dia 1º.",
   "US$ {} de {}",
   "A voz está indisponível: o crédito de voz deste mês (US$ {}) acabou. Volta no dia 1º.",
-  "A voz está indisponível: o Google devolveu um erro (HTTP {})."
+  "A voz está indisponível: o Google devolveu um erro (HTTP {}).",
+  "Mensagem para {}",
+  "Apagar “{}” e o que há nele?",
+  "Apagar {} nós e o que há neles?",
+  "{} selecionados",
+  "Apagar “{}” e tudo nele?"
 ]

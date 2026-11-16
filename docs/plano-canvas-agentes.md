@@ -1,6 +1,6 @@
 # Plano: canvas de chats (estilo Maestri)
 
-Estado: **implementado em 15/11/2026** (F1 a F4; ver ORION.md, decisão do dia). Diferenças do plano: zoom em degraus (100% mostra o conteúdo, abaixo vira mapa de cartões), nó de página é só o link (sem captura nem navegador embutido) e o Maestro monta o canvas sozinho a partir do plano. Pendentes: parar uma resposta em andamento, captura de página e aceite no Windows real.
+Estado: **implementado em 15/11/2026** (F1 a F4; ver ORION.md, decisão do dia). Diferenças do plano: zoom em degraus (100% mostra o conteúdo, abaixo vira mapa de cartões), nó de página é só o link (sem captura nem navegador embutido) e o Maestro monta o canvas sozinho a partir do plano. Em 16/11/2026: parar uma resposta em andamento, zoom contínuo no cursor, minimapa, seleção múltipla e polimento (ver ORION.md). Captura de página (F5) descartada pelo Antônio em 16/11/2026: o nó continua só link. Pendente: aceite no Windows real.
 
 ## Objetivo
 Uma tela "Canvas" no app: espaço infinito com pan e zoom, onde ficam **nós de chat** (cada um é uma conversa do Orion, com seu próprio modelo ou assinatura), notas, frames e, depois, páginas web. Setas ligam nós. Espaços de trabalho salvos e reabertos. Não há terminal: nenhum processo novo, nenhum PTY.
@@ -25,7 +25,7 @@ Hoje o app tem **um** `streaming: Option<Stream>` e `/chat` escolhe a sessão pe
 - **Um canal por nó** (`canvas:<id do nó>`, no mesmo formato que o Maestro já usa), cada um com sua sessão. A trava por sessão do `Agent` já permite paralelismo entre sessões.
 - No app, trocar o `streaming` único por um mapa `nó → streaming`, com abortar por nó.
 - O modelo escolhido vem **por nó** (campo `assinatura` do `/chat` do PR #106).
-- Dependência: os dois achados abertos do PR #106 (trava da sessão no turno por assinatura e edição de mensagem com assinatura) precisam estar corrigidos, porque aqui eles aparecem com vários chats ativos.
+- Dependência: os dois achados abertos do PR #106 (trava da sessão no turno por assinatura e edição de mensagem com assinatura) precisam estar corrigidos, porque aqui eles aparecem com vários chats ativos. **Corrigidos em 16/11/2026.**
 
 ## Fases
 

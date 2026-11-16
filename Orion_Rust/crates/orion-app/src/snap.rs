@@ -176,9 +176,10 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         a.maestro_open = Some("m1".into());
     }));
     // Canvas do Maestro: missão montada pelo Maestro (tarefas, nota, página) e um chat do Antônio; depois o mapa
-    push("15-maestro-canvas", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 0); }));
-    push("15b-maestro-mapa", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 2); }));
-    push("15c-maestro-baixo", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 0); a.canvas.pan = (30.0, -690.0); a.canvas.sel = Some("p1".into()); }));
+    push("15-maestro-canvas", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 1.0); }));
+    push("15b-maestro-mapa", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 0.5); }));
+    push("15c-maestro-baixo", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 1.0); a.canvas.pan = (30.0, -430.0); a.canvas.sel = vec!["t2".into()]; a.canvas.sel_edge = None; }));
+    push("15d-maestro-seta", cena(|a| { a.update(Msg::Go(View::Maestro)); canvas_demo(a, 1.0); a.canvas.sel_edge = Some("e1".into()); a.canvas.busy.insert("c2".into()); a.canvas.confirm = Some(vec!["c1".into()]); }));
     push("22-memoria-forcas", cena(|a| {
         a.update(Msg::Go(View::Memoria));
         a.mem.forces_open = true;
@@ -359,7 +360,7 @@ fn streaming_com(a: &mut App, tools: Vec<(&str, &str, &str, &str)>, body: &str) 
 }
 
 /// Canvas de exemplo: o Maestro montou as tarefas, uma nota e uma página; o Antônio tem um chat com resposta.
-fn canvas_demo(a: &mut App, zoom: usize) {
+fn canvas_demo(a: &mut App, zoom: f32) {
     use crate::canvas_ui::{CEdge, CMission, CMsg, CNode};
     let n = |id: &str, kind: &str, x: f32, y: f32, w: f32, h: f32, title: &str| CNode { id: id.into(), kind: kind.into(), x, y, w, h, title: title.into(), ..Default::default() };
     let mut chat = n("c1", "chat", 0.0, 0.0, 440.0, 380.0, "Auditoria do site");
@@ -393,5 +394,6 @@ fn canvas_demo(a: &mut App, zoom: usize) {
     c.loaded = true;
     c.fitted = true;
     c.zoom = zoom;
-    c.pan = if zoom == 0 { (30.0, 20.0) } else { (40.0, 30.0) };
+    c.stage = (1167.0, 762.0);
+    c.pan = if zoom >= 1.0 { (30.0, 20.0) } else { (40.0, 30.0) };
 }
