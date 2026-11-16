@@ -814,6 +814,8 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
     };
     match group {
         "voice" => {
+            col = col.push(tx(crate::i18n::text("Voz do Orion"), 14.0, t::FG));
+            col = col.push(crate::views::settings::voice_key_card(app));
             col=col.push(tx(crate::i18n::text("Transcrição exige Whisper local ou fallback Groq configurado. A palavra Orion exige bundle validado. A fala usa uma voz do Windows ou edge-tts."),12.5,t::FG3));
             col = col.push(
                 row![
