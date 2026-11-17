@@ -45,7 +45,8 @@ pub fn view(app: &App) -> El<'_> {
                     let name = n.path.rsplit('/').next().unwrap_or(&n.path);
                     let inner = column![
                         kv("file", tx(ell(name, 220.0, 12.5), 12.5, t::FG2).into()),
-                        row![icon("branch", 14.0, t::FG3), txf(format!("main · {}", n.commit), 12.0, t::FG2, t::MONO), tx(format!("· {}", n.at), 12.5, t::FG3)].spacing(t::SP_2).align_y(Vertical::Center),
+                        // no modo real a nota é gravada sem commit (o diário não commita); o hash só aparece quando existe
+                        if n.commit.is_empty() { row![icon("check", 14.0, t::FG3), tx(crate::i18n::text("Salvo no vault"), 12.5, t::FG2), tx(format!("· {}", n.at), 12.5, t::FG3)].spacing(t::SP_2).align_y(Vertical::Center) } else { row![icon("branch", 14.0, t::FG3), txf(format!("main · {}", n.commit), 12.0, t::FG2, t::MONO), tx(format!("· {}", n.at), 12.5, t::FG3)].spacing(t::SP_2).align_y(Vertical::Center) },
                         row![btn(crate::i18n::text("Abrir nota"), Kind::Normal, true, Some("edit"), Some(Msg::EditorOpen(n.path.to_string())))].spacing(t::SP_15),
                     ]
                     .spacing(t::SP_15);

@@ -18,6 +18,17 @@ fn key(sid: &str) -> String {
     format!("vault_diario:{sid}")
 }
 
+/// A3: caminho da nota desta conversa no vault, depois que ela foi gravada de fato.
+fn note_path_key(sid: &str) -> String {
+    format!("vault_diario_arquivo:{sid}")
+}
+
+/// Caminho (relativo ao vault) da nota já gravada para a conversa, se houver. O app usa isso para dizer
+/// "Salvo no vault" só quando a nota existe.
+pub fn note_path(memory: &Store, sid: &str) -> Option<String> {
+    memory.meta_get(&note_path_key(sid)).filter(|p| !p.is_empty())
+}
+
 fn one_line(t: &str, max: usize) -> String {
     t.split_whitespace().collect::<Vec<_>>().join(" ").chars().filter(|c| !c.is_control()).take(max).collect()
 }
@@ -166,6 +177,7 @@ fn save(memory: &Arc<Store>, vault: &Path, imagens: &Path, sid: &str) -> anyhow:
         memory.meta_set(&key(sid), Some(CONFLICT))?;
     } else {
         memory.meta_set(&key(sid), Some(&result.content_sha256))?;
+        memory.meta_set(&note_path_key(sid), Some(&result.file_path))?;
         if !result.unchanged {
             record_change(&mgr, sid, &result.file_path);
         }
@@ -193,6 +205,7 @@ pub fn save_now(memory: &Arc<Store>, vault: &Path, imagens: &Path, sid: &str) ->
         anyhow::bail!("a nota foi editada no vault; a versão nova ficou como proposta de conflito");
     }
     memory.meta_set(&key(sid), Some(&result.content_sha256))?;
+    memory.meta_set(&note_path_key(sid), Some(&result.file_path))?;
     if !result.unchanged {
         record_change(&mgr, sid, &result.file_path);
     }

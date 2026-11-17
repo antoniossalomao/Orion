@@ -302,3 +302,15 @@ pub fn router(st: Estado) -> Router {
         .route("/branches/messages/:id", post(ramificar));
     r.layer(middleware::from_fn(request_id)).layer(middleware::from_fn_with_state(st.clone(), host_permitido)).with_state(st)
 }
+
+/// A7: o turno pela CLI de assinatura (Claude, Codex) também fala como o Orion. Vai a identidade da persona
+/// (primeiro parágrafo de `PERSONA`, sem as regras de ferramentas, que não existem nesse caminho) e a
+/// diretiva de não inventar; sem isso a CLI responde com a identidade dela ("sou o Claude, da Anthropic").
+pub(crate) fn subscription_persona() -> String {
+    let identity = orion_core::persona::PERSONA.split("\n\n").next().unwrap_or("").trim();
+    format!(
+        "{identity}\nVocê está respondendo por meio de outro modelo, mas quem fala é o Orion: apresente-se sempre como o Orion. \
+Não invente: se não souber e não tiver contexto, diga \"Não tenho dados suficientes para responder isso.\" e pare.\n\n"
+    )
+}
+

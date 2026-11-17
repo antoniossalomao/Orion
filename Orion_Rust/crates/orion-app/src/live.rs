@@ -2,7 +2,7 @@
 //! Sem `Api`, o app roda com os dados de exemplo do protótipo (testes e fotos).
 
 use crate::app::{App, Msg, Panic, Sec, View};
-use crate::data::{self, Act, ApprState, Approval, ChatMsg, Conv, ConvState, Fact, Origin, OrionMsg, Project, Rot, Tool};
+use crate::data::{self, Act, ApprState, Approval, ChatMsg, Conv, ConvState, Fact, Note, Origin, OrionMsg, Project, Rot, Tool};
 use crate::net::{self, arr, s, Api, Chat, LoginResult};
 use iced::Task;
 use serde_json::{json, Value};
@@ -164,7 +164,8 @@ pub fn map_sessions(v: &Value, old: &[Conv], projects: &[Project], now: f64) -> 
             ctx: 0,
             branch: None,
             pinned: x.get("favorita").and_then(Value::as_bool).unwrap_or(false),
-            note: None,
+            // A3: a nota só aparece quando o núcleo já a gravou no vault
+            note: x.get("nota_vault").and_then(Value::as_str).filter(|p| !p.is_empty()).map(|p| Note { path: p.replace('\\', "/"), at: hm(last), commit: String::new() }),
             pin: None,
             banner: None,
             msgs: prev.map(|p| p.msgs.clone()).unwrap_or_default(),
