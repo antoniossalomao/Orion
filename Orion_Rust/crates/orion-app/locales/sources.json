@@ -1510,5 +1510,7 @@
   "Use o caminho completo da pasta das cópias": "ui-1436",
   "O caminho da pasta das cópias tem caracteres inválidos (< > \" | ? * :)": "ui-1437",
   "A unidade da pasta das cópias não existe": "ui-1438",
-  "ontem": "ui-1439"
+  "ontem": "ui-1439",
+  "Caminho resolvido": "ui-1440",
+  "pasta": "ui-1441"
 }

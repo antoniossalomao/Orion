@@ -184,8 +184,11 @@ pub fn map_archived(v: &Value, projects: &[Project], now: f64) -> Vec<(String, S
             continue;
         }
         let last = iso_to_secs(s(x, "ultima_atividade")).unwrap_or(0.0);
-        let proj = x.get("project_id").and_then(Value::as_str).and_then(|p| projects.iter().find(|pr| pr.id == p)).map(|p| p.n.clone()).unwrap_or_else(|| crate::i18n::text("Sem projeto").to_string());
-        let title = match s(x, "titulo") { "" => crate::i18n::text("Conversa sem título").to_string(), t => t.to_string() };
+        // `project_name` vem do núcleo: vale para projeto arquivado e não depende de `/projects` já ter chegado
+        let proj = Some(s(x, "project_name")).filter(|n| !n.is_empty()).map(String::from)
+            .or_else(|| x.get("project_id").and_then(Value::as_str).and_then(|p| projects.iter().find(|pr| pr.id == p)).map(|p| p.n.clone()))
+            .unwrap_or_else(|| crate::i18n::text("Sem projeto").to_string());
+        let title = match s(x, "titulo") { "" | "Conversa sem título" => crate::i18n::text("Conversa sem título").to_string(), t => t.to_string() };
         // nome de projeto é do usuário e fica como está; "Sem projeto" e o tempo relativo passam pelo Fluent
         out.push((last, (title, proj, crate::i18n::status(&rel(last, now)), s(x, "sessao_id").to_string())));
     }
@@ -217,12 +220,24 @@ pub fn map_history(v: &Value) -> Vec<ChatMsg> {
     out
 }
 
+/// C2: o núcleo acrescenta ao motivo `. Caminho resolvido: `X` (pasta: `Y`)`. Os rótulos passam pelo Fluent;
+/// os caminhos (trechos de código) ficam literais.
+fn translate_resolved_path(reason: &str) -> String {
+    const LABEL: &str = ". Caminho resolvido: ";
+    const FOLDER: &str = " (pasta: ";
+    let Some((base, rest)) = reason.split_once(LABEL) else { return reason.to_string() };
+    let Some((path, folder)) = rest.rsplit_once(FOLDER) else { return reason.to_string() };
+    let Some(folder) = folder.strip_suffix(')') else { return reason.to_string() };
+    format!("{base}. {}: {path} ({}: {folder})", crate::i18n::text("Caminho resolvido"), crate::i18n::text("pasta"))
+}
+
 pub fn map_approval(a: &Value) -> Approval {
     let args: Vec<(String, String)> = match a.get("args") {
         Some(Value::Object(o)) => o.iter().map(|(k, v)| (k.clone(), v.as_str().map(String::from).unwrap_or_else(|| v.to_string()))).collect(),
         _ => vec![],
     };
     let (tool, reason) = (s(a, "tool"), s(a, "reason"));
+    let reason = &translate_resolved_path(reason);
     // os argumentos vão inteiros no corpo do cartão: aqui só o motivo e a ferramenta
     let text = if reason.is_empty() { format!("`{tool}`") } else { format!("{reason} `{tool}`") };
     Approval {

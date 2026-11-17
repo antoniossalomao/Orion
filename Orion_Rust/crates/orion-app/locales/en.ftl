@@ -1510,3 +1510,5 @@ ui-1436 = { "Use the full path of the backup folder" }
 ui-1437 = { "The backup folder path has invalid characters (< > \" | ? * :)" }
 ui-1438 = { "The drive of the backup folder does not exist" }
 ui-1439 = { "yesterday" }
+ui-1440 = { "Resolved path" }
+ui-1441 = { "folder" }

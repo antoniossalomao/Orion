@@ -1510,3 +1510,5 @@ ui-1436 = { "Use o caminho completo da pasta das cópias" }
 ui-1437 = { "O caminho da pasta das cópias tem caracteres inválidos (< > \" | ? * :)" }
 ui-1438 = { "A unidade da pasta das cópias não existe" }
 ui-1439 = { "ontem" }
+ui-1440 = { "Caminho resolvido" }
+ui-1441 = { "pasta" }
