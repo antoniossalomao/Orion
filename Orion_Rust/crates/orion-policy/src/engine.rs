@@ -369,8 +369,8 @@ impl PolicyEngine {
                 motivo = Some("execução/automação (agente, navegador ou UI)".into());
             }
         } else if let (Some(arg), Risk::Read) = (&spec.read_path_arg, risk) {
-            let caminho = call.arg_str(arg);
-            motivo = self.path_guard.check_read(&caminho).map(|m| crate::paths::with_resolved(m, &caminho));
+            let requested_path = call.arg_str(arg);
+            motivo = self.path_guard.check_read(&requested_path).map(|m| crate::paths::with_resolved(m, &requested_path));
         } else if let (Some(arg), Risk::Write) = (&spec.path_arg, risk) {
             let caminho = call.arg_str(arg);
             motivo = if spec.organize {
