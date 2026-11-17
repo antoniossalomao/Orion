@@ -184,9 +184,10 @@ pub fn map_archived(v: &Value, projects: &[Project], now: f64) -> Vec<(String, S
             continue;
         }
         let last = iso_to_secs(s(x, "ultima_atividade")).unwrap_or(0.0);
-        let proj = x.get("project_id").and_then(Value::as_str).and_then(|p| projects.iter().find(|pr| pr.id == p)).map(|p| p.n.clone()).unwrap_or_else(|| "Sem projeto".into());
+        let proj = x.get("project_id").and_then(Value::as_str).and_then(|p| projects.iter().find(|pr| pr.id == p)).map(|p| p.n.clone()).unwrap_or_else(|| crate::i18n::text("Sem projeto").to_string());
         let title = match s(x, "titulo") { "" => crate::i18n::text("Conversa sem título").to_string(), t => t.to_string() };
-        out.push((last, (title, proj, rel(last, now), s(x, "sessao_id").to_string())));
+        // nome de projeto é do usuário e fica como está; "Sem projeto" e o tempo relativo passam pelo Fluent
+        out.push((last, (title, proj, crate::i18n::status(&rel(last, now)), s(x, "sessao_id").to_string())));
     }
     out.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
     out.into_iter().map(|x| x.1).collect()

@@ -1509,3 +1509,4 @@ ui-1435 = { "The projects folder does not exist; create it first or pick another
 ui-1436 = { "Use the full path of the backup folder" }
 ui-1437 = { "The backup folder path has invalid characters (< > \" | ? * :)" }
 ui-1438 = { "The drive of the backup folder does not exist" }
+ui-1439 = { "yesterday" }

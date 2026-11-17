@@ -115,7 +115,16 @@ pub fn with_resolved(reason: String, requested: &str) -> String {
         return reason;
     }
     let folder = Path::new(&resolved).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
-    format!("{reason}. Caminho resolvido: {resolved} (pasta: {folder})")
+    // o motivo vai para o cartão, que é Markdown: o caminho entra como código, literal (sem `_` virar itálico)
+    format!("{reason}. Caminho resolvido: {} (pasta: {})", code_span(&resolved), code_span(&folder))
+}
+
+/// Trecho de código Markdown que mostra `s` literalmente, com cerca maior que qualquer sequência de crases dentro.
+fn code_span(s: &str) -> String {
+    let longest = s.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+    let fence = "`".repeat(longest + 1);
+    let pad = if s.starts_with('`') || s.ends_with('`') { " " } else { "" };
+    format!("{fence}{pad}{s}{pad}{fence}")
 }
 
 fn sep() -> char {
