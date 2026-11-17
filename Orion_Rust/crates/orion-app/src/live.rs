@@ -31,6 +31,7 @@ pub enum Lm {
     Desbloqueado(Result<(), String>),
     TwoFactor(Result<(), String>),
     Sessions(Result<Value, String>),
+    Archived(Result<Value, String>),
     Opened(String, Result<Value, String>),
     Created(Result<Value, String>),
     Approvals(Result<Value, String>),
@@ -174,8 +175,8 @@ pub fn map_sessions(v: &Value, old: &[Conv], projects: &[Project], now: f64) -> 
     (out.into_iter().map(|c| c.1).collect(), ativa)
 }
 
-/// A4: as arquivadas vêm na mesma lista de `/sessoes` (o núcleo devolve todas quando não há filtro);
-/// `map_sessions` as pula e a tela Arquivadas as mostra, da mais recente para a mais antiga.
+/// A4: as arquivadas vêm de `/sessoes?arquivadas=true` (o filtro roda no núcleo, antes do limite, para uma
+/// arquivada antiga não sumir atrás de 100 conversas ativas); a tela as mostra da mais recente para a mais antiga.
 pub fn map_archived(v: &Value, projects: &[Project], now: f64) -> Vec<(String, String, String, String)> {
     let mut out: Vec<(f64, (String, String, String, String))> = vec![];
     for x in arr(v, "sessoes") {
@@ -184,7 +185,7 @@ pub fn map_archived(v: &Value, projects: &[Project], now: f64) -> Vec<(String, S
         }
         let last = iso_to_secs(s(x, "ultima_atividade")).unwrap_or(0.0);
         let proj = x.get("project_id").and_then(Value::as_str).and_then(|p| projects.iter().find(|pr| pr.id == p)).map(|p| p.n.clone()).unwrap_or_else(|| "Sem projeto".into());
-        let title = match s(x, "titulo") { "" => "Conversa sem título".to_string(), t => t.to_string() };
+        let title = match s(x, "titulo") { "" => crate::i18n::text("Conversa sem título").to_string(), t => t.to_string() };
         out.push((last, (title, proj, rel(last, now), s(x, "sessao_id").to_string())));
     }
     out.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -420,6 +421,7 @@ fn pull_tool_permissions(api: &Api) -> Task<Msg> {
 pub fn pull_basic(api: &Api) -> Task<Msg> {
     Task::batch([
         { let a = api.clone(); Task::perform(async move { a.get("/sessoes?limite=100").await }, |r| Msg::L(Lm::Sessions(r))) },
+        { let a = api.clone(); Task::perform(async move { a.get("/sessoes?limite=100&arquivadas=true").await }, |r| Msg::L(Lm::Archived(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/approvals").await }, |r| Msg::L(Lm::Approvals(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/projects").await }, |r| Msg::L(Lm::Projects(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/modo").await }, |r| Msg::L(Lm::Modo(r))) },
@@ -1290,7 +1292,6 @@ impl App {
                     let cur = self.cur_sid.clone();
                     let (list, _) = map_sessions(&v, &self.convs, &self.projects, now);
                     self.convs = list;
-                    self.archived = map_archived(&v, &self.projects, now);
                     if self.view == View::Chat {
                         self.conv = cur.and_then(|id| self.convs.iter().position(|c| c.id == id));
                         if self.conv.is_none() {
@@ -1316,6 +1317,10 @@ impl App {
                     }
                     return self.buscar_imagens();
                 }
+                Err(e) => self.net_fail(e),
+            },
+            Lm::Archived(r) => match r {
+                Ok(v) => self.archived = map_archived(&v, &self.projects, now),
                 Err(e) => self.net_fail(e),
             },
             Lm::Created(r) => match r {

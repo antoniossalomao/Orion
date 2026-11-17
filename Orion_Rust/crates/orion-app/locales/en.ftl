@@ -1495,3 +1495,6 @@ ui-1421 = { "Delete “" }{ $v0 }{ "” and what is in it?" }
 ui-1422 = { "Delete " }{ $v0 }{ " nodes and what is in them?" }
 ui-1423 = { $v0 }{ " selected" }
 ui-1424 = { "Delete “" }{ $v0 }{ "” and everything in it?" }
+ui-1425 = { "Saved to vault" }
+ui-1426 = { "Saved in Orion" }
+ui-1427 = { "Untitled conversation" }

@@ -30,16 +30,16 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
     let salva = api.as_ref().and(crate::uiprefs::load_geometry());
     // A1: o iced multiplica o tamanho inicial pela escala do app (130% transformava 1440×900 em 1872×1170);
     // o tamanho pedido, já com a escala, cabe na área útil do monitor onde a janela vai abrir.
-    let escala = if api.is_some() { crate::uiprefs::load().0.unwrap_or(100) as f32 / 100.0 } else { 1.0 };
-    let tamanho = salva.map(|(s, _)| s).unwrap_or(Size::new(1440.0, 900.0));
-    let ponto = salva.and_then(|(_, p)| p).map(|p| ((p.x + 40.0) as i32, (p.y + 20.0) as i32)).unwrap_or((0, 0));
-    let tamanho = match orion_platform::work_area(ponto.0, ponto.1) {
-        Some((w, h)) => Size::new(tamanho.width.min(w / escala).max(760.0), tamanho.height.min(h / escala).max(520.0)),
-        None => tamanho,
+    let scale = if api.is_some() { crate::uiprefs::load().0.unwrap_or(100) as f32 / 100.0 } else { 1.0 };
+    let size = salva.map(|(s, _)| s).unwrap_or(Size::new(1440.0, 900.0));
+    let anchor = salva.and_then(|(_, p)| p).map(|p| ((p.x + 40.0) as i32, (p.y + 20.0) as i32)).unwrap_or((0, 0));
+    let size = match orion_platform::work_area(anchor.0, anchor.1) {
+        Some((w, h)) => Size::new(size.width.min(w / scale).max(760.0), size.height.min(h / scale).max(520.0)),
+        None => size,
     };
-    let salva = salva.map(|(_, p)| (tamanho, p));
+    let salva = salva.map(|(_, p)| (size, p));
     let mut win = window::Settings {
-        size: tamanho,
+        size,
         min_size: Some(Size::new(760.0, 520.0)),
         position: salva.and_then(|(_, p)| p).map(window::Position::Specific).unwrap_or(window::Position::Centered),
         decorations: false,

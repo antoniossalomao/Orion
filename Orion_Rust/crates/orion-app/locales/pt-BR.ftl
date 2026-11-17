@@ -1495,3 +1495,6 @@ ui-1421 = { "Apagar “" }{ $v0 }{ "” e o que há nele?" }
 ui-1422 = { "Apagar " }{ $v0 }{ " nós e o que há neles?" }
 ui-1423 = { $v0 }{ " selecionados" }
 ui-1424 = { "Apagar “" }{ $v0 }{ "” e tudo nele?" }
+ui-1425 = { "Salvo no vault" }
+ui-1426 = { "Salvo no Orion" }
+ui-1427 = { "Conversa sem título" }

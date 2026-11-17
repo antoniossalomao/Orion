@@ -875,7 +875,7 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     // banco cifrado sem senha em variável: a janela pede a senha antes de abrir o núcleo. Nunca pergunta
     // no terminal: o console anexado pode ser de outro processo e a abertura ficaria sem janela (C1).
     let trancado = match crate::cli_db::unlock_from_env(&s) {
-        Ok(destravado) => !destravado,
+        Ok(unlocked) => !unlocked,
         Err(e) if orion_core::dbopen::is_encrypted(&s.db_path()) && !orion_core::dbopen::is_unlocked() => {
             tracing::info!("banco cifrado: {e}");
             true

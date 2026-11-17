@@ -292,8 +292,8 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
         if o.saved {
             // A3: a nota do vault é gravada depois, em segundo plano, e pode não sair (diário desligado, sem vault,
             // falha de escrita). "Salvo no vault" só quando a conversa tem nota registrada; senão, salvo no Orion.
-            let selo = if app.convs.get(ci).is_some_and(|c| c.note.is_some()) { crate::i18n::text("Salvo no vault") } else { crate::i18n::text("Salvo no Orion") };
-            col = col.push(container(acts.push(container(row![icon("check", 12.0, t::FG3), tx(selo, 11.5, t::FG3)].spacing(t::SP_1).align_y(Vertical::Center)).padding(pad(0.0, 0.0, 0.0, t::SP_2)))).padding(pad(0.0, 0.0, 0.0, 0.0)));
+            let badge = if app.convs.get(ci).is_some_and(|c| c.note.is_some()) { crate::i18n::text("Salvo no vault") } else { crate::i18n::text("Salvo no Orion") };
+            col = col.push(container(acts.push(container(row![icon("check", 12.0, t::FG3), tx(badge, 11.5, t::FG3)].spacing(t::SP_1).align_y(Vertical::Center)).padding(pad(0.0, 0.0, 0.0, t::SP_2)))).padding(pad(0.0, 0.0, 0.0, 0.0)));
         } else {
             col = col.push(acts);
         }

@@ -105,17 +105,17 @@ pub fn resolved_display(p: &str) -> String {
 
 /// C2: o cartão de aprovação mostra onde a ação cai de verdade. Quando o caminho pedido difere do
 /// resolvido (`sandbox\..\x.txt`, link, `~`), o motivo leva o caminho resolvido e a pasta de destino.
-pub fn with_resolved(motivo: String, pedido: &str) -> String {
-    if pedido.trim().is_empty() {
-        return motivo;
+pub fn with_resolved(reason: String, requested: &str) -> String {
+    if requested.trim().is_empty() {
+        return reason;
     }
-    let resolvido = resolved_display(pedido);
-    let igual = if cfg!(windows) { resolvido.eq_ignore_ascii_case(pedido) } else { resolvido == pedido };
-    if igual {
-        return motivo;
+    let resolved = resolved_display(requested);
+    let same = if cfg!(windows) { resolved.eq_ignore_ascii_case(requested) } else { resolved == requested };
+    if same {
+        return reason;
     }
-    let pasta = Path::new(&resolvido).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
-    format!("{motivo}. Caminho resolvido: {resolvido} (pasta: {pasta})")
+    let folder = Path::new(&resolved).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    format!("{reason}. Caminho resolvido: {resolved} (pasta: {folder})")
 }
 
 fn sep() -> char {

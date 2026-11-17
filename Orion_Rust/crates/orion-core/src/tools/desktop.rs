@@ -16,15 +16,15 @@ pub const MAX_LEITURA: u64 = 1_000_000;
 /// A2: encerra a árvore inteira do comando (o shell e o que ele abriu) quando sai de escopo sem
 /// terminar: botão Parar (o turno é descartado), tempo esgotado ou erro. Matar só o shell deixava
 /// `ping`, `npm` e afins rodando órfãos.
-struct ArvoreDoComando(Option<u32>);
+struct CommandTree(Option<u32>);
 
-impl ArvoreDoComando {
-    fn terminou(&mut self) {
+impl CommandTree {
+    fn finished(&mut self) {
         self.0 = None;
     }
 }
 
-impl Drop for ArvoreDoComando {
+impl Drop for CommandTree {
     fn drop(&mut self) {
         let Some(pid) = self.0.take() else { return };
         #[cfg(windows)]
@@ -42,18 +42,18 @@ impl Drop for ArvoreDoComando {
 }
 
 /// `rodar` assíncrono e cancelável: se o futuro for descartado no meio, a árvore do comando morre.
-async fn rodar_cancelavel(argv: &[String], cwd: &std::path::Path, timeout: Duration) -> Result<crate::util::Saida, ErroProcesso> {
+async fn run_cancellable(argv: &[String], cwd: &std::path::Path, timeout: Duration) -> Result<crate::util::Saida, ErroProcesso> {
     let mut cmd = tokio::process::Command::new(&argv[0]);
     cmd.args(&argv[1..]).current_dir(cwd).env_clear().envs(env_limpo()).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     #[cfg(unix)]
     cmd.process_group(0);
-    let filho = cmd.spawn().map_err(ErroProcesso::Io)?;
-    let mut arvore = ArvoreDoComando(filho.id());
-    match tokio::time::timeout(timeout, filho.wait_with_output()).await {
+    let child = cmd.spawn().map_err(ErroProcesso::Io)?;
+    let mut tree = CommandTree(child.id());
+    match tokio::time::timeout(timeout, child.wait_with_output()).await {
         Ok(Ok(out)) => {
-            arvore.terminou();
+            tree.finished();
             Ok(crate::util::Saida { codigo: out.status.code(), stdout: out.stdout, stderr: out.stderr })
         }
         Ok(Err(e)) => Err(ErroProcesso::Io(e)),
@@ -88,7 +88,7 @@ pub fn desktop_tools(timeout_s: f64, max_chars: usize) -> Vec<Tool> {
                 };
                 // argv fixo (shell + cmd); a política já decidiu se `cmd` roda sem confirmação
                 // (REGRAS.md: shell só roda sem confirmação o que é leitura provada)
-                match rodar_cancelavel(&argv, &cwd, Duration::from_secs_f64(timeout_s)).await {
+                match run_cancellable(&argv, &cwd, Duration::from_secs_f64(timeout_s)).await {
                     Err(ErroProcesso::Tempo) => Ok(json!({"erro": format!("tempo esgotado ({timeout_s:.0}s); o comando foi encerrado")})),
                     Err(ErroProcesso::Io(e)) => Ok(json!({"erro": format!("não foi possível executar: {:?}", e.kind())})),
                     Ok(r) => {

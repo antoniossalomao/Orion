@@ -340,27 +340,27 @@ impl Form {
 
 /// A9: pasta opcional do onboarding. Vazia passa; preenchida precisa de caminho completo, sem
 /// caracteres que o Windows recusa (`< > " | ? *`, `:` fora da unidade), numa unidade que existe e,
-/// quando `existente`, já criada (a mesma regra do núcleo no envio final).
-fn check_folder(nome: &str, valor: &str, existente: bool) -> Result<(), String> {
-    let v = valor.trim();
+/// quando `must_exist`, já criada (a mesma regra do núcleo no envio final).
+fn check_folder(name: &str, value: &str, must_exist: bool) -> Result<(), String> {
+    let v = value.trim();
     if v.is_empty() {
         return Ok(());
     }
     let p = std::path::Path::new(v);
     if !p.is_absolute() {
-        return Err(format!("Use o caminho completo da pasta {nome} (ex.: C:\\Users\\voce\\Vault)"));
+        return Err(format!("Use o caminho completo da pasta {name} (ex.: C:\\Users\\voce\\Vault)"));
     }
-    let resto = if cfg!(windows) && v.get(1..2) == Some(":") { &v[2..] } else { v };
-    if resto.chars().any(|c| c.is_control() || (cfg!(windows) && matches!(c, '<' | '>' | '"' | '|' | '?' | '*' | ':'))) {
-        return Err(format!("O caminho da pasta {nome} tem caracteres inválidos (< > \" | ? * :)"));
+    let rest = if cfg!(windows) && v.get(1..2) == Some(":") { &v[2..] } else { v };
+    if rest.chars().any(|c| c.is_control() || (cfg!(windows) && matches!(c, '<' | '>' | '"' | '|' | '?' | '*' | ':'))) {
+        return Err(format!("O caminho da pasta {name} tem caracteres inválidos (< > \" | ? * :)"));
     }
-    if let Some(raiz) = p.ancestors().last() {
-        if !raiz.exists() {
-            return Err(format!("A unidade da pasta {nome} não existe"));
+    if let Some(root) = p.ancestors().last() {
+        if !root.exists() {
+            return Err(format!("A unidade da pasta {name} não existe"));
         }
     }
-    if existente && !p.is_dir() {
-        return Err(format!("A pasta {nome} não existe; crie-a antes ou escolha outra"));
+    if must_exist && !p.is_dir() {
+        return Err(format!("A pasta {name} não existe; crie-a antes ou escolha outra"));
     }
     Ok(())
 }

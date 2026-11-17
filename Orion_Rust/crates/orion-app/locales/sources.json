@@ -1495,5 +1495,8 @@
   "Apagar “{}” e o que há nele?": "ui-1421",
   "Apagar {} nós e o que há neles?": "ui-1422",
   "{} selecionados": "ui-1423",
-  "Apagar “{}” e tudo nele?": "ui-1424"
+  "Apagar “{}” e tudo nele?": "ui-1424",
+  "Salvo no vault": "ui-1425",
+  "Salvo no Orion": "ui-1426",
+  "Conversa sem título": "ui-1427"
 }

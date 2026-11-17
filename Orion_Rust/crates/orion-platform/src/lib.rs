@@ -141,9 +141,9 @@ pub fn work_area(x: i32, y: i32) -> Option<(f32, f32)> {
             return None;
         }
         let (mut dx, mut dy) = (96u32, 96u32);
-        let escala = if GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, &mut dx, &mut dy) == 0 { dx as f32 / 96.0 } else { 1.0 };
+        let scale = if GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, &mut dx, &mut dy) == 0 { dx as f32 / 96.0 } else { 1.0 };
         let r = info.rcWork;
-        Some(((r.right - r.left) as f32 / escala, (r.bottom - r.top) as f32 / escala))
+        Some(((r.right - r.left) as f32 / scale, (r.bottom - r.top) as f32 / scale))
     }
 }
 #[cfg(not(windows))]
