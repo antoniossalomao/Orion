@@ -1498,5 +1498,16 @@
   "Apagar “{}” e tudo nele?": "ui-1424",
   "Salvo no vault": "ui-1425",
   "Salvo no Orion": "ui-1426",
-  "Conversa sem título": "ui-1427"
+  "Conversa sem título": "ui-1427",
+  "Use o caminho completo da pasta do vault": "ui-1428",
+  "O caminho da pasta do vault tem caracteres inválidos (< > \" | ? * :)": "ui-1429",
+  "A unidade da pasta do vault não existe": "ui-1430",
+  "A pasta do vault não existe; crie-a antes ou escolha outra": "ui-1431",
+  "Use o caminho completo da pasta dos projetos": "ui-1432",
+  "O caminho da pasta dos projetos tem caracteres inválidos (< > \" | ? * :)": "ui-1433",
+  "A unidade da pasta dos projetos não existe": "ui-1434",
+  "A pasta dos projetos não existe; crie-a antes ou escolha outra": "ui-1435",
+  "Use o caminho completo da pasta das cópias": "ui-1436",
+  "O caminho da pasta das cópias tem caracteres inválidos (< > \" | ? * :)": "ui-1437",
+  "A unidade da pasta das cópias não existe": "ui-1438"
 }

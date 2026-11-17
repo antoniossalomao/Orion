@@ -319,8 +319,8 @@ impl Form {
             1 if self.encrypted && !self.cipher_available => {
                 Err("Esta versão não inclui cifra do banco. Instale o pacote completo ou desmarque a opção explicitamente.".into())
             }
-            2 => check_folder("do vault", &self.vault, true).and_then(|()| check_folder("dos projetos", &self.projects, true)),
-            4 if check_folder("das cópias", &self.backup, false).is_err() => check_folder("das cópias", &self.backup, false),
+            2 => check_folder(Folder::Vault, &self.vault).and_then(|()| check_folder(Folder::Projects, &self.projects)),
+            4 if check_folder(Folder::Backup, &self.backup).is_err() => check_folder(Folder::Backup, &self.backup),
             4 if self.telegram_2fa
                 && (self.telegram_users.trim().is_empty() || self.get(Field::Secret("ORION_TELEGRAM_TOKEN")).is_empty()) =>
             {
@@ -340,27 +340,47 @@ impl Form {
 
 /// A9: pasta opcional do onboarding. Vazia passa; preenchida precisa de caminho completo, sem
 /// caracteres que o Windows recusa (`< > " | ? *`, `:` fora da unidade), numa unidade que existe e,
-/// quando `must_exist`, já criada (a mesma regra do núcleo no envio final).
-fn check_folder(name: &str, value: &str, must_exist: bool) -> Result<(), String> {
+/// quando a pasta é obrigatória (vault e projetos), já criada (a mesma regra do núcleo no envio final).
+/// As mensagens são fixas por pasta para a tradução (Fluent) cobrir o texto inteiro.
+#[derive(Clone, Copy)]
+enum Folder {
+    Vault,
+    Projects,
+    Backup,
+}
+
+impl Folder {
+    /// [caminho relativo, caracteres inválidos, unidade inexistente, pasta inexistente]
+    fn messages(self) -> [&'static str; 4] {
+        match self {
+            Folder::Vault => ["Use o caminho completo da pasta do vault", "O caminho da pasta do vault tem caracteres inválidos (< > \" | ? * :)", "A unidade da pasta do vault não existe", "A pasta do vault não existe; crie-a antes ou escolha outra"],
+            Folder::Projects => ["Use o caminho completo da pasta dos projetos", "O caminho da pasta dos projetos tem caracteres inválidos (< > \" | ? * :)", "A unidade da pasta dos projetos não existe", "A pasta dos projetos não existe; crie-a antes ou escolha outra"],
+            Folder::Backup => ["Use o caminho completo da pasta das cópias", "O caminho da pasta das cópias tem caracteres inválidos (< > \" | ? * :)", "A unidade da pasta das cópias não existe", ""],
+        }
+    }
+}
+
+fn check_folder(folder: Folder, value: &str) -> Result<(), String> {
+    let [relative, invalid, no_drive, missing] = folder.messages();
     let v = value.trim();
     if v.is_empty() {
         return Ok(());
     }
     let p = std::path::Path::new(v);
     if !p.is_absolute() {
-        return Err(format!("Use o caminho completo da pasta {name} (ex.: C:\\Users\\voce\\Vault)"));
+        return Err(relative.into());
     }
     let rest = if cfg!(windows) && v.get(1..2) == Some(":") { &v[2..] } else { v };
     if rest.chars().any(|c| c.is_control() || (cfg!(windows) && matches!(c, '<' | '>' | '"' | '|' | '?' | '*' | ':'))) {
-        return Err(format!("O caminho da pasta {name} tem caracteres inválidos (< > \" | ? * :)"));
+        return Err(invalid.into());
     }
     if let Some(root) = p.ancestors().last() {
         if !root.exists() {
-            return Err(format!("A unidade da pasta {name} não existe"));
+            return Err(no_drive.into());
         }
     }
-    if must_exist && !p.is_dir() {
-        return Err(format!("A pasta {name} não existe; crie-a antes ou escolha outra"));
+    if !missing.is_empty() && !p.is_dir() {
+        return Err(missing.into());
     }
     Ok(())
 }
