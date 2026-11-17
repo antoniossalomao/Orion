@@ -95,7 +95,7 @@ pub fn norm(p: &str) -> String {
 
 /// Caminho como ele de fato fica (`~`, `..` e links resolvidos), mantendo maiúsculas para mostrar.
 pub fn resolved_display(p: &str) -> String {
-    let s = realpath(&expanduser(p.trim())).to_string_lossy().into_owned();
+    let s = realpath(&expanduser(p)).to_string_lossy().into_owned();
     if cfg!(windows) {
         s.replace('/', "\\")
     } else {
@@ -110,7 +110,7 @@ pub fn with_resolved(motivo: String, pedido: &str) -> String {
         return motivo;
     }
     let resolvido = resolved_display(pedido);
-    let igual = if cfg!(windows) { resolvido.eq_ignore_ascii_case(pedido.trim()) } else { resolvido == pedido.trim() };
+    let igual = if cfg!(windows) { resolvido.eq_ignore_ascii_case(pedido) } else { resolvido == pedido };
     if igual {
         return motivo;
     }

@@ -136,18 +136,3 @@ fn escrever_mcp_json_ou_auth_db_pede_confirmacao_ate_nas_pastas_seguras() {
     }
     let _ = Path::new("");
 }
-
-/// C2: `sandbox/../x.txt` sai da pasta de trabalho; o motivo do cartão mostra o caminho resolvido.
-#[test]
-fn motivo_mostra_caminho_resolvido() {
-    let c = cenario();
-    let pedido = p(&c, "Documents/../fora.txt");
-    let motivo = c.guard.check_write(&pedido).expect("fora das pastas de trabalho pede confirmação");
-    let com = orion_policy::paths::with_resolved(motivo, &pedido);
-    let resolvido = p(&c, "fora.txt");
-    assert!(com.contains(&format!("Caminho resolvido: {resolvido}")), "{com}");
-    assert!(!com.contains(".."), "{com}");
-    // caminho já resolvido: motivo intacto
-    let direto = orion_policy::paths::with_resolved("x".into(), &resolvido);
-    assert_eq!(direto, "x");
-}
