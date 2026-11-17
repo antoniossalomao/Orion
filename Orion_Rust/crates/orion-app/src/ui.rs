@@ -138,19 +138,19 @@ pub fn tip<'a>(el: impl Into<El<'a>>, label: &str) -> El<'a> {
 }
 
 /// Entrada com opacidade (`fadein`): véu da cor do fundo que some com `p` de 0 a 1.
+/// A estrutura é a mesma durante e depois da animação: só a cor do véu muda. Trocar `stack[el, véu]` por `el`
+/// quando a animação termina mudava a árvore de widgets; se isso caísse entre apertar e soltar (qualquer
+/// mensagem avança o relógio), o iced zerava o estado do botão e o clique sumia (A5, A6, A7).
 pub fn fade<'a>(el: impl Into<El<'a>>, p: f32, bg: Color) -> El<'a> {
-    if p >= 0.999 {
-        return el.into();
-    }
-    let veil = container(Space::new()).width(Length::Fill).height(Length::Fill).style(move |_| container::Style { background: Some(t::alpha(bg, 1.0 - p).into()), ..Default::default() });
+    let veil_alpha = if p >= 0.999 { 0.0 } else { 1.0 - p };
+    let veil = container(Space::new()).width(Length::Fill).height(Length::Fill).style(move |_| container::Style { background: (veil_alpha > 0.0).then(|| t::alpha(bg, veil_alpha).into()), ..Default::default() });
     iced::widget::stack![el.into(), veil].into()
 }
 /// Deslocamento de entrada (`translate: 0 Npx`): começa `dy` px abaixo e sobe até a posição.
+/// Sempre o mesmo `container`, com recuo zero no fim (mesmo motivo de `fade`).
 pub fn rise<'a>(el: impl Into<El<'a>>, p: f32, dy: f32) -> El<'a> {
-    if p >= 0.999 {
-        return el.into();
-    }
-    container(el).padding(pad(dy * (1.0 - p), 0.0, 0.0, 0.0)).into()
+    let offset = if p >= 0.999 { 0.0 } else { dy * (1.0 - p) };
+    container(el).padding(pad(offset, 0.0, 0.0, 0.0)).into()
 }
 
 /// Borda tracejada (`border: 1px dashed`), desenhada por cima do conteúdo.

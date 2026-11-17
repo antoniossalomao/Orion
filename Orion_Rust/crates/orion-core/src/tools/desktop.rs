@@ -5,13 +5,61 @@
 //! (`ORION_DESKTOP_TOOLS`). O shell roda sem herdar `ORION_*` nem variável com nome de segredo.
 
 use super::registry::{obj, Tool};
-use crate::util::{cortar, expanduser, home, rodar, which, ErroProcesso};
+use crate::util::{cortar, env_limpo, expanduser, home, which, ErroProcesso};
 use serde_json::{json, Value};
 use std::io::Read;
 use std::time::Duration;
 
 /// Bytes lidos de um arquivo antes de decodificar.
 pub const MAX_LEITURA: u64 = 1_000_000;
+
+/// A2: encerra a árvore inteira do comando (o shell e o que ele abriu) quando sai de escopo sem
+/// terminar: botão Parar (o turno é descartado), tempo esgotado ou erro. Matar só o shell deixava
+/// `ping`, `npm` e afins rodando órfãos.
+struct CommandTree(Option<u32>);
+
+impl CommandTree {
+    fn finished(&mut self) {
+        self.0 = None;
+    }
+}
+
+impl Drop for CommandTree {
+    fn drop(&mut self) {
+        let Some(pid) = self.0.take() else { return };
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            // /T leva os filhos junto; o shell ainda está vivo aqui, então a árvore é encontrada
+            let _ = std::process::Command::new("taskkill").args(["/T", "/F", "/PID", &pid.to_string()]).creation_flags(0x0800_0000).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status();
+        }
+        #[cfg(unix)]
+        // SAFETY: kill(2) com pid negativo só sinaliza o grupo que o próprio Orion criou (process_group(0)).
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGKILL);
+        }
+    }
+}
+
+/// `rodar` assíncrono e cancelável: se o futuro for descartado no meio, a árvore do comando morre.
+async fn run_cancellable(argv: &[String], cwd: &std::path::Path, timeout: Duration) -> Result<crate::util::Saida, ErroProcesso> {
+    let mut cmd = tokio::process::Command::new(&argv[0]);
+    cmd.args(&argv[1..]).current_dir(cwd).env_clear().envs(env_limpo()).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    #[cfg(unix)]
+    cmd.process_group(0);
+    let child = cmd.spawn().map_err(ErroProcesso::Io)?;
+    let mut tree = CommandTree(child.id());
+    match tokio::time::timeout(timeout, child.wait_with_output()).await {
+        Ok(Ok(out)) => {
+            tree.finished();
+            Ok(crate::util::Saida { codigo: out.status.code(), stdout: out.stdout, stderr: out.stderr })
+        }
+        Ok(Err(e)) => Err(ErroProcesso::Io(e)),
+        Err(_) => Err(ErroProcesso::Tempo),
+    }
+}
 
 /// Linha de comando para rodar `cmd` no shell do sistema; `None` se não há shell.
 pub fn argv_do_shell(cmd: &str, windows: bool) -> Option<Vec<String>> {
@@ -25,11 +73,11 @@ pub fn argv_do_shell(cmd: &str, windows: bool) -> Option<Vec<String>> {
 
 pub fn desktop_tools(timeout_s: f64, max_chars: usize) -> Vec<Tool> {
     vec![
-        Tool::sync(
+        Tool::new(
             "executar_comando",
             "Executa um comando no shell do computador (PowerShell no Windows, sh no macOS/Linux). Só leitura provada roda direto; qualquer outro comando pede aprovação do Antônio.",
             obj(json!({"cmd": {"type": "string"}, "pasta": {"type": "string", "description": "pasta de trabalho (padrão: home)"}}), &["cmd"]),
-            move |a| {
+            move |a| async move {
                 let pasta = a.s_or("pasta", "");
                 let cwd = if pasta.trim().is_empty() { home() } else { expanduser(&pasta) };
                 if !cwd.is_dir() {
@@ -40,7 +88,7 @@ pub fn desktop_tools(timeout_s: f64, max_chars: usize) -> Vec<Tool> {
                 };
                 // argv fixo (shell + cmd); a política já decidiu se `cmd` roda sem confirmação
                 // (REGRAS.md: shell só roda sem confirmação o que é leitura provada)
-                match rodar(&argv, Some(&cwd), Duration::from_secs_f64(timeout_s), None) {
+                match run_cancellable(&argv, &cwd, Duration::from_secs_f64(timeout_s)).await {
                     Err(ErroProcesso::Tempo) => Ok(json!({"erro": format!("tempo esgotado ({timeout_s:.0}s); o comando foi encerrado")})),
                     Err(ErroProcesso::Io(e)) => Ok(json!({"erro": format!("não foi possível executar: {:?}", e.kind())})),
                     Ok(r) => {

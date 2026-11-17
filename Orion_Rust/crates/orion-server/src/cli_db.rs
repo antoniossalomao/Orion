@@ -48,6 +48,24 @@ pub fn unlock_if_needed(s: &Settings) -> anyhow::Result<()> {
     anyhow::bail!("3 tentativas erradas")
 }
 
+/// Para a janela: destrava só por `ORION_DB_PASSWORD`, sem prompt no terminal. O executável de janela
+/// se anexa ao console de quem o chamou (`Start-Process`, atalho aberto de um shell): um prompt ali
+/// travaria a abertura sem janela nenhuma (C1). Sem a variável, `Ok(false)` e a janela pede a senha.
+pub fn unlock_from_env(s: &Settings) -> anyhow::Result<bool> {
+    let db = s.db_path();
+    if !dbopen::is_encrypted(&db) || dbopen::is_unlocked() {
+        return Ok(true);
+    }
+    match std::env::var("ORION_DB_PASSWORD") {
+        Ok(senha) => {
+            std::env::remove_var("ORION_DB_PASSWORD");
+            dbopen::unlock_with_password(&db, &senha).map_err(|e| anyhow::anyhow!("{e}"))?;
+            Ok(true)
+        }
+        Err(_) => Ok(false),
+    }
+}
+
 /// Log cifrado em arquivo, só quando o banco é cifrado e está destravado.
 pub fn encrypted_log(s: &Settings) -> Option<orion_core::logcrypt::EncryptedLog> {
     let master = dbopen::master_key()?;

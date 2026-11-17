@@ -872,9 +872,10 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     }
     let primeiro_uso = crate::onboarding::needed(&s)?;
     let token = s.admin_token.clone();
-    // banco cifrado sem senha em variável nem terminal: a janela pede a senha antes de abrir o núcleo
-    let trancado = match crate::cli_db::unlock_if_needed(&s) {
-        Ok(()) => false,
+    // banco cifrado sem senha em variável: a janela pede a senha antes de abrir o núcleo. Nunca pergunta
+    // no terminal: o console anexado pode ser de outro processo e a abertura ficaria sem janela (C1).
+    let trancado = match crate::cli_db::unlock_from_env(&s) {
+        Ok(unlocked) => !unlocked,
         Err(e) if orion_core::dbopen::is_encrypted(&s.db_path()) && !orion_core::dbopen::is_unlocked() => {
             tracing::info!("banco cifrado: {e}");
             true

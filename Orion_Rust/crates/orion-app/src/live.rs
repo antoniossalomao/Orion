@@ -2,7 +2,7 @@
 //! Sem `Api`, o app roda com os dados de exemplo do protótipo (testes e fotos).
 
 use crate::app::{App, Msg, Panic, Sec, View};
-use crate::data::{self, Act, ApprState, Approval, ChatMsg, Conv, ConvState, Fact, Origin, OrionMsg, Project, Rot, Tool};
+use crate::data::{self, Act, ApprState, Approval, ChatMsg, Conv, ConvState, Fact, Note, Origin, OrionMsg, Project, Rot, Tool};
 use crate::net::{self, arr, s, Api, Chat, LoginResult};
 use iced::Task;
 use serde_json::{json, Value};
@@ -31,6 +31,7 @@ pub enum Lm {
     Desbloqueado(Result<(), String>),
     TwoFactor(Result<(), String>),
     Sessions(Result<Value, String>),
+    Archived(Result<Value, String>),
     Opened(String, Result<Value, String>),
     Created(Result<Value, String>),
     Approvals(Result<Value, String>),
@@ -163,7 +164,8 @@ pub fn map_sessions(v: &Value, old: &[Conv], projects: &[Project], now: f64) -> 
             ctx: 0,
             branch: None,
             pinned: x.get("favorita").and_then(Value::as_bool).unwrap_or(false),
-            note: None,
+            // A3: a nota só aparece quando o núcleo já a gravou no vault
+            note: x.get("nota_vault").and_then(Value::as_str).filter(|p| !p.is_empty()).map(|p| Note { path: p.replace('\\', "/"), at: hm(last), commit: String::new() }),
             pin: None,
             banner: None,
             msgs: prev.map(|p| p.msgs.clone()).unwrap_or_default(),
@@ -172,6 +174,27 @@ pub fn map_sessions(v: &Value, old: &[Conv], projects: &[Project], now: f64) -> 
     }
     out.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
     (out.into_iter().map(|c| c.1).collect(), ativa)
+}
+
+/// A4: as arquivadas vêm de `/sessoes?arquivadas=true` (o filtro roda no núcleo, antes do limite, para uma
+/// arquivada antiga não sumir atrás de 100 conversas ativas); a tela as mostra da mais recente para a mais antiga.
+pub fn map_archived(v: &Value, projects: &[Project], now: f64) -> Vec<(String, String, String, String)> {
+    let mut out: Vec<(f64, (String, String, String, String))> = vec![];
+    for x in arr(v, "sessoes") {
+        if !x.get("arquivada").and_then(Value::as_bool).unwrap_or(false) {
+            continue;
+        }
+        let last = iso_to_secs(s(x, "ultima_atividade")).unwrap_or(0.0);
+        // `project_name` vem do núcleo: vale para projeto arquivado e não depende de `/projects` já ter chegado
+        let proj = Some(s(x, "project_name")).filter(|n| !n.is_empty()).map(String::from)
+            .or_else(|| x.get("project_id").and_then(Value::as_str).and_then(|p| projects.iter().find(|pr| pr.id == p)).map(|p| p.n.clone()))
+            .unwrap_or_else(|| crate::i18n::text("Sem projeto").to_string());
+        let title = match s(x, "titulo") { "" | "Conversa sem título" => crate::i18n::text("Conversa sem título").to_string(), t => t.to_string() };
+        // nome de projeto é do usuário e fica como está; "Sem projeto" e o tempo relativo passam pelo Fluent
+        out.push((last, (title, proj, crate::i18n::status(&rel(last, now)), s(x, "sessao_id").to_string())));
+    }
+    out.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    out.into_iter().map(|x| x.1).collect()
 }
 
 pub fn map_history(v: &Value) -> Vec<ChatMsg> {
@@ -198,12 +221,24 @@ pub fn map_history(v: &Value) -> Vec<ChatMsg> {
     out
 }
 
+/// C2: o núcleo acrescenta ao motivo `. Caminho resolvido: `X` (pasta: `Y`)`. Os rótulos passam pelo Fluent;
+/// os caminhos (trechos de código) ficam literais.
+fn translate_resolved_path(reason: &str) -> String {
+    const LABEL: &str = ". Caminho resolvido: ";
+    const FOLDER: &str = " (pasta: ";
+    let Some((base, rest)) = reason.split_once(LABEL) else { return reason.to_string() };
+    let Some((path, folder)) = rest.rsplit_once(FOLDER) else { return reason.to_string() };
+    let Some(folder) = folder.strip_suffix(')') else { return reason.to_string() };
+    format!("{base}. {}: {path} ({}: {folder})", crate::i18n::text("Caminho resolvido"), crate::i18n::text("pasta"))
+}
+
 pub fn map_approval(a: &Value) -> Approval {
     let args: Vec<(String, String)> = match a.get("args") {
         Some(Value::Object(o)) => o.iter().map(|(k, v)| (k.clone(), v.as_str().map(String::from).unwrap_or_else(|| v.to_string()))).collect(),
         _ => vec![],
     };
     let (tool, reason) = (s(a, "tool"), s(a, "reason"));
+    let reason = &translate_resolved_path(reason);
     // os argumentos vão inteiros no corpo do cartão: aqui só o motivo e a ferramenta
     let text = if reason.is_empty() { format!("`{tool}`") } else { format!("{reason} `{tool}`") };
     Approval {
@@ -403,6 +438,7 @@ fn pull_tool_permissions(api: &Api) -> Task<Msg> {
 pub fn pull_basic(api: &Api) -> Task<Msg> {
     Task::batch([
         { let a = api.clone(); Task::perform(async move { a.get("/sessoes?limite=100").await }, |r| Msg::L(Lm::Sessions(r))) },
+        { let a = api.clone(); Task::perform(async move { a.get("/sessoes?limite=100&arquivadas=true").await }, |r| Msg::L(Lm::Archived(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/approvals").await }, |r| Msg::L(Lm::Approvals(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/projects").await }, |r| Msg::L(Lm::Projects(r))) },
         { let a = api.clone(); Task::perform(async move { a.get("/modo").await }, |r| Msg::L(Lm::Modo(r))) },
@@ -968,6 +1004,16 @@ impl App {
                 let a2 = api.clone();
                 Some((acao(&api, async move { a2.patch(&format!("/sessoes/{id}"), json!({"arquivada": true})).await }, "Conversa arquivada", true), false))
             }
+            Msg::Unarchive(i) => {
+                let id = self.archived.get(*i).map(|a| a.3.clone()).filter(|id| !id.is_empty())?;
+                let a2 = api.clone();
+                Some((acao(&api, async move { a2.patch(&format!("/sessoes/{id}"), json!({"arquivada": false})).await }, "Conversa desarquivada", true), false))
+            }
+            Msg::DeleteArchived(i) => {
+                let id = self.archived.get(*i).map(|a| a.3.clone()).filter(|id| !id.is_empty())?;
+                let a2 = api.clone();
+                Some((acao(&api, async move { a2.delete(&format!("/sessoes/{id}")).await }, "Conversa apagada", true), false))
+            }
             Msg::DeleteConv => {
                 let id = self.session_id()?;
                 let a2 = api.clone();
@@ -1288,6 +1334,10 @@ impl App {
                     }
                     return self.buscar_imagens();
                 }
+                Err(e) => self.net_fail(e),
+            },
+            Lm::Archived(r) => match r {
+                Ok(v) => self.archived = map_archived(&v, &self.projects, now),
                 Err(e) => self.net_fail(e),
             },
             Lm::Created(r) => match r {

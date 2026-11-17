@@ -369,14 +369,16 @@ impl PolicyEngine {
                 motivo = Some("execução/automação (agente, navegador ou UI)".into());
             }
         } else if let (Some(arg), Risk::Read) = (&spec.read_path_arg, risk) {
-            motivo = self.path_guard.check_read(&call.arg_str(arg));
+            let requested_path = call.arg_str(arg);
+            motivo = self.path_guard.check_read(&requested_path).map(|m| crate::paths::with_resolved(m, &requested_path));
         } else if let (Some(arg), Risk::Write) = (&spec.path_arg, risk) {
             let caminho = call.arg_str(arg);
             motivo = if spec.organize {
                 self.path_guard.check_organize(&caminho)
             } else {
                 self.path_guard.check_write(&caminho)
-            };
+            }
+            .map(|m| crate::paths::with_resolved(m, &caminho));
         }
         if motivo.is_none() && ctx.tainted && matches!(risk, Risk::Write | Risk::Exec) {
             motivo = Some(

@@ -93,6 +93,40 @@ pub fn norm(p: &str) -> String {
     }
 }
 
+/// Caminho como ele de fato fica (`~`, `..` e links resolvidos), mantendo maiúsculas para mostrar.
+pub fn resolved_display(p: &str) -> String {
+    let s = realpath(&expanduser(p)).to_string_lossy().into_owned();
+    if cfg!(windows) {
+        s.replace('/', "\\")
+    } else {
+        s
+    }
+}
+
+/// C2: o cartão de aprovação mostra onde a ação cai de verdade. Quando o caminho pedido difere do
+/// resolvido (`sandbox\..\x.txt`, link, `~`), o motivo leva o caminho resolvido e a pasta de destino.
+pub fn with_resolved(reason: String, requested: &str) -> String {
+    if requested.trim().is_empty() {
+        return reason;
+    }
+    let resolved = resolved_display(requested);
+    let same = if cfg!(windows) { resolved.eq_ignore_ascii_case(requested) } else { resolved == requested };
+    if same {
+        return reason;
+    }
+    let folder = Path::new(&resolved).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    // o motivo vai para o cartão, que é Markdown: o caminho entra como código, literal (sem `_` virar itálico)
+    format!("{reason}. Caminho resolvido: {} (pasta: {})", code_span(&resolved), code_span(&folder))
+}
+
+/// Trecho de código Markdown que mostra `s` literalmente, com cerca maior que qualquer sequência de crases dentro.
+fn code_span(s: &str) -> String {
+    let longest = s.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+    let fence = "`".repeat(longest + 1);
+    let pad = if s.starts_with('`') || s.ends_with('`') { " " } else { "" };
+    format!("{fence}{pad}{s}{pad}{fence}")
+}
+
 fn sep() -> char {
     std::path::MAIN_SEPARATOR
 }
