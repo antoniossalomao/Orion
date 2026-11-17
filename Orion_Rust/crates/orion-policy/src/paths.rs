@@ -93,6 +93,31 @@ pub fn norm(p: &str) -> String {
     }
 }
 
+/// Caminho como ele de fato fica (`~`, `..` e links resolvidos), mantendo maiúsculas para mostrar.
+pub fn resolved_display(p: &str) -> String {
+    let s = realpath(&expanduser(p.trim())).to_string_lossy().into_owned();
+    if cfg!(windows) {
+        s.replace('/', "\\")
+    } else {
+        s
+    }
+}
+
+/// C2: o cartão de aprovação mostra onde a ação cai de verdade. Quando o caminho pedido difere do
+/// resolvido (`sandbox\..\x.txt`, link, `~`), o motivo leva o caminho resolvido e a pasta de destino.
+pub fn with_resolved(motivo: String, pedido: &str) -> String {
+    if pedido.trim().is_empty() {
+        return motivo;
+    }
+    let resolvido = resolved_display(pedido);
+    let igual = if cfg!(windows) { resolvido.eq_ignore_ascii_case(pedido.trim()) } else { resolvido == pedido.trim() };
+    if igual {
+        return motivo;
+    }
+    let pasta = Path::new(&resolvido).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    format!("{motivo}. Caminho resolvido: {resolvido} (pasta: {pasta})")
+}
+
 fn sep() -> char {
     std::path::MAIN_SEPARATOR
 }

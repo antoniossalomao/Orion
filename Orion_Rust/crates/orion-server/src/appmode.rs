@@ -872,9 +872,10 @@ pub fn run(mut s: Settings, fundo: bool) -> anyhow::Result<i32> {
     }
     let primeiro_uso = crate::onboarding::needed(&s)?;
     let token = s.admin_token.clone();
-    // banco cifrado sem senha em variável nem terminal: a janela pede a senha antes de abrir o núcleo
-    let trancado = match crate::cli_db::unlock_if_needed(&s) {
-        Ok(()) => false,
+    // banco cifrado sem senha em variável: a janela pede a senha antes de abrir o núcleo. Nunca pergunta
+    // no terminal: o console anexado pode ser de outro processo e a abertura ficaria sem janela (C1).
+    let trancado = match crate::cli_db::unlock_from_env(&s) {
+        Ok(destravado) => !destravado,
         Err(e) if orion_core::dbopen::is_encrypted(&s.db_path()) && !orion_core::dbopen::is_unlocked() => {
             tracing::info!("banco cifrado: {e}");
             true
@@ -1242,6 +1243,34 @@ mod tests {
         api.desbloquear("senha-do-banco-123".into()).await.expect("senha certa abre");
         assert!(!api.bloqueado());
         assert!(api.health().await.is_ok(), "depois de abrir, o núcleo responde");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// C1: a janela nunca pergunta a senha no terminal. Sem `ORION_DB_PASSWORD` o banco cifrado
+    /// fica trancado (a janela pede a senha); com a variável certa, destrava e a variável some.
+    #[cfg(feature = "sqlcipher")]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn janela_destrava_so_pela_variavel() {
+        use orion_core::dbkey::Kdf;
+        let _vez = VEZ.lock().await;
+        let dir = std::env::temp_dir().join(format!("orion-appmode-env-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::env::set_var("ORION_DATA_DIR", &dir);
+        std::env::remove_var("ORION_DB_PASSWORD");
+        let s = Settings::load().expect("config");
+        drop(crate::estado::montar(s.clone()).await.expect("estado"));
+        let db = s.db_path();
+        orion_core::dbopen::encrypt_database(&db, "senha-do-banco-123", Kdf::TESTE).expect("cifra");
+        orion_core::dbopen::lock();
+
+        assert!(!crate::cli_db::unlock_from_env(&s).expect("sem variável não é erro"), "sem variável continua trancado");
+        assert!(!orion_core::dbopen::is_unlocked());
+
+        std::env::set_var("ORION_DB_PASSWORD", "senha-do-banco-123");
+        assert!(crate::cli_db::unlock_from_env(&s).expect("senha certa"));
+        assert!(orion_core::dbopen::is_unlocked());
+        assert!(std::env::var("ORION_DB_PASSWORD").is_err(), "a variável sai do ambiente");
+        orion_core::dbopen::lock();
         let _ = std::fs::remove_dir_all(dir);
     }
 }
