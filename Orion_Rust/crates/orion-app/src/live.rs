@@ -174,6 +174,23 @@ pub fn map_sessions(v: &Value, old: &[Conv], projects: &[Project], now: f64) -> 
     (out.into_iter().map(|c| c.1).collect(), ativa)
 }
 
+/// A4: as arquivadas vêm na mesma lista de `/sessoes` (o núcleo devolve todas quando não há filtro);
+/// `map_sessions` as pula e a tela Arquivadas as mostra, da mais recente para a mais antiga.
+pub fn map_archived(v: &Value, projects: &[Project], now: f64) -> Vec<(String, String, String, String)> {
+    let mut out: Vec<(f64, (String, String, String, String))> = vec![];
+    for x in arr(v, "sessoes") {
+        if !x.get("arquivada").and_then(Value::as_bool).unwrap_or(false) {
+            continue;
+        }
+        let last = iso_to_secs(s(x, "ultima_atividade")).unwrap_or(0.0);
+        let proj = x.get("project_id").and_then(Value::as_str).and_then(|p| projects.iter().find(|pr| pr.id == p)).map(|p| p.n.clone()).unwrap_or_else(|| "Sem projeto".into());
+        let title = match s(x, "titulo") { "" => "Conversa sem título".to_string(), t => t.to_string() };
+        out.push((last, (title, proj, rel(last, now), s(x, "sessao_id").to_string())));
+    }
+    out.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    out.into_iter().map(|x| x.1).collect()
+}
+
 pub fn map_history(v: &Value) -> Vec<ChatMsg> {
     let mut out = vec![];
     for m in arr(v, "mensagens") {
@@ -968,6 +985,16 @@ impl App {
                 let a2 = api.clone();
                 Some((acao(&api, async move { a2.patch(&format!("/sessoes/{id}"), json!({"arquivada": true})).await }, "Conversa arquivada", true), false))
             }
+            Msg::Unarchive(i) => {
+                let id = self.archived.get(*i).map(|a| a.3.clone()).filter(|id| !id.is_empty())?;
+                let a2 = api.clone();
+                Some((acao(&api, async move { a2.patch(&format!("/sessoes/{id}"), json!({"arquivada": false})).await }, "Conversa desarquivada", true), false))
+            }
+            Msg::DeleteArchived(i) => {
+                let id = self.archived.get(*i).map(|a| a.3.clone()).filter(|id| !id.is_empty())?;
+                let a2 = api.clone();
+                Some((acao(&api, async move { a2.delete(&format!("/sessoes/{id}")).await }, "Conversa apagada", true), false))
+            }
             Msg::DeleteConv => {
                 let id = self.session_id()?;
                 let a2 = api.clone();
@@ -1263,6 +1290,7 @@ impl App {
                     let cur = self.cur_sid.clone();
                     let (list, _) = map_sessions(&v, &self.convs, &self.projects, now);
                     self.convs = list;
+                    self.archived = map_archived(&v, &self.projects, now);
                     if self.view == View::Chat {
                         self.conv = cur.and_then(|id| self.convs.iter().position(|c| c.id == id));
                         if self.conv.is_none() {

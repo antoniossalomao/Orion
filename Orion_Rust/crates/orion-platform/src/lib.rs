@@ -121,3 +121,32 @@ pub fn point_on_monitor(x: i32, y: i32) -> bool {
 pub fn point_on_monitor(_x: i32, _y: i32) -> bool {
     true
 }
+
+/// A1: área útil (sem a barra de tarefas) do monitor que contém o ponto, ou do principal, em pixels
+/// lógicos do Windows (já divididos pela escala do sistema). É o teto do tamanho da janela ao abrir.
+#[cfg(windows)]
+pub fn work_area(x: i32, y: i32) -> Option<(f32, f32)> {
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTOPRIMARY};
+    use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
+    // SAFETY: as chamadas só leem/escrevem nas estruturas locais passadas por ponteiro, com cbSize preenchido.
+    unsafe {
+        let mon = MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTOPRIMARY);
+        if mon.is_null() {
+            return None;
+        }
+        let mut info: MONITORINFO = std::mem::zeroed();
+        info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+        if GetMonitorInfoW(mon, &mut info) == 0 {
+            return None;
+        }
+        let (mut dx, mut dy) = (96u32, 96u32);
+        let escala = if GetDpiForMonitor(mon, MDT_EFFECTIVE_DPI, &mut dx, &mut dy) == 0 { dx as f32 / 96.0 } else { 1.0 };
+        let r = info.rcWork;
+        Some(((r.right - r.left) as f32 / escala, (r.bottom - r.top) as f32 / escala))
+    }
+}
+#[cfg(not(windows))]
+pub fn work_area(_x: i32, _y: i32) -> Option<(f32, f32)> {
+    None
+}

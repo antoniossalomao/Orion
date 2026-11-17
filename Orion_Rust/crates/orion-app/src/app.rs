@@ -422,7 +422,8 @@ pub struct App {
     pub request_id: u64,
     pub facts: Vec<data::Fact>,
     pub edit_fact: Option<(usize, String)>,
-    pub archived: Vec<(String, String, String)>,
+    /// Conversas arquivadas: (título, projeto, quando, id da sessão no núcleo; vazio no modo de exemplo).
+    pub archived: Vec<(String, String, String, String)>,
     pub projects: Vec<data::Project>,
     pub cloud: Vec<data::CloudTask>,
     /// F12.10: lembretes e timers pendentes (id, título, quando em segundos UTC), para a barra lateral.
@@ -1794,7 +1795,7 @@ impl App {
                 if let Some(i) = self.conv {
                     let c = self.convs.remove(i);
                     if matches!(msg, Msg::ArchiveConv) {
-                        self.archived.push((c.title, c.proj, "outubro".into()));
+                        self.archived.push((c.title, c.proj, "outubro".into(), c.id));
                         self.toast("Conversa arquivada");
                     } else {
                         self.toast("Conversa apagada");

@@ -503,8 +503,8 @@ pub const TERM: &[&str] = &[
     "",
 ];
 
-pub fn arch() -> Vec<(String, String, String)> {
-    vec![("Configurar Tailscale no notebook".into(), "Orion".into(), "agosto".into()), ("Exportar tabelas antes de vender o PC".into(), "Nortis".into(), "julho".into())]
+pub fn arch() -> Vec<(String, String, String, String)> {
+    vec![("Configurar Tailscale no notebook".into(), "Orion".into(), "agosto".into(), String::new()), ("Exportar tabelas antes de vender o PC".into(), "Nortis".into(), "julho".into(), String::new())]
 }
 
 pub const NOTE_SAMPLE: &str = "---\ntype: conversa\ndate: 2026-10-15\nfonte: orion\nprojeto: \"[[Orion]]\"\ntags: [conversa, orion, rust, memoria]\nresumo: \"RAM parada de 1,2 GB; três causas e plano para ~300 MB.\"\n---\n\n# Orion RAM otimização\n\n> Projeto: [[Orion]] · Conceito: [[Rust]]\n\n## Pergunta\nO Orion está usando 1,2 GB parado. Dá pra baixar sem perder velocidade?\n\n## Achados\n- Índice vetorial carregado inteiro: 610 MB\n- Modelo de voz residente: 280 MB\n- Cache de embeddings sem limite\n\n## Decisão\nAbrir o índice com `mmap`, carregar a voz sob demanda e limitar o cache a **64 MB** com LRU.\n";

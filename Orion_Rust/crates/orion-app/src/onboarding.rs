@@ -319,6 +319,8 @@ impl Form {
             1 if self.encrypted && !self.cipher_available => {
                 Err("Esta versão não inclui cifra do banco. Instale o pacote completo ou desmarque a opção explicitamente.".into())
             }
+            2 => check_folder("do vault", &self.vault, true).and_then(|()| check_folder("dos projetos", &self.projects, true)),
+            4 if check_folder("das cópias", &self.backup, false).is_err() => check_folder("das cópias", &self.backup, false),
             4 if self.telegram_2fa
                 && (self.telegram_users.trim().is_empty() || self.get(Field::Secret("ORION_TELEGRAM_TOKEN")).is_empty()) =>
             {
@@ -334,6 +336,33 @@ impl Form {
         // Preserva o rascunho em memória se a gravação falhar. Drop limpa os segredos após concluir/cancelar.
         json!({"user":self.user,"name":self.name,"language":self.language,"password":self.password,"confirmation":self.confirmation,"encrypted":self.encrypted,"hello":self.hello,"recovery":self.recovery,"vault":self.vault,"projects":self.projects,"backup":self.backup,"telegram_users":self.telegram_users,"telegram_2fa":self.telegram_2fa,"drive_backup":self.drive_connected,"secrets":self.secrets,"imports":self.imports,"authorize_tools":self.authorize_tools})
     }
+}
+
+/// A9: pasta opcional do onboarding. Vazia passa; preenchida precisa de caminho completo, sem
+/// caracteres que o Windows recusa (`< > " | ? *`, `:` fora da unidade), numa unidade que existe e,
+/// quando `existente`, já criada (a mesma regra do núcleo no envio final).
+fn check_folder(nome: &str, valor: &str, existente: bool) -> Result<(), String> {
+    let v = valor.trim();
+    if v.is_empty() {
+        return Ok(());
+    }
+    let p = std::path::Path::new(v);
+    if !p.is_absolute() {
+        return Err(format!("Use o caminho completo da pasta {nome} (ex.: C:\\Users\\voce\\Vault)"));
+    }
+    let resto = if cfg!(windows) && v.get(1..2) == Some(":") { &v[2..] } else { v };
+    if resto.chars().any(|c| c.is_control() || (cfg!(windows) && matches!(c, '<' | '>' | '"' | '|' | '?' | '*' | ':'))) {
+        return Err(format!("O caminho da pasta {nome} tem caracteres inválidos (< > \" | ? * :)"));
+    }
+    if let Some(raiz) = p.ancestors().last() {
+        if !raiz.exists() {
+            return Err(format!("A unidade da pasta {nome} não existe"));
+        }
+    }
+    if existente && !p.is_dir() {
+        return Err(format!("A pasta {nome} não existe; crie-a antes ou escolha outra"));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
