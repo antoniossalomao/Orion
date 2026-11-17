@@ -535,7 +535,7 @@ pub fn mcp_from_settings(settings: &Settings) -> Option<Arc<orion_core::mcp_clie
 }
 
 fn alguma_cli() -> bool {
-    ["claude", "codex", "gemini"].iter().any(|c| orion_ai::delegate::which(c).is_some())
+    ["claude", "codex", "agy"].iter().any(|c| orion_ai::delegate::which(c).is_some())
 }
 
 /// Sobe tudo. Recusa subir exposto na rede sem login ou com a senha de fábrica
