@@ -632,8 +632,14 @@ impl App {
                 if let Msg::AttachPath(path) = &msg {
                     if self.attaching && self.drop_queue.len() < 8 { self.drop_queue.push(path.clone()); return Some((Task::none(), false)); }
                 }
-                if self.edit_target.is_some() { self.toast("Remova os anexos antes de editar a mensagem"); return Some((Task::none(), false)); }
-                if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 { self.drop_queue.clear(); return Some((Task::none(), false)); }
+                // M19: imagem colada que não vira anexo não fica no disco (o PNG temporário pode ser um print sensível)
+                let discard = |path: &Option<std::path::PathBuf>| if let Some(p) = path { crate::paste::remove_if_pasted(p) };
+                if self.edit_target.is_some() { discard(&dropped); self.toast("Remova os anexos antes de editar a mensagem"); return Some((Task::none(), false)); }
+                if self.attaching || self.streaming.is_some() || self.attachment_ids.len() >= 8 {
+                    discard(&dropped);
+                    for queued in self.drop_queue.drain(..) { crate::paste::remove_if_pasted(std::path::Path::new(&queued)); }
+                    return Some((Task::none(), false));
+                }
                 self.attaching = true;
                 let generation = self.attachment_generation;
                 let imagens_anexadas = self.attach.iter().filter(|a| a.1 == "imagem").count();

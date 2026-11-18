@@ -1765,6 +1765,10 @@ impl App {
                 if self.api.is_none() || !self.logged || !(self.mini || self.view == View::Chat || self.view == View::Home) {
                     return Task::none();
                 }
+                // só grava o PNG temporário se o anexo puder ser aceito agora (fila de anexos fica de fora)
+                if self.edit_target.is_some() || self.streaming.is_some() || self.attachment_ids.len() >= 8 {
+                    return Task::none();
+                }
                 return Task::perform(async { tokio::task::spawn_blocking(crate::paste::clipboard_image_to_file).await.ok().flatten() }, |r| match r {
                     Some(path) => Msg::AttachPath(path),
                     None => Msg::Noop,
