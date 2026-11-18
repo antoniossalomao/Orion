@@ -310,7 +310,14 @@ impl canvas::Program<Msg> for Board {
                 st.hover.take().map(|_| Action::request_redraw())
             }
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                // durante um arrasto o cursor pode sair da área ou passar sobre um widget
+                // durante um arrasto o cursor pode sair da área ou passar sobre um widget. M18: os nós ficam numa
+                // camada acima do canvas e, sobre eles, o iced entrega o cursor "levitando" (sem posição); durante
+                // o arrasto ele é pousado de volta, senão a ligação parava na borda do nó de destino.
+                let cursor = if st.drag.is_some() {
+                    cursor.land()
+                } else {
+                    cursor
+                };
                 let inside = cursor.position_in(b);
                 let p = inside.or_else(|| cursor.position().map(|c| Point::new(c.x - b.x, c.y - b.y)));
                 let Some(drag) = st.drag.as_mut() else {
@@ -346,7 +353,12 @@ impl canvas::Program<Msg> for Board {
                 match d {
                     Drag::Node { id, .. } | Drag::Resize { id, .. } => Some(Action::publish(cv(Cv::Commit(id))).and_capture()),
                     Drag::Link { from } => {
-                        let p = st.cursor?;
+                        // M18: o ponto de soltar é onde o cursor está agora, mesmo sobre o nó de destino
+                        let landed = cursor.land();
+                        let p = landed
+                            .position_in(b)
+                            .or_else(|| landed.position().map(|c| Point::new(c.x - b.x, c.y - b.y)))
+                            .or(st.cursor)?;
                         let to = self.hit(p).filter(|g| g.id != from && g.kind != "moldura").map(|g| g.id.clone());
                         Some(match to {
                             Some(to) => Action::publish(cv(Cv::Link(from, to))).and_capture(),
