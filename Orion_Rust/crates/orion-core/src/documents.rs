@@ -37,7 +37,9 @@ fn extrair(raw: &[u8], kind: &str, avisar: &dyn Fn(i64)) -> Value {
         std::fs::write(&entrada, raw).ok()?;
         let mut cmd = Command::new(exe);
         cmd.arg("extrair-documento").arg(&entrada).arg(kind).env_clear().stdout(Stdio::piped()).stderr(Stdio::null());
-        for k in ["SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATH"] {
+        // M10: sem SystemDrive/ProgramData o Windows não expande caminhos do registro como
+        // "%SystemDrive%\ProgramData\Microsoft\Windows\Caches" e cria essa pasta literal no diretório de trabalho.
+        for k in ["SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATH", "SystemDrive", "ProgramData", "ALLUSERSPROFILE", "PUBLIC", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "CommonProgramFiles", "USERNAME", "COMPUTERNAME", "OS", "PATHEXT", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS"] {
             if let Some(v) = std::env::var_os(k) {
                 cmd.env(k, v);
             }

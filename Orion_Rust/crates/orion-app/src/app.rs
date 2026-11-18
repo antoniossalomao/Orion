@@ -2248,16 +2248,18 @@ impl App {
                         Some(p) => window::move_to(id, p),
                         None => window::monitor_size(id).map(move |s| Msg::MiniPos(id, s)),
                     };
+                    // M7: tamanho, mínimo e lugar mudam antes de a janela aparecer. Antes ela era mostrada no
+                    // tamanho da principal e só depois encolhia, recriando a superfície já visível (quadro vazio).
                     Task::batch([
-                        window::set_mode(id, window::Mode::Windowed),
-                        window::minimize(id, false),
                         // a janela principal tem mínimo de 760×520 (run.rs); sem soltar o mínimo a mini barra
                         // ficava presa nesse tamanho em vez de 660×340
                         window::set_min_size(id, None),
                         window::resize(id, crate::views::mini::SIZE),
-                        window::set_level(id, window::Level::AlwaysOnTop),
-                        window::gain_focus(id),
                         place,
+                        window::set_level(id, window::Level::AlwaysOnTop),
+                        window::set_mode(id, window::Mode::Windowed),
+                        window::minimize(id, false),
+                        window::gain_focus(id),
                         // T27: quem chama a mini barra já digita a pergunta
                         iced::widget::operation::focus(crate::views::composer::COMPOSER_ID),
                     ])

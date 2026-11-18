@@ -586,7 +586,9 @@ impl SetupApp {
                     let executable = self.choices.app_dir.join("orion.exe");
                     let mut command = std::process::Command::new(executable);
                     command.current_dir(&self.choices.app_dir).env_clear();
-                    for key in ["SystemRoot", "WINDIR", "PATH", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA"] {
+                    // M10: sem SystemDrive/ProgramData o Windows não expande caminhos do registro como
+                    // "%SystemDrive%\ProgramData\Microsoft\Windows\Caches" e cria essa pasta literal no diretório de trabalho.
+                    for key in ["SystemRoot", "WINDIR", "PATH", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SystemDrive", "ProgramData", "ALLUSERSPROFILE", "PUBLIC", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "CommonProgramFiles", "USERNAME", "COMPUTERNAME", "OS", "PATHEXT", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS"] {
                         if let Some(value) = std::env::var_os(key) { command.env(key, value); }
                     }
                     #[cfg(windows)]

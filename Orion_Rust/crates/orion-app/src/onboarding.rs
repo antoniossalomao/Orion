@@ -687,6 +687,22 @@ pub fn system_command(program: &str) -> std::process::Command {
         "DBUS_SESSION_BUS_ADDRESS",
         "XDG_RUNTIME_DIR",
         "LANG",
+        // M10: sem SystemDrive/ProgramData o Windows não expande caminhos do registro como
+        // "%SystemDrive%\ProgramData\Microsoft\Windows\Caches" e cria essa pasta literal no diretório de trabalho.
+        "SystemDrive",
+        "ProgramData",
+        "ALLUSERSPROFILE",
+        "PUBLIC",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "ProgramW6432",
+        "CommonProgramFiles",
+        "USERNAME",
+        "COMPUTERNAME",
+        "OS",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "NUMBER_OF_PROCESSORS",
     ] {
         if let Some(value) = std::env::var_os(key) {
             c.env(key, value);
