@@ -504,6 +504,8 @@ pub struct App {
     pub delete_armed: bool,
     pub mini_pos: Option<iced::Point>,
     pub main_pos_before_mini: Option<iced::Point>,
+    /// M7: quando a mini barra foi pedida, até o primeiro quadro
+    pub mini_opened_at: Option<Instant>,
     /// Banco cifrado trancado: a tela de entrada pede a senha do banco antes de abrir o núcleo.
     pub db_locked: bool,
     pub onboarding: Option<crate::onboarding::Form>,
@@ -584,6 +586,8 @@ pub enum Msg {
     Mini(bool),
     Mostrar,
     MiniPos(window::Id, Option<Size>),
+    /// M7: primeiro quadro depois de abrir a mini barra (medição do tempo até aparecer)
+    MiniFrame(Instant),
     // entrada
     PwChanged(Secret),
     UserChanged(String),
@@ -989,6 +993,7 @@ impl App {
             delete_armed: false,
             mini_pos: crate::uiprefs::load_mini_pos(),
             main_pos_before_mini: None,
+            mini_opened_at: None,
             db_locked: false,
             onboarding: None,
             mica_ativo: false,
@@ -1109,7 +1114,8 @@ impl App {
         let canvas = if self.canvas_subscription_active() { iced::time::every(crate::canvas_ui::POLL).map(|_| Msg::Canvas(crate::canvas_ui::Cv::Poll)) } else { Subscription::none() };
         let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
         let presence = if self.window_active && !self.fundo && !self.mini && self.presence_visible() { iced::time::every(Duration::from_millis(33)).map(Msg::Presence) } else { Subscription::none() };
-        Subscription::batch([sky_tick, tick, island, hud, camera, canvas, resize, keys, poll, fundo, fechar, focus, progress, resources, presence])
+        let mini_frame = if self.mini_opened_at.is_some() { window::frames().map(Msg::MiniFrame) } else { Subscription::none() };
+        Subscription::batch([sky_tick, tick, island, hud, camera, canvas, resize, keys, poll, fundo, fechar, focus, progress, resources, presence, mini_frame])
     }
 
     /// A esfera aparece na tela inicial e na ilha de voz.
@@ -1395,6 +1401,16 @@ impl App {
                 }
             }
             Msg::Resized(s) => {
+                // M5: o mínimo do winit (WM_GETMINMAXINFO) só vale para o arrasto da borda; SetWindowPos, encaixe
+                // de outros programas e afins passam por baixo e quebravam o cabeçalho. O app devolve ao mínimo.
+                // Fora: mini barra, janela minimizada (0×0) e o último aviso do tamanho da mini barra ao voltar.
+                let min = crate::run::MIN_SIZE;
+                let resto_da_mini = s.width == crate::views::mini::SIZE.width && s.height == crate::views::mini::SIZE.height;
+                if !self.mini && s.width > 0.0 && s.height > 0.0 && !resto_da_mini && (s.width < min.width || s.height < min.height) {
+                    if let Some(id) = self.win_id {
+                        return window::resize(id, Size::new(s.width.max(min.width), s.height.max(min.height)));
+                    }
+                }
                 self.win = s;
                 self.sync_sky();
                 if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); }
@@ -2226,6 +2242,7 @@ impl App {
                 return if on {
                     self.mini_prev = self.win;
                     self.main_pos_before_mini = self.win_pos;
+                    self.mini_opened_at = Some(Instant::now());
                     // M6: volta para onde foi arrastada; na primeira vez, centralizada no topo.
                     let place = match self.mini_pos {
                         Some(p) => window::move_to(id, p),
@@ -2237,7 +2254,7 @@ impl App {
                         // a janela principal tem mínimo de 760×520 (run.rs); sem soltar o mínimo a mini barra
                         // ficava presa nesse tamanho em vez de 660×340
                         window::set_min_size(id, None),
-                        window::resize(id, Size::new(660.0, 340.0)),
+                        window::resize(id, crate::views::mini::SIZE),
                         window::set_level(id, window::Level::AlwaysOnTop),
                         window::gain_focus(id),
                         place,
@@ -2254,9 +2271,15 @@ impl App {
                     Task::batch(ts)
                 };
             }
+            Msg::MiniFrame(_) => {
+                // M7: no Windows com Vulkan a mini barra ficava ~3 s em branco; o log mede antes de mexer no desenho
+                if let Some(at) = self.mini_opened_at.take() {
+                    tracing::info!(target: "orion.performance", ms = at.elapsed().as_millis() as u64, "mini barra: primeiro quadro");
+                }
+            }
             Msg::MiniPos(id, size) => {
                 if let Some(s) = size {
-                    return window::move_to(id, iced::Point::new(((s.width - 660.0) / 2.0).max(0.0), 16.0));
+                    return window::move_to(id, iced::Point::new(((s.width - crate::views::mini::SIZE.width) / 2.0).max(0.0), 16.0));
                 }
             }
             Msg::DragWindow => return window::oldest().and_then(window::drag),

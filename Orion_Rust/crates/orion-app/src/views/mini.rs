@@ -9,6 +9,9 @@ use crate::views::composer;
 use iced::widget::{column, container, mouse_area, row, Space};
 use iced::Length;
 
+/// Tamanho da mini barra (a mesma janela, redimensionada).
+pub const SIZE: iced::Size = iced::Size::new(660.0, 340.0);
+
 pub fn view(app: &App) -> El<'_> {
     let topo = row![
         belt_fg(false),
