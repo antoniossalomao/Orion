@@ -254,7 +254,10 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Modo autônomo")));
             c = c.push(setting(crate::i18n::text("Modo autônomo"), crate::i18n::text("Permite mais passos por pedido. A autorização para agir sem confirmação fica em Ferramentas."), sw(p.auto, "auto")));
             c = c.push(sh(crate::i18n::text("Sempre sem aprovação")));
-            c = c.push(never(&[("check", crate::i18n::text("Ler arquivos nas pastas confiáveis")), ("check", crate::i18n::text("Gravar notas no vault + commit na main")), ("check", crate::i18n::text("Busca na web sem dados pessoais")), ("check", crate::i18n::text("Comandos de leitura (git status, cargo check)"))]));
+            c = c.push(never(&[("check", crate::i18n::text("Ler arquivos e listar pastas do computador (menos senhas, chaves e pastas bloqueadas)")), ("check", crate::i18n::text("Gravar notas no vault + commit na main")), ("check", crate::i18n::text("Busca na web sem dados pessoais")), ("check", crate::i18n::text("Comandos de leitura (git status, cargo check)"))]));
+            // M16: a leitura não pede aprovação em pasta nenhuma (REGRAS.md: leitura roda direto); o texto diz isso
+            // com todas as letras, inclusive que nomes e conteúdo lidos vão ao provedor do modelo.
+            c = c.push(lede(("Leitura não pede aprovação em nenhuma pasta. Escrita fora de Documentos, Downloads, Área de trabalho e das pastas extras pede. O que o Orion lê (nomes de arquivo e conteúdo) vai para o provedor do modelo da conversa; para esconder uma pasta, bloqueie-a em Armazenamento.")));
             c = c.push(sh(crate::i18n::text("Nunca sai do computador")));
             c = c.push(never(&[("shield", crate::i18n::text("Senhas e chaves (filtradas antes de enviar)")), ("shield", crate::i18n::text("Documentos pessoais (RG, CPF, banco: mascarados)"))]));
             c = c.push(lede(crate::i18n::text("Cada resposta que usou uma API de fora mostra um ícone discreto; clicando, aparece o que saiu e para qual provedor.")));

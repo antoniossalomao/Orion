@@ -196,7 +196,7 @@ fn orion_msg<'a>(app: &'a App, ci: usize, mi: usize, o: &'a OrionMsg, is_last: b
                     "ok" => String::new(),
                     "falhou" => crate::i18n::text("falhou").to_string(),
                     "negada" => crate::i18n::text("negada").to_string(),
-                    outro => outro.to_string(),
+                    outro => crate::i18n::status(outro),
                 };
                 let line = if matches!(tl.time.as_str(), "falhou" | "negada") { t::LINE3 } else { t::LINE2 };
                 list = list.push(

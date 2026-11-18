@@ -45,6 +45,8 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
         decorations: false,
         transparent: transparente,
         visible: !fundo,
+        // M13: o ícone oficial do Orion na barra de tarefas e no Alt+Tab (antes, o quadrado genérico)
+        icon: window_icon(),
         ..Default::default()
     };
     win.platform_specific = Default::default();
@@ -85,4 +87,11 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
         app = app.font(f);
     }
     app.run()
+}
+
+/// M13: ícone da janela a partir de `assets/orion.png` (256×256), embutido no executável.
+fn window_icon() -> Option<window::Icon> {
+    let img = image::load_from_memory_with_format(include_bytes!("../../../../assets/orion.png"), image::ImageFormat::Png).ok()?.into_rgba8();
+    let (w, h) = img.dimensions();
+    window::icon::from_rgba(img.into_raw(), w, h).ok()
 }

@@ -36,6 +36,11 @@ fn bloqueada_no_vault(vault: &std::path::Path) -> bool {
         .unwrap_or(false)
 }
 
+/// M12: resultado da última rodada (`{"at", "ok", "message"}`), ou `null` se ainda não rodou.
+pub fn last_status(memory: &Store) -> serde_json::Value {
+    memory.meta_get(LAST).and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(serde_json::Value::Null)
+}
+
 /// Uma rodada. Devolve a frase para mostrar (sucesso ou motivo da falha).
 pub fn run_blocking(vault: PathBuf, memory: &std::sync::Arc<Store>) -> Result<String, String> {
     if bloqueada_no_vault(&vault) {

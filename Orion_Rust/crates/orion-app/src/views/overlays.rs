@@ -16,6 +16,9 @@ pub struct PalItem {
     pub msg: Msg,
 }
 
+/// M9: id do campo da paleta Ctrl+K, para receber o foco ao abrir.
+pub const PALETTE_INPUT: &str = "palette-search";
+
 pub fn pal_items(app: &App) -> Vec<PalItem> {
     // `>` no começo restringe a paleta às ações (F01.21).
     let raw = app.pal.q.trim().to_lowercase();
@@ -84,6 +87,7 @@ pub fn palette(app: &App) -> El<'_> {
     let items = pal_items(app);
     let sel = app.pal.sel.min(items.len().saturating_sub(1));
     let input = text_input(crate::i18n::text("Buscar conversas e notas do vault"), &app.pal.q)
+        .id(PALETTE_INPUT)
         .on_input(Msg::PalQ)
         .on_submit(Msg::PalRun(sel))
         .size(t::snap_size(15 as f32))

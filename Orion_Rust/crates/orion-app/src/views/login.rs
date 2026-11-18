@@ -115,7 +115,12 @@ pub fn view(app: &App) -> El<'_> {
     let neutro = app.gate_err.is_empty() || app.gate_err.starts_with("Conectando") || app.gate_err.starts_with("Entrando") || app.gate_err.starts_with("Abrindo") || app.gate_err.starts_with("Digite a senha");
     let aviso = container(tx(if app.gate_err.starts_with("Digite a senha") { String::new() } else { crate::i18n::status(&app.gate_err) }, 12.0, if neutro { t::FG3 } else { t::DANGER })).height(Length::Fixed(16.0));
 
-    let cab = column![belt_fg(false), txf(if code { crate::i18n::text("Confirme sua identidade") } else { crate::i18n::text("Bem-vindo de volta") }, 26.0, t::FG, t::SERIF)].spacing(t::SP_25).align_x(Horizontal::Center);
+    let mut cab = column![belt_fg(false), txf(if code { crate::i18n::text("Confirme sua identidade") } else { crate::i18n::text("Bem-vindo de volta") }, 26.0, t::FG, t::SERIF)].spacing(t::SP_25).align_x(Horizontal::Center);
+    // M8: diz por que a senha voltou a ser pedida. A chave do banco cifrado só vive na memória: abrir o
+    // Orion de novo (inclusive depois de encerrado à força) ou bloquear o Windows apaga e pede de novo.
+    if !code && app.db_locked {
+        cab = cab.push(tx(crate::i18n::text("Seu banco é cifrado: a senha é pedida sempre que o Orion abre de novo ou o Windows é bloqueado"), 12.0, t::FG3));
+    }
 
     let mut campos = column![].spacing(t::SP_25).width(Length::Fill);
     let bg = t::SIDE;

@@ -754,6 +754,16 @@ pub fn settings<'a>(app: &'a App, group: &str) -> El<'a> {
             control
         };
         col = col.push(setting(crate::i18n::text(label), description(key), control));
+        // M12: falha da sincronização do vault deixa de ficar só no log
+        if key == "vault_sync" {
+            let last = app.resources.snapshot.as_ref().map(|s| &s["vault_sync_last"]).filter(|v| v.is_object());
+            if let Some(last) = last {
+                let ok = last["ok"].as_bool().unwrap_or(false);
+                let message = last["message"].as_str().unwrap_or("");
+                let label = if ok { crate::i18n::text("Última sincronização deu certo") } else { crate::i18n::text("Última sincronização falhou") };
+                col = col.push(tx(format!("{label}: {}", crate::i18n::status(message)), 12.5, if ok { t::FG3 } else { t::DANGER }));
+            }
+        }
         if key == "vault_dir" {
             // a checagem lê o disco, então roda num worker; aqui só se mostra o último resultado do caminho atual
             if let Some((_, notice, ok)) = app.resources.vault_check.as_ref().filter(|(p, _, _)| *p == text.trim()) {

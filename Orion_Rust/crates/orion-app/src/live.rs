@@ -504,7 +504,13 @@ impl App {
         a.mem = crate::graph::Graph::empty();
         if let Some(profile) = api.perfil() { a.user = s(&profile, "user").to_string(); a.p.english = s(&profile, "language") == "en"; }
         if let Some(defaults) = api.primeiro_uso() {
-            a.onboarding = Some(crate::onboarding::Form::new(defaults));
+            let mut form = crate::onboarding::Form::new(defaults);
+            // M14: quem fechou o app no meio do primeiro uso volta para a etapa onde estava
+            if form.restore_draft() {
+                let w = a.win;
+                form.settle_sky(form.step, w);
+            }
+            a.onboarding = Some(form);
             a.api = Some(api);
             return (a, Task::none());
         }
@@ -656,6 +662,7 @@ impl App {
                         if !file.metadata().map_err(|e| e.to_string())?.is_file() { return Err("Escolha um arquivo".to_string()); }
                         let mut bytes = vec![];
                         file.take(limite as u64 + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+                        crate::paste::remove_if_pasted(&path);
                         if bytes.is_empty() || bytes.len() > limite { return Err(format!("Arquivo vazio ou maior que {} MB", limite / (1024 * 1024))); }
                         let miniatura = if classe == "imagem" {
                             // Assinatura conferida aqui também: extensão não prova que é imagem.
@@ -1082,10 +1089,24 @@ impl App {
                 if let Some(h) = self.abort.take() {
                     h.abort();
                 }
-                // F05.01: parar a resposta não deixa a fila presa; ela segue na ordem.
-                self.streaming = None;
+                // M3: a resposta parada fica na tela com o que já chegou e a marca de interrompida; sem
+                // texto nenhum, a bolha diz que foi interrompida em vez de ficar vazia.
+                if let Some(conv) = self.streaming.take().and_then(|s| self.convs.get_mut(s.conv)) {
+                    if conv.state == ConvState::Running {
+                        conv.state = ConvState::Normal;
+                    }
+                    if let Some(ChatMsg::Orion(o)) = conv.msgs.last_mut() {
+                        if o.body.is_empty() && o.tools.is_empty() && o.approval.is_none() {
+                            o.via.clear(); // ninguém respondeu: não atribui a bolha a um provedor
+                        }
+                        let mark = format!("*{}*", crate::i18n::text("Resposta interrompida"));
+                        if o.body.is_empty() { o.body = mark } else { o.body.push_str(&format!("\n\n{mark}")) }
+                    }
+                }
+                // F05.01 e M2: parar a resposta não deixa a fila presa; ela segue na ordem. O tratamento local de
+                // Parar não roda depois (false): ele apagaria o fluxo da mensagem da fila que acabou de sair.
                 let queued_task = self.next_queued();
-                Some((queued_task, true))
+                Some((queued_task, false))
             }
             _ => None,
         }
@@ -1650,10 +1671,15 @@ impl App {
         for c in self.convs.iter_mut() {
             for m in c.msgs.iter_mut() {
                 if let ChatMsg::Orion(o) = m {
+                    let mut settled = false;
                     if let Some(a) = &mut o.approval {
                         if a.state == ApprState::Open && !a.id.is_empty() && !open.iter().any(|p| s(p, "id") == a.id) {
                             a.state = ApprState::Approved("Resolvida.".into());
+                            settled = true;
                         }
+                    }
+                    if settled {
+                        o.settle_waiting_tools("resolvida");
                     }
                 }
             }

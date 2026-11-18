@@ -745,7 +745,10 @@ pub async fn montar_with_runtime(mut settings: Settings, preserve_extensions:boo
         let mut a =
             Agent::new(gw.clone(), registro, policy.clone(), memory.clone(), AgentConfig { routing: roteamento_ligado(&settings), persona: {
                 let mut persona = orion_core::agent::AgentConfig::default().persona;
-                if let Some(p) = orion_core::onboarding::Profile::load(&settings.data_dir)? { persona.push_str(&p.context()); }
+                let profile = orion_core::onboarding::Profile::load(&settings.data_dir)?;
+                // M1 e M15: o administrador é chamado pelo nome do perfil e o papel usuário é ele mesmo
+                persona = orion_core::onboarding::personalize_persona(&persona, profile.as_ref().map(|p| p.name.as_str()).unwrap_or(""));
+                if let Some(p) = profile { persona.push_str(&p.context()); }
                 persona.push_str(&orion_core::onboarding::style_context(&settings));
                 persona
             }, ..Default::default() });

@@ -76,3 +76,24 @@ pub fn save_geometry(size: iced::Size, pos: Option<iced::Point>) -> std::io::Res
     }
     write_atomic(&path.with_file_name("janela.txt"), &body)
 }
+
+/// M6: posição da mini barra, guardada separada da janela principal (`mini.txt`, ao lado de `janela.txt`).
+pub fn load_mini_pos() -> Option<iced::Point> {
+    let text = std::fs::read_to_string(file()?.with_file_name("mini.txt")).ok()?;
+    let mut v = std::collections::HashMap::new();
+    for line in text.lines() {
+        if let Some((k, x)) = line.split_once('=') {
+            if let Ok(n) = x.trim().parse::<f32>() {
+                v.insert(k.trim().to_string(), n);
+            }
+        }
+    }
+    let (x, y) = (*v.get("x")?, *v.get("y")?);
+    // monitor desconectado: a mini barra volta ao topo do monitor principal
+    orion_platform::point_on_monitor((x + 40.0) as i32, (y + 20.0) as i32).then(|| iced::Point::new(x, y))
+}
+
+pub fn save_mini_pos(p: iced::Point) -> std::io::Result<()> {
+    let Some(path) = file() else { return Ok(()) };
+    write_atomic(&path.with_file_name("mini.txt"), &format!("x={}\ny={}\n", p.x.round(), p.y.round()))
+}

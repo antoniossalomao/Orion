@@ -6,6 +6,8 @@ use serde_json::{json, Value};
 pub async fn runtime_get(_: Admin, State(st): State<Estado>) -> ApiResult<Json<Value>> {
     Ok(Json(
         json!({"saved":*st.runtime_preferences.lock(), "active":orion_core::runtime_preferences::RuntimePreferences::from_settings(&st.settings),
+        // M12: a última rodada da sincronização do vault (ok, quando e o motivo da falha) aparece nas Configurações
+        "vault_sync_last": crate::vault_sync::last_status(&st.memory),
         "availability":{
             "voice":st.transcriber.is_some(), "speaker":st.speaker.is_some(), "wake":st.escuta.is_some(),
             "camera":st.camera_descrever.is_some(), "screen":st.tela.is_some(), "research":st.pesquisa.is_some(),

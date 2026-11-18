@@ -114,6 +114,9 @@ pub struct CanvasUi {
     pub fitted: bool,
     pub dragging: bool,
     pub loaded: bool,
+    /// M18: cantos já pedidos ao núcleo e que ainda não voltaram; dois cliques rápidos (Nota, Chat)
+    /// não caem no mesmo ponto.
+    pub pending_spots: Vec<(f32, f32)>,
 }
 
 impl Default for CanvasUi {
@@ -121,6 +124,7 @@ impl Default for CanvasUi {
         CanvasUi {
             spaces: vec![],
             cur: String::new(),
+            pending_spots: vec![],
             nodes: vec![],
             edges: vec![],
             missions: vec![],
@@ -362,9 +366,13 @@ impl App {
     fn canvas_free_spot(&self, mut x: f32, mut y: f32) -> (f32, f32) {
         x = (x / GRID).round() * GRID;
         y = (y / GRID).round() * GRID;
-        while self.canvas.nodes.iter().any(|n| (n.x - x).abs() < 12.0 && (n.y - y).abs() < 12.0) {
-            x += 32.0;
-            y += 32.0;
+        let taken = |x: f32, y: f32| {
+            self.canvas.nodes.iter().any(|n| (n.x - x).abs() < 24.0 && (n.y - y).abs() < 24.0)
+                || self.canvas.pending_spots.iter().any(|&(px, py)| (px - x).abs() < 24.0 && (py - y).abs() < 24.0)
+        };
+        while taken(x, y) {
+            x += 40.0;
+            y += 40.0;
         }
         (x, y)
     }
@@ -372,6 +380,7 @@ impl App {
     fn canvas_add(&mut self, kind: &'static str, x: f32, y: f32) -> Task<Msg> {
         let Some(api) = self.api.clone() else { return Task::none() };
         let (x, y) = self.canvas_free_spot(x, y);
+        self.canvas.pending_spots.push((x, y));
         let ws = self.canvas.cur.clone();
         Task::perform(async move { api.post(&format!("/canvas/{ws}/nos"), json!({"tipo": kind, "x": x, "y": y})).await }, |r| Msg::Canvas(Cv::Added(r)))
     }
@@ -524,6 +533,7 @@ impl App {
                 Task::none()
             }
             Cv::Spaces(Err(e)) | Cv::Space(Err(e)) | Cv::Config(Err(e)) | Cv::Added(Err(e)) | Cv::Done(Err(e)) | Cv::SpaceDeleted(Err(e)) => {
+                self.canvas.pending_spots.clear();
                 self.toast(&e);
                 Task::none()
             }
@@ -587,6 +597,10 @@ impl App {
                 Task::perform(async move { a.post(&format!("/canvas/{ws}/nos"), json!({"tipo": "pagina", "x": x, "y": y, "url": url})).await }, |r| Msg::Canvas(Cv::Added(r)))
             }
             Cv::Added(Ok(v)) => {
+                // o nó chegou (ou o pedido terminou): o canto pendente mais antigo é liberado
+                if !self.canvas.pending_spots.is_empty() {
+                    self.canvas.pending_spots.remove(0);
+                }
                 let n = parse_node(&v);
                 if n.id.is_empty() || self.canvas.node(&n.id).is_some() {
                     return Task::none();
