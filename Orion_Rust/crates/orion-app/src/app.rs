@@ -2196,6 +2196,7 @@ impl App {
                 if self.mini {
                     self.mini = false;
                     ts.push(window::resize(id, self.mini_prev));
+                    ts.push(window::set_min_size(id, Some(crate::run::MIN_SIZE)));
                     ts.push(window::set_level(id, window::Level::Normal));
                     ts.extend(self.restore_main_pos(id));
                 }
@@ -2209,6 +2210,7 @@ impl App {
                 if self.mini {
                     self.mini = false;
                     ts.push(window::resize(id, self.mini_prev));
+                    ts.push(window::set_min_size(id, Some(crate::run::MIN_SIZE)));
                     ts.push(window::set_level(id, window::Level::Normal));
                     ts.extend(self.restore_main_pos(id));
                 }
@@ -2232,6 +2234,9 @@ impl App {
                     Task::batch([
                         window::set_mode(id, window::Mode::Windowed),
                         window::minimize(id, false),
+                        // a janela principal tem mínimo de 760×520 (run.rs); sem soltar o mínimo a mini barra
+                        // ficava presa nesse tamanho em vez de 660×340
+                        window::set_min_size(id, None),
                         window::resize(id, Size::new(660.0, 340.0)),
                         window::set_level(id, window::Level::AlwaysOnTop),
                         window::gain_focus(id),
@@ -2240,7 +2245,11 @@ impl App {
                         iced::widget::operation::focus(crate::views::composer::COMPOSER_ID),
                     ])
                 } else {
-                    let mut ts = vec![window::resize(id, self.mini_prev), window::set_level(id, window::Level::Normal)];
+                    let mut ts = vec![
+                        window::resize(id, self.mini_prev),
+                        window::set_min_size(id, Some(crate::run::MIN_SIZE)),
+                        window::set_level(id, window::Level::Normal),
+                    ];
                     ts.extend(self.restore_main_pos(id));
                     Task::batch(ts)
                 };

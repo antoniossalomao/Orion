@@ -4,6 +4,9 @@ use crate::net::Api;
 use crate::theme;
 use iced::{window, Size, Task};
 
+/// Menor tamanho da janela principal. A mini barra solta esse mínimo enquanto está aberta.
+pub const MIN_SIZE: Size = Size::new(760.0, 520.0);
+
 /// A janela nasceu transparente (só com GPU real no Windows): é o que deixa o Mica aparecer (F01.05).
 pub static JANELA_TRANSPARENTE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -40,7 +43,7 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
     let salva = salva.map(|(_, p)| (size, p));
     let mut win = window::Settings {
         size,
-        min_size: Some(Size::new(760.0, 520.0)),
+        min_size: Some(MIN_SIZE),
         position: salva.and_then(|(_, p)| p).map(window::Position::Specific).unwrap_or(window::Position::Centered),
         decorations: false,
         transparent: transparente,
