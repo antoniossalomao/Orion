@@ -541,6 +541,7 @@ impl crate::app::App {
             Event::RemoveImport(i) if !form.busy => {
                 if i < form.imports.len() {
                     form.imports.remove(i);
+                    form.save_draft();
                 }
             }
             Event::ConnectDrive if !form.busy && form.testing.is_none() => {
@@ -618,6 +619,8 @@ impl crate::app::App {
                         if !form.imports.iter().any(|i| i["digest"] == v["digest"] && i["kind"] == form.import_kind) {
                             form.imports.push(json!({"path":form.import_path,"kind":form.import_kind,"source":form.import_source,"project":form.import_project,"digest":v["digest"],"count":v["count"],"description":v["description"]}));
                         }
+                        // a última etapa não passa por Avançar: a importação escolhida entra no rascunho aqui
+                        form.save_draft();
                     }
                 }
                 if key == "drive" {

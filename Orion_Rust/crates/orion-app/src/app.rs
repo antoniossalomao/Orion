@@ -628,6 +628,8 @@ pub enum Msg {
     AttachPath(String),
     /// M19: Ctrl+V no app; se a área de transferência tiver imagem, ela vira anexo.
     PasteImage,
+    /// M19: PNG colado pronto, com a geração de anexos de quando o Ctrl+V foi lido
+    PastedImage(u64, String),
     /// Editar e reenviar a última mensagem do usuário (índice na conversa aberta).
     EditLast(usize),
     Unattach(usize),
@@ -1781,14 +1783,27 @@ impl App {
                 if self.api.is_none() || !self.logged || !(self.mini || self.view == View::Chat || self.view == View::Home) {
                     return Task::none();
                 }
+                // com Configurações, paleta, menu ou outro campo por cima, o Ctrl+V é desse campo, não do chat
+                if self.set_open || self.pal.open || self.isso.is_some() || self.pop.is_some() || self.short_edit.is_some() || self.onboarding.is_some() {
+                    return Task::none();
+                }
                 // só grava o PNG temporário se o anexo puder ser aceito agora (fila de anexos fica de fora)
                 if self.edit_target.is_some() || self.streaming.is_some() || self.attachment_ids.len() >= 8 {
                     return Task::none();
                 }
-                return Task::perform(async { tokio::task::spawn_blocking(crate::paste::clipboard_image_to_file).await.ok().flatten() }, |r| match r {
-                    Some(path) => Msg::AttachPath(path),
+                // a geração vai junto: se a conversa mudar enquanto a imagem é lida, o PNG é descartado
+                let generation = self.attachment_generation;
+                return Task::perform(async { tokio::task::spawn_blocking(crate::paste::clipboard_image_to_file).await.ok().flatten() }, move |r| match r {
+                    Some(path) => Msg::PastedImage(generation, path),
                     None => Msg::Noop,
                 });
+            }
+            Msg::PastedImage(generation, path) => {
+                if generation != self.attachment_generation {
+                    crate::paste::remove_if_pasted(std::path::Path::new(&path));
+                    return Task::none();
+                }
+                return self.update(Msg::AttachPath(path));
             }
             Msg::Unattach(i) => {
                 if i < self.attach.len() {

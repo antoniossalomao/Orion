@@ -377,6 +377,8 @@ impl App {
                 .canvas
                 .nodes
                 .iter()
+                // moldura agrupa: o nó novo pode nascer dentro dela; só os nós de dentro contam
+                .filter(|n| n.kind != "moldura")
                 .map(|n| (n.x, n.y, n.w, n.h))
                 .chain(self.canvas.pending_spots.iter().copied())
                 .filter(|&r| overlaps(x, y, r))
@@ -624,11 +626,12 @@ impl App {
                 Task::perform(async move { a.post(&format!("/canvas/{ws}/nos"), json!({"tipo": "pagina", "x": x, "y": y, "url": url})).await }, |r| Msg::Canvas(Cv::Added(r)))
             }
             Cv::Added(Ok(v)) => {
-                // o nó chegou (ou o pedido terminou): o canto pendente mais antigo é liberado
-                if !self.canvas.pending_spots.is_empty() {
-                    self.canvas.pending_spots.remove(0);
-                }
                 let n = parse_node(&v);
+                // o nó chegou: libera só o canto reservado para ele (pedidos podem voltar fora de ordem, e
+                // duplicar não reserva canto)
+                if let Some(i) = self.canvas.pending_spots.iter().position(|&(x, y, _, _)| (x - n.x).abs() < 0.5 && (y - n.y).abs() < 0.5) {
+                    self.canvas.pending_spots.remove(i);
+                }
                 if n.id.is_empty() || self.canvas.node(&n.id).is_some() {
                     return Task::none();
                 }
