@@ -203,6 +203,63 @@ impl Form {
         }
     }
 
+    /// M14: rascunho do primeiro uso, para retomar se o app fechar no meio. Só campos sem segredo: senha,
+    /// confirmação, chaves, token do Telegram e segredo do Drive nunca vão para o disco.
+    fn draft_path() -> Option<std::path::PathBuf> {
+        let base = std::env::var_os("APPDATA").or_else(|| std::env::var_os("HOME"))?;
+        Some(std::path::PathBuf::from(base).join("Orion").join("primeiro-uso.json"))
+    }
+
+    pub fn save_draft(&self) {
+        let Some(path) = Self::draft_path() else { return };
+        let body = json!({
+            "step": self.step, "user": self.user, "name": self.name, "language": self.language,
+            "vault": self.vault, "projects": self.projects, "backup": self.backup,
+            "telegram_users": self.telegram_users, "telegram_2fa": self.telegram_2fa,
+            "encrypted": self.encrypted, "hello": self.hello, "autostart": self.autostart,
+            "authorize_tools": self.authorize_tools, "drive_client": self.drive_client,
+            "import_path": self.import_path, "import_kind": self.import_kind, "import_source": self.import_source,
+            "import_project": self.import_project, "imports": self.imports,
+        });
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(path, body.to_string());
+    }
+
+    /// Retoma o rascunho salvo. A senha não fica salva, então quem já tinha passado dela volta à etapa
+    /// da senha com o resto preenchido. Devolve `true` se havia rascunho.
+    pub fn restore_draft(&mut self) -> bool {
+        let Some(v) = Self::draft_path().and_then(|p| std::fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str::<Value>(&t).ok()) else { return false };
+        let text = |k: &str| v[k].as_str().map(str::to_string);
+        for (k, slot) in [("user", &mut self.user), ("name", &mut self.name), ("language", &mut self.language), ("vault", &mut self.vault), ("projects", &mut self.projects), ("backup", &mut self.backup), ("telegram_users", &mut self.telegram_users), ("drive_client", &mut self.drive_client), ("import_path", &mut self.import_path), ("import_kind", &mut self.import_kind), ("import_source", &mut self.import_source), ("import_project", &mut self.import_project)] {
+            if let Some(t) = text(k) {
+                *slot = t;
+            }
+        }
+        for (k, slot) in [("telegram_2fa", &mut self.telegram_2fa), ("encrypted", &mut self.encrypted), ("hello", &mut self.hello), ("autostart", &mut self.autostart), ("authorize_tools", &mut self.authorize_tools)] {
+            if let Some(b) = v[k].as_bool() {
+                *slot = b;
+            }
+        }
+        self.hello &= self.hello_available;
+        if let Some(list) = v["imports"].as_array() {
+            self.imports = list.clone();
+        }
+        let step = v["step"].as_u64().unwrap_or(0) as usize;
+        self.step = step.min(1);
+        if step > 1 {
+            self.error = "Retomamos de onde você parou. Por segurança a senha não fica salva: digite de novo.".into();
+        }
+        true
+    }
+
+    pub fn clear_draft() {
+        if let Some(p) = Self::draft_path() {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+
     pub fn new(v: Value) -> Self {
         let text = |k: &str| v[k].as_str().unwrap_or("").to_string();
         let mut sky = orion_sky::OrionSky::new();
@@ -443,6 +500,7 @@ impl crate::app::App {
                     form.step += 1;
                     form.settle_sky(form.step, self.win);
                     form.step_at = std::time::Instant::now();
+                    form.save_draft();
                 }
                 Ok(()) => {}
                 Err(e) => form.error = e,
@@ -452,6 +510,7 @@ impl crate::app::App {
                 form.step -= 1;
                 form.settle_sky(form.step, self.win);
                 form.step_at = std::time::Instant::now();
+                form.save_draft();
             }
             Event::CancelDrive => {
                 if let Some(h) = form.drive_abort.take() {
@@ -482,6 +541,7 @@ impl crate::app::App {
             Event::RemoveImport(i) if !form.busy => {
                 if i < form.imports.len() {
                     form.imports.remove(i);
+                    form.save_draft();
                 }
             }
             Event::ConnectDrive if !form.busy && form.testing.is_none() => {
@@ -511,6 +571,7 @@ impl crate::app::App {
                 return Task::perform(async move { api.configurar(body).await }, |r| Msg::Onboarding(Event::Saved(r)));
             }
             Event::Saved(Ok(done)) => {
+                Form::clear_draft();
                 self.loading = None;
                 form.busy = false;
                 form.password.zeroize();
@@ -558,6 +619,8 @@ impl crate::app::App {
                         if !form.imports.iter().any(|i| i["digest"] == v["digest"] && i["kind"] == form.import_kind) {
                             form.imports.push(json!({"path":form.import_path,"kind":form.import_kind,"source":form.import_source,"project":form.import_project,"digest":v["digest"],"count":v["count"],"description":v["description"]}));
                         }
+                        // a última etapa não passa por Avançar: a importação escolhida entra no rascunho aqui
+                        form.save_draft();
                     }
                 }
                 if key == "drive" {
@@ -627,6 +690,22 @@ pub fn system_command(program: &str) -> std::process::Command {
         "DBUS_SESSION_BUS_ADDRESS",
         "XDG_RUNTIME_DIR",
         "LANG",
+        // M10: sem SystemDrive/ProgramData o Windows não expande caminhos do registro como
+        // "%SystemDrive%\ProgramData\Microsoft\Windows\Caches" e cria essa pasta literal no diretório de trabalho.
+        "SystemDrive",
+        "ProgramData",
+        "ALLUSERSPROFILE",
+        "PUBLIC",
+        "ProgramFiles",
+        "ProgramFiles(x86)",
+        "ProgramW6432",
+        "CommonProgramFiles",
+        "USERNAME",
+        "COMPUTERNAME",
+        "OS",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "NUMBER_OF_PROCESSORS",
     ] {
         if let Some(value) = std::env::var_os(key) {
             c.env(key, value);

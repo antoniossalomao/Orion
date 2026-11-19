@@ -6,14 +6,18 @@ use crate::data::ChatMsg;
 use crate::theme as t;
 use crate::ui::*;
 use crate::views::composer;
-use iced::widget::{column, container, row, Space};
+use iced::widget::{column, container, mouse_area, row, Space};
 use iced::Length;
+
+/// Tamanho da mini barra (a mesma janela, redimensionada).
+pub const SIZE: iced::Size = iced::Size::new(660.0, 340.0);
 
 pub fn view(app: &App) -> El<'_> {
     let topo = row![
         belt_fg(false),
         txf("Orion".to_string(), 15.0, t::FG, t::SERIF),
-        Space::new().width(Length::Fill),
+        // M6: a faixa vazia do topo arrasta a mini barra; a posição fica guardada para a próxima vez.
+        mouse_area(container(Space::new().width(Length::Fill)).width(Length::Fill).height(Length::Fixed(30.0))).on_press(Msg::DragWindow),
         btn(crate::i18n::text("Abrir o Orion"), Kind::Normal, true, None, Some(Msg::Mini(false))),
         ib_wh("close", 34.0, 30.0, 16.0, Some(Msg::CloseWindow), t::DANGER, t::ON_DANGER),
     ]

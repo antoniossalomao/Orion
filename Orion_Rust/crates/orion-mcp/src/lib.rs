@@ -143,7 +143,7 @@ pub struct McpClient {
 /// Ambiente mínimo herdado por servidores stdio (nunca `ORION_*` nem chaves).
 fn ambiente_base() -> HashMap<String, String> {
     let nomes: &[&str] = if cfg!(windows) {
-        &["APPDATA", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA", "PATH", "PROCESSOR_ARCHITECTURE", "SYSTEMDRIVE", "SYSTEMROOT", "TEMP", "USERNAME", "USERPROFILE"]
+        &["APPDATA", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA", "PATH", "PROCESSOR_ARCHITECTURE", "SYSTEMDRIVE", "SYSTEMROOT", "TEMP", "USERNAME", "USERPROFILE", "ProgramData", "ALLUSERSPROFILE", "ProgramFiles", "WINDIR", "TMP"]
     } else {
         &["HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"]
     };

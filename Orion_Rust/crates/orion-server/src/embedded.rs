@@ -53,7 +53,9 @@ pub fn generator(model: PathBuf, gpu: bool) -> LocalGenerator {
                 let Ok(executable) = std::env::current_exe().map(|p| p.with_file_name("orion-llama.exe")) else { yield Err(failure("executável do Orion não encontrado")); return; };
                 let mut command = tokio::process::Command::new(executable);
                 command.arg("--worker").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).env_clear().kill_on_drop(true);
-                for key in ["SystemRoot", "WINDIR", "PATH", "TEMP", "TMP"] {
+                // M10: sem SystemDrive/ProgramData o Windows não expande caminhos do registro como
+                // "%SystemDrive%\ProgramData\Microsoft\Windows\Caches" e cria essa pasta literal no diretório de trabalho.
+                for key in ["SystemRoot", "WINDIR", "PATH", "TEMP", "TMP", "SystemDrive", "ProgramData", "ALLUSERSPROFILE", "PUBLIC", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "CommonProgramFiles", "USERNAME", "COMPUTERNAME", "OS", "PATHEXT", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS"] {
                     if let Some(value) = std::env::var_os(key) { command.env(key, value); }
                 }
                 command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW

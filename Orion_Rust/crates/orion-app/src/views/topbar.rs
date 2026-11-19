@@ -36,8 +36,10 @@ pub fn view(app: &App) -> El<'_> {
     }
     r = r.push(mouse_area(container(sp_w(0.0)).width(Length::Fill).height(Length::Fill)).on_press(Msg::DragWindow).on_double_click(Msg::Fullscreen));
     // pílulas
+    // M11: a detecção de presença usa a câmera de tempos em tempos; o aviso fica discreto (ponto e borda
+    // neutra) em vez da pílula vermelha em todas as telas. O padrão continua desligado (config.rs).
     if app.p.cam[1] {
-        r = r.push(pill(t::CAM_DOT, crate::i18n::text("Câmera"), t::mix(t::DANGER, 0.45), true, Some(Msg::OpenSettings(Some(crate::app::Sec::Camera)))));
+        r = r.push(pill(t::CAM_DOT, crate::i18n::text("Presença"), t::mix(t::FG3, 0.3), true, Some(Msg::OpenSettings(Some(crate::app::Sec::Camera)))));
     }
     if app.p.auto {
         r = r.push(pill(t::ACCENT, crate::i18n::text("Autônomo"), t::mix(t::ACCENT, 0.45), true, Some(Msg::Toggle("auto"))));

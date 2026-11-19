@@ -96,7 +96,12 @@ pub fn conv_menu(app: &App) -> El<'_> {
             item(Some("file"), crate::i18n::text("Abrir nota no vault"), None, false, false, if has_note { Msg::EditorOpen(path) } else { Msg::Toast(crate::i18n::text("Nenhuma nota vinculada. A gravação automática ainda não está disponível.").into()) }),
             item(Some("archive"), crate::i18n::text("Arquivar"), None, false, false, Msg::ArchiveConv),
             hr(),
-            item(Some("trash"), crate::i18n::text("Apagar conversa"), None, false, true, Msg::DeleteConv),
+            // M17: apagar pede um segundo clique; a conversa e a nota vinculada não voltam.
+            if app.delete_armed {
+                item(Some("trash"), crate::i18n::text("Confirmar: apagar de vez"), Some(crate::i18n::text("A conversa some e não dá para desfazer")), false, true, Msg::DeleteConv)
+            } else {
+                item(Some("trash"), crate::i18n::text("Apagar conversa"), None, false, true, Msg::DeleteArm)
+            },
         ],
         260.0,
     )

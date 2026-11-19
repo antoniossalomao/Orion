@@ -499,6 +499,13 @@ pub struct App {
     /// Mini barra: a janela está encolhida no topo da tela.
     pub mini: bool,
     pub mini_prev: Size,
+    /// M6: onde a mini barra estava (arrastada) e onde a janela principal estava antes de encolher.
+    /// M17: o menu da conversa pediu confirmação para apagar.
+    pub delete_armed: bool,
+    pub mini_pos: Option<iced::Point>,
+    pub main_pos_before_mini: Option<iced::Point>,
+    /// M7: quando a mini barra foi pedida, até o primeiro quadro
+    pub mini_opened_at: Option<Instant>,
     /// Banco cifrado trancado: a tela de entrada pede a senha do banco antes de abrir o núcleo.
     pub db_locked: bool,
     pub onboarding: Option<crate::onboarding::Form>,
@@ -579,6 +586,8 @@ pub enum Msg {
     Mini(bool),
     Mostrar,
     MiniPos(window::Id, Option<Size>),
+    /// M7: primeiro quadro depois de abrir a mini barra (medição do tempo até aparecer)
+    MiniFrame(Instant),
     // entrada
     PwChanged(Secret),
     UserChanged(String),
@@ -617,6 +626,10 @@ pub enum Msg {
     Attach,
     /// Arquivo solto na janela (arrastar e soltar).
     AttachPath(String),
+    /// M19: Ctrl+V no app; se a área de transferência tiver imagem, ela vira anexo.
+    PasteImage,
+    /// M19: PNG colado pronto, com a geração de anexos de quando o Ctrl+V foi lido
+    PastedImage(u64, String),
     /// Editar e reenviar a última mensagem do usuário (índice na conversa aberta).
     EditLast(usize),
     Unattach(usize),
@@ -646,6 +659,8 @@ pub enum Msg {
     PinToggle,
     ArchiveConv,
     DeleteConv,
+    /// M17: primeiro clique em "Apagar conversa" só arma a confirmação no próprio menu.
+    DeleteArm,
     CopyText(String),
     OpenUrl(String),
     /// `git pull` do vault (uso real; nos dados de exemplo é só um aviso).
@@ -977,6 +992,10 @@ impl App {
             win_id: None,
             mini: false,
             mini_prev: Size::new(1440.0, 900.0),
+            delete_armed: false,
+            mini_pos: crate::uiprefs::load_mini_pos(),
+            main_pos_before_mini: None,
+            mini_opened_at: None,
             db_locked: false,
             onboarding: None,
             mica_ativo: false,
@@ -1073,6 +1092,12 @@ impl App {
             iced::Event::Window(window::Event::Unfocused) => Some(Msg::WindowActive(false)),
             iced::Event::Window(window::Event::Moved(p)) => Some(Msg::Moved(p)),
             iced::Event::Window(window::Event::FileDropped(path)) => Some(Msg::AttachPath(path.to_string_lossy().into_owned())),
+            // M19: o campo de texto consome o Ctrl+V do texto; a imagem é lida à parte (status ignorado de propósito)
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key: iced::keyboard::Key::Character(c), modifiers, .. })
+                if modifiers.command() && !modifiers.shift() && !modifiers.alt() && c.as_str().eq_ignore_ascii_case("v") =>
+            {
+                Some(Msg::PasteImage)
+            }
             _ => None,
         });
         let poll = if self.window_active && self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
@@ -1091,7 +1116,8 @@ impl App {
         let canvas = if self.canvas_subscription_active() { iced::time::every(crate::canvas_ui::POLL).map(|_| Msg::Canvas(crate::canvas_ui::Cv::Poll)) } else { Subscription::none() };
         let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
         let presence = if self.window_active && !self.fundo && !self.mini && self.presence_visible() { iced::time::every(Duration::from_millis(33)).map(Msg::Presence) } else { Subscription::none() };
-        Subscription::batch([sky_tick, tick, island, hud, camera, canvas, resize, keys, poll, fundo, fechar, focus, progress, resources, presence])
+        let mini_frame = if self.mini_opened_at.is_some() { window::frames().map(Msg::MiniFrame) } else { Subscription::none() };
+        Subscription::batch([sky_tick, tick, island, hud, camera, canvas, resize, keys, poll, fundo, fechar, focus, progress, resources, presence, mini_frame])
     }
 
     /// A esfera aparece na tela inicial e na ilha de voz.
@@ -1213,6 +1239,21 @@ impl App {
         if let Msg::Face(m) = msg { return self.update_face(m); }
         if let Msg::Camera(m) = msg { return self.update_camera(m); }
         if let Msg::Canvas(m) = msg { return self.update_canvas(m); }
+        // M17: a confirmação de apagar vale só enquanto o menu da conversa continua aberto.
+        if self.pop.is_none() && !matches!(msg, Msg::DeleteArm | Msg::DeleteConv) {
+            self.delete_armed = false;
+        }
+        if let Msg::DeleteArm = msg {
+            self.delete_armed = true;
+            return Task::none();
+        }
+        if let Msg::DeleteConv = msg {
+            if !self.delete_armed {
+                self.delete_armed = true;
+                return Task::none();
+            }
+            self.delete_armed = false;
+        }
 
         if let Msg::L(m) = msg {
             return self.lm(m);
@@ -1352,8 +1393,26 @@ impl App {
             Msg::MessageSize(session, index, height) => { if self.message_heights.len() > 10000 { self.message_heights.clear(); } self.message_heights.insert((session, index), height); }
             Msg::BootProgress => { if let Some(message) = self.api.as_ref().and_then(|api| api.progress()) { self.loading = Some(message); } }
             Msg::WindowActive(active) => { self.window_active = active; if !active { self.sky_frame.pause(); } self.now = Instant::now(); }
-            Msg::Moved(p) => { if !self.mini { self.win_pos = Some(p); } }
+            Msg::Moved(p) => {
+                if self.mini {
+                    // M6: a mini barra lembra a própria posição, separada da janela principal
+                    self.mini_pos = Some(p);
+                    let _ = crate::uiprefs::save_mini_pos(p);
+                } else {
+                    self.win_pos = Some(p);
+                }
+            }
             Msg::Resized(s) => {
+                // M5: o mínimo do winit (WM_GETMINMAXINFO) só vale para o arrasto da borda; SetWindowPos, encaixe
+                // de outros programas e afins passam por baixo e quebravam o cabeçalho. O app devolve ao mínimo.
+                // Fora: mini barra, janela minimizada (0×0) e o último aviso do tamanho da mini barra ao voltar.
+                let min = crate::run::MIN_SIZE;
+                let resto_da_mini = s.width == crate::views::mini::SIZE.width && s.height == crate::views::mini::SIZE.height;
+                if !self.mini && s.width > 0.0 && s.height > 0.0 && !resto_da_mini && (s.width < min.width || s.height < min.height) {
+                    if let Some(id) = self.win_id {
+                        return window::resize(id, Size::new(s.width.max(min.width), s.height.max(min.height)));
+                    }
+                }
                 self.win = s;
                 self.sync_sky();
                 if let Some(f) = self.onboarding.as_mut() { f.settle_sky(f.step, s); }
@@ -1719,6 +1778,33 @@ impl App {
             }
             Msg::EditLast(_) => {}
             Msg::AttachPath(_) => self.toast("Arrastar e soltar só funciona com o núcleo conectado"),
+            Msg::PasteImage => {
+                // só no chat ou na mini barra, com o núcleo conectado; sem imagem na área de transferência, nada acontece
+                if self.api.is_none() || !self.logged || !(self.mini || self.view == View::Chat || self.view == View::Home) {
+                    return Task::none();
+                }
+                // com Configurações, paleta, menu ou outro campo por cima, o Ctrl+V é desse campo, não do chat
+                if self.set_open || self.pal.open || self.isso.is_some() || self.pop.is_some() || self.short_edit.is_some() || self.onboarding.is_some() {
+                    return Task::none();
+                }
+                // só grava o PNG temporário se o anexo puder ser aceito agora (fila de anexos fica de fora)
+                if self.edit_target.is_some() || self.streaming.is_some() || self.attachment_ids.len() >= 8 {
+                    return Task::none();
+                }
+                // a geração vai junto: se a conversa mudar enquanto a imagem é lida, o PNG é descartado
+                let generation = self.attachment_generation;
+                return Task::perform(async { tokio::task::spawn_blocking(crate::paste::clipboard_image_to_file).await.ok().flatten() }, move |r| match r {
+                    Some(path) => Msg::PastedImage(generation, path),
+                    None => Msg::Noop,
+                });
+            }
+            Msg::PastedImage(generation, path) => {
+                if generation != self.attachment_generation {
+                    crate::paste::remove_if_pasted(std::path::Path::new(&path));
+                    return Task::none();
+                }
+                return self.update(Msg::AttachPath(path));
+            }
             Msg::Unattach(i) => {
                 if i < self.attach.len() {
                     self.attach.remove(i);
@@ -1983,6 +2069,10 @@ impl App {
             Msg::PalOpen => {
                 if !self.set_open {
                     self.pal = PalState { open: !self.pal.open, q: String::new(), sel: 0 };
+                    // M9: quem abre a paleta já digita; o campo recebe o foco na hora.
+                    if self.pal.open {
+                        return iced::widget::operation::focus(crate::views::overlays::PALETTE_INPUT);
+                    }
                 }
             }
             Msg::PalClose => self.pal.open = false,
@@ -2127,8 +2217,9 @@ impl App {
                     let size = if self.mini { self.mini_prev } else { self.win };
                     let _ = crate::uiprefs::save_geometry(size, self.win_pos);
                 }
-                // com bandeja o app segue vivo, só esconde a janela; sem bandeja, fechar encerra
-                if self.bandeja.is_none() {
+                // com bandeja o app segue vivo, só esconde a janela; sem bandeja, fechar encerra.
+                // M14: no primeiro uso ainda não há núcleo para manter vivo: o X encerra (o progresso fica salvo).
+                if self.bandeja.is_none() || self.onboarding.is_some() {
                     let sync = self.api.as_ref().map(|a| a.vault_sync_on_close()).unwrap_or_else(|| Box::pin(async {}));
                     return Task::perform(sync, |_| Msg::Noop).chain(window::close(id).chain(iced::exit()));
                 }
@@ -2136,7 +2227,9 @@ impl App {
                 if self.mini {
                     self.mini = false;
                     ts.push(window::resize(id, self.mini_prev));
+                    ts.push(window::set_min_size(id, Some(crate::run::MIN_SIZE)));
                     ts.push(window::set_level(id, window::Level::Normal));
+                    ts.extend(self.restore_main_pos(id));
                 }
                 return Task::batch(ts);
             }
@@ -2148,7 +2241,9 @@ impl App {
                 if self.mini {
                     self.mini = false;
                     ts.push(window::resize(id, self.mini_prev));
+                    ts.push(window::set_min_size(id, Some(crate::run::MIN_SIZE)));
                     ts.push(window::set_level(id, window::Level::Normal));
+                    ts.extend(self.restore_main_pos(id));
                 }
                 return Task::batch(ts);
             }
@@ -2161,21 +2256,47 @@ impl App {
                 self.pop = None;
                 return if on {
                     self.mini_prev = self.win;
+                    self.main_pos_before_mini = self.win_pos;
+                    self.mini_opened_at = Some(Instant::now());
+                    // M6: volta para onde foi arrastada; na primeira vez, centralizada no topo.
+                    let place = match self.mini_pos {
+                        Some(p) => window::move_to(id, p),
+                        None => window::monitor_size(id).map(move |s| Msg::MiniPos(id, s)),
+                    };
+                    // M7: tamanho, mínimo e lugar mudam antes de a janela aparecer. Antes ela era mostrada no
+                    // tamanho da principal e só depois encolhia, recriando a superfície já visível (quadro vazio).
                     Task::batch([
+                        // a janela principal tem mínimo de 760×520 (run.rs); sem soltar o mínimo a mini barra
+                        // ficava presa nesse tamanho em vez de 660×340
+                        window::set_min_size(id, None),
+                        window::resize(id, crate::views::mini::SIZE),
+                        place,
+                        window::set_level(id, window::Level::AlwaysOnTop),
                         window::set_mode(id, window::Mode::Windowed),
                         window::minimize(id, false),
-                        window::resize(id, Size::new(660.0, 340.0)),
-                        window::set_level(id, window::Level::AlwaysOnTop),
                         window::gain_focus(id),
-                        window::monitor_size(id).map(move |s| Msg::MiniPos(id, s)),
+                        // T27: quem chama a mini barra já digita a pergunta
+                        iced::widget::operation::focus(crate::views::composer::COMPOSER_ID),
                     ])
                 } else {
-                    Task::batch([window::resize(id, self.mini_prev), window::set_level(id, window::Level::Normal)])
+                    let mut ts = vec![
+                        window::resize(id, self.mini_prev),
+                        window::set_min_size(id, Some(crate::run::MIN_SIZE)),
+                        window::set_level(id, window::Level::Normal),
+                    ];
+                    ts.extend(self.restore_main_pos(id));
+                    Task::batch(ts)
                 };
+            }
+            Msg::MiniFrame(_) => {
+                // M7: no Windows com Vulkan a mini barra ficava ~3 s em branco; o log mede antes de mexer no desenho
+                if let Some(at) = self.mini_opened_at.take() {
+                    tracing::info!(target: "orion.performance", ms = at.elapsed().as_millis() as u64, "mini barra: primeiro quadro");
+                }
             }
             Msg::MiniPos(id, size) => {
                 if let Some(s) = size {
-                    return window::move_to(id, iced::Point::new(((s.width - 660.0) / 2.0).max(0.0), 16.0));
+                    return window::move_to(id, iced::Point::new(((s.width - crate::views::mini::SIZE.width) / 2.0).max(0.0), 16.0));
                 }
             }
             Msg::DragWindow => return window::oldest().and_then(window::drag),
@@ -2343,12 +2464,21 @@ impl App {
         }
     }
 
+    /// M6: ao sair da mini barra a janela principal volta para a posição dela, não para o topo da tela
+    /// onde a mini barra estava (o que deixava a janela grande passando da borda).
+    fn restore_main_pos(&mut self, id: window::Id) -> Option<Task<Msg>> {
+        let p = self.main_pos_before_mini.take().or(self.win_pos)?;
+        Some(window::move_to(id, p))
+    }
+
     fn resolve(&mut self, c: usize, m: usize, ok: bool) {
         let hm = chrono_hm();
         if let Some(ChatMsg::Orion(o)) = self.convs[c].msgs.get_mut(m) {
             if let Some(a) = &mut o.approval {
                 a.state = if ok { ApprState::Approved(format!("Aprovado às {hm}. Executando e mostrando o resultado aqui.")) } else { ApprState::Denied(format!("Negado às {hm}. Nada foi alterado.")) };
             }
+            // M4: a linha da ferramenta acima do cartão acompanha a decisão em vez de seguir "aguardando aprovação".
+            o.settle_waiting_tools(if ok { "aprovada" } else { "negada" });
         }
         if !self.convs[c].msgs.iter().any(|x| matches!(x, ChatMsg::Orion(o) if matches!(&o.approval, Some(a) if a.state == ApprState::Open))) && self.convs[c].state == ConvState::Pending {
             self.convs[c].state = ConvState::Normal;

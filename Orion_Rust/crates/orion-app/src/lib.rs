@@ -35,6 +35,7 @@ pub mod views;
 pub mod snap;
 
 pub mod onboarding;
+pub mod paste;
 
 pub mod i18n;
 pub mod resources;

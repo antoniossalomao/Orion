@@ -114,6 +114,9 @@ pub struct CanvasUi {
     pub fitted: bool,
     pub dragging: bool,
     pub loaded: bool,
+    /// M18: cantos já pedidos ao núcleo e que ainda não voltaram; dois cliques rápidos (Nota, Chat)
+    /// não caem no mesmo ponto.
+    pub pending_spots: Vec<(f32, f32, f32, f32)>,
 }
 
 impl Default for CanvasUi {
@@ -121,6 +124,7 @@ impl Default for CanvasUi {
         CanvasUi {
             spaces: vec![],
             cur: String::new(),
+            pending_spots: vec![],
             nodes: vec![],
             edges: vec![],
             missions: vec![],
@@ -358,20 +362,52 @@ impl App {
         self.canvas.pan = ((ax - (ax - self.canvas.pan.0) * new / old).round(), (ay - (ay - self.canvas.pan.1) * new / old).round());
     }
 
-    /// Posição livre para um nó novo: desce em diagonal enquanto houver outro no mesmo canto.
-    fn canvas_free_spot(&self, mut x: f32, mut y: f32) -> (f32, f32) {
+    /// M18: posição livre para um nó novo. Se o retângulo dele (com uma folga) bate num nó existente ou
+    /// num pedido que ainda não voltou do núcleo, ele vai para a direita do que atrapalha, ao lado e não
+    /// por cima (antes descia 40 px em diagonal e o chat novo cobria a nota inteira).
+    fn canvas_free_spot(&self, mut x: f32, mut y: f32, w: f32, h: f32) -> (f32, f32) {
+        const GAP: f32 = 24.0;
         x = (x / GRID).round() * GRID;
         y = (y / GRID).round() * GRID;
-        while self.canvas.nodes.iter().any(|n| (n.x - x).abs() < 12.0 && (n.y - y).abs() < 12.0) {
-            x += 32.0;
-            y += 32.0;
+        let overlaps = |x: f32, y: f32, (ox, oy, ow, oh): (f32, f32, f32, f32)| {
+            x < ox + ow + GAP && ox < x + w + GAP && y < oy + oh + GAP && oy < y + h + GAP
+        };
+        for _ in 0..40 {
+            let blocker = self
+                .canvas
+                .nodes
+                .iter()
+                // moldura agrupa: o nó novo pode nascer dentro dela; só os nós de dentro contam
+                .filter(|n| n.kind != "moldura")
+                .map(|n| (n.x, n.y, n.w, n.h))
+                .chain(self.canvas.pending_spots.iter().copied())
+                .filter(|&r| overlaps(x, y, r))
+                .map(|(ox, _, ow, _)| ox + ow)
+                .fold(None, |m: Option<f32>, r| Some(m.map_or(r, |m| m.max(r))));
+            match blocker {
+                Some(right) => x = ((right + GAP) / GRID).ceil() * GRID,
+                None => break,
+            }
         }
         (x, y)
     }
 
+    /// Tamanho com que o núcleo cria cada tipo de nó.
+    fn new_node_size(kind: &str) -> (f32, f32) {
+        if kind == "chat" {
+            (420.0, 360.0)
+        } else if kind == "nota" {
+            (260.0, 170.0)
+        } else {
+            (560.0, 380.0)
+        }
+    }
+
     fn canvas_add(&mut self, kind: &'static str, x: f32, y: f32) -> Task<Msg> {
         let Some(api) = self.api.clone() else { return Task::none() };
-        let (x, y) = self.canvas_free_spot(x, y);
+        let (w, h) = Self::new_node_size(kind);
+        let (x, y) = self.canvas_free_spot(x, y, w, h);
+        self.canvas.pending_spots.push((x, y, w, h));
         let ws = self.canvas.cur.clone();
         Task::perform(async move { api.post(&format!("/canvas/{ws}/nos"), json!({"tipo": kind, "x": x, "y": y})).await }, |r| Msg::Canvas(Cv::Added(r)))
     }
@@ -524,6 +560,7 @@ impl App {
                 Task::none()
             }
             Cv::Spaces(Err(e)) | Cv::Space(Err(e)) | Cv::Config(Err(e)) | Cv::Added(Err(e)) | Cv::Done(Err(e)) | Cv::SpaceDeleted(Err(e)) => {
+                self.canvas.pending_spots.clear();
                 self.toast(&e);
                 Task::none()
             }
@@ -562,7 +599,7 @@ impl App {
                     return self.update_canvas(Cv::UrlOpen);
                 }
                 let (cx, cy) = self.world_center();
-                let (w, h) = if kind == "chat" { (420.0, 360.0) } else if kind == "nota" { (260.0, 170.0) } else { (560.0, 380.0) };
+                let (w, h) = Self::new_node_size(kind);
                 self.canvas_add(kind, cx - w / 2.0, cy - h / 2.0)
             }
             Cv::AddAt(kind, x, y) => self.canvas_add(kind, x, y),
@@ -582,12 +619,19 @@ impl App {
                 }
                 let url = if url.contains("://") { url } else { format!("https://{url}") };
                 let (cx, cy) = self.world_center();
-                let (x, y) = self.canvas_free_spot(cx - 160.0, cy - 75.0);
+                let (x, y) = self.canvas_free_spot(cx - 160.0, cy - 75.0, 320.0, 150.0);
+                // o Added libera um canto pendente: a página também entra na lista
+                self.canvas.pending_spots.push((x, y, 320.0, 150.0));
                 let (a, ws) = (api.clone(), self.canvas.cur.clone());
                 Task::perform(async move { a.post(&format!("/canvas/{ws}/nos"), json!({"tipo": "pagina", "x": x, "y": y, "url": url})).await }, |r| Msg::Canvas(Cv::Added(r)))
             }
             Cv::Added(Ok(v)) => {
                 let n = parse_node(&v);
+                // o nó chegou: libera só o canto reservado para ele (pedidos podem voltar fora de ordem, e
+                // duplicar não reserva canto)
+                if let Some(i) = self.canvas.pending_spots.iter().position(|&(x, y, _, _)| (x - n.x).abs() < 0.5 && (y - n.y).abs() < 0.5) {
+                    self.canvas.pending_spots.remove(i);
+                }
                 if n.id.is_empty() || self.canvas.node(&n.id).is_some() {
                     return Task::none();
                 }

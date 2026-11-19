@@ -23,8 +23,15 @@ fn main() {
         return;
     }
 
+    // M20: manifesto explícito. Sem ele o Windows vê "Setup" no nome e pede UAC já na abertura, até para
+    // a prévia e as notas de versão; com `asInvoker` só a instalação pede, pelo relançamento em `elevation.rs`.
+    let manifest_path = out_dir.join("orion-setup.manifest");
+    if fs::write(&manifest_path, MANIFEST).is_err() {
+        return;
+    }
     let escaped_ico = ico_path.display().to_string().replace('\\', "\\\\");
-    let rc_content = format!("1 ICON \"{escaped_ico}\"\n");
+    let escaped_manifest = manifest_path.display().to_string().replace('\\', "\\\\");
+    let rc_content = format!("1 ICON \"{escaped_ico}\"\n1 24 \"{escaped_manifest}\"\n{}", version_info("Orion Setup", "orion-setup.exe"));
     if fs::write(&rc_path, rc_content).is_err() {
         return;
     }
@@ -52,6 +59,33 @@ fn main() {
             }
         }
     }
+}
+
+const MANIFEST: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+</assembly>
+"#;
+
+/// B15: produto, versão e descrição nas Propriedades do arquivo (VERSIONINFO).
+fn version_info(description: &str, file: &str) -> String {
+    let v = env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "0.0.0".into());
+    let n: Vec<u16> = v.split('.').map(|p| p.parse().unwrap_or(0)).chain(std::iter::repeat(0)).take(4).collect();
+    let comma = format!("{},{},{},{}", n[0], n[1], n[2], n[3]);
+    format!(
+        "1 VERSIONINFO\nFILEVERSION {comma}\nPRODUCTVERSION {comma}\nFILEOS 0x40004\nFILETYPE 0x1\nBEGIN\n BLOCK \"StringFileInfo\"\n BEGIN\n  BLOCK \"041604B0\"\n  BEGIN\n   VALUE \"CompanyName\", \"Orion\"\n   VALUE \"FileDescription\", \"{description}\"\n   VALUE \"FileVersion\", \"{v}\"\n   VALUE \"InternalName\", \"{file}\"\n   VALUE \"OriginalFilename\", \"{file}\"\n   VALUE \"ProductName\", \"Orion\"\n   VALUE \"ProductVersion\", \"{v}\"\n  END\n END\n BLOCK \"VarFileInfo\"\n BEGIN\n  VALUE \"Translation\", 0x0416, 1200\n END\nEND\n"
+    )
 }
 
 fn generate_ico_file(size: u32) -> Vec<u8> {

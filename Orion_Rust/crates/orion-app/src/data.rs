@@ -88,6 +88,16 @@ pub struct OrionMsg {
     pub approval: Option<Approval>,
 }
 
+impl OrionMsg {
+    /// M4: depois de aprovar ou negar no cartão, as ferramentas que esperavam a decisão mostram o
+    /// estado novo (`aprovada`, `negada`, `resolvida`); o fluxo retomado atualiza de novo pelo `call_id`.
+    pub fn settle_waiting_tools(&mut self, state: &str) {
+        for t in self.tools.iter_mut().filter(|t| t.time == "aguardando aprovação") {
+            t.time = state.to_string();
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum ChatMsg {
     User(String),

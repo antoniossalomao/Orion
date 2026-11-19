@@ -12,6 +12,9 @@ use iced::widget::{button, column, container, row, text, text_editor};
 use iced::{Background, Border, Length, Task};
 
 /// (texto a inserir, rótulo, descrição à direita)
+/// Id do campo de mensagem: a mini barra e a paleta dão o foco a ele (T27).
+pub const COMPOSER_ID: &str = "composer";
+
 pub fn suggestions(app: &App) -> Vec<(String, String, String)> {
     let d = app.draft();
     if d.starts_with('/') && !d.contains(char::is_whitespace) {
@@ -55,6 +58,7 @@ pub fn view(app: &App, home: bool) -> El<'_> {
     let sug_open = !sugs.is_empty();
     let placeholder = if home { crate::i18n::text("Pergunte ou peça algo ao Orion. / para comandos, @ para citar uma nota") } else { crate::i18n::text("Responder ao Orion") };
     let editor = text_editor(&app.composer)
+        .id(COMPOSER_ID)
         .placeholder(placeholder)
         .on_action(Msg::Edit)
         .font(t::UI)
