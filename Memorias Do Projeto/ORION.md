@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 18/11/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 19/11/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -19,6 +19,8 @@ Pedido do Antônio: transformar a mini barra em uma ilha persistente no topo do 
 - **Windows:** o adaptador lê somente a classe da janela em primeiro plano, sem título/conteúdo nem captura. A ilha fica sempre à frente, fora do Alt+Tab e da barra de tarefas, centralizada na área útil do monitor, com recorte arredondado inclusive no renderizador CPU. Em repouso não toma o foco. A identificação nativa da janela principal fica explícita para não aplicar Mica/Face ID na ilha.
 - **Conversa:** campo compartilhado com o chat, enviar/parar, microfone por clique, voz ao vivo, prévia curta da resposta e botão para abrir o Orion completo. Sem botões de aprovação na prévia cortada. Os recursos de voz/palmas continuam dependendo dos opt-ins e modelos configurados; a ilha não liga o microfone por existir. Escondida antes do login e com o Windows bloqueado.
 - **Validação:** 550 testes existentes passaram no Linux, sem falhas; adaptador nativo checado para Windows MSVC; três capturas da ilha renderizadas pelo próprio código Rust e compostas num desktop Windows simulado. A suíte exigiu os arquivos de desenvolvimento do ALSA no ambiente Linux, preparados apenas no workspace. Sem testes novos nem CI reativado. Aceite com foco, monitores/DPI e microfone no Windows real continua pendente; screenshots de Windows são simulação visual, com o componente renderizado do código Rust.
+
+- **Publicação (19/11/2026):** PR [#133](https://github.com/antoniossalomao/Orion/pull/133), branch `codex/orion-desktop-island`, atualizado sobre a `main` (`9506264`). A conciliação preserva céu, DPI, ícone oficial, atalhos personalizáveis, colagem de imagem, encerramento do primeiro uso e sincronização ao sair. A ilha mostra o atalho configurado e respeita Reduzir movimento do Windows. Validação após o rebase: **555 testes existentes passaram no Linux, sem falhas nem avisos**, e `orion-platform` passou na checagem Windows MSVC. Nenhum teste novo foi criado; o aceite físico no Windows permanece pendente.
 
 ## Bugs médios do QA Vulkan e conferência do PR #131 — 18/11/2026
 
