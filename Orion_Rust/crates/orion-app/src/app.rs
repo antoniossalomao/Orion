@@ -496,16 +496,10 @@ pub struct App {
     pub pending_send: Option<String>,
     pub abort: Option<iced::task::Handle>,
     pub win_id: Option<window::Id>,
-    /// Mini barra: a janela está encolhida no topo da tela.
+    /// Prévia isolada da ilha nos cenários de captura; a janela real usa `desktop_island.id`.
     pub mini: bool,
-    pub mini_prev: Size,
-    /// M6: onde a mini barra estava (arrastada) e onde a janela principal estava antes de encolher.
-    /// M17: o menu da conversa pediu confirmação para apagar.
     pub delete_armed: bool,
-    pub mini_pos: Option<iced::Point>,
-    pub main_pos_before_mini: Option<iced::Point>,
-    /// M7: quando a mini barra foi pedida, até o primeiro quadro
-    pub mini_opened_at: Option<Instant>,
+    pub desktop_island: crate::desktop_island::DesktopIsland,
     /// Banco cifrado trancado: a tela de entrada pede a senha do banco antes de abrir o núcleo.
     pub db_locked: bool,
     pub onboarding: Option<crate::onboarding::Form>,
@@ -584,10 +578,9 @@ pub enum Msg {
     CloseReq(window::Id),
     /// Liga ou desliga a mini barra.
     Mini(bool),
+    DesktopIsland(crate::desktop_island::Event),
+    WindowEvent(window::Id, window::Event),
     Mostrar,
-    MiniPos(window::Id, Option<Size>),
-    /// M7: primeiro quadro depois de abrir a mini barra (medição do tempo até aparecer)
-    MiniFrame(Instant),
     // entrada
     PwChanged(Secret),
     UserChanged(String),
@@ -991,11 +984,8 @@ impl App {
             abort: None,
             win_id: None,
             mini: false,
-            mini_prev: Size::new(1440.0, 900.0),
             delete_armed: false,
-            mini_pos: crate::uiprefs::load_mini_pos(),
-            main_pos_before_mini: None,
-            mini_opened_at: None,
+            desktop_island: crate::desktop_island::DesktopIsland::default(),
             db_locked: false,
             onboarding: None,
             mica_ativo: false,
@@ -1085,12 +1075,10 @@ impl App {
         let sky_visible = self.window_active && !self.fundo && !self.mini && self.onboarding.is_none() && !self.logged;
         let sky_animates = !self.p.reduced && !self.system_reduces_motion;
         let sky_tick = if sky_visible { iced::time::every(Duration::from_millis(if sky_animates { 50 } else { 250 })).map(Msg::SkyTick) } else { Subscription::none() };
-        let tick = if self.window_active && !self.fundo && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };
+        let tick = if ((self.window_active && !self.fundo) || self.desktop_island.focused) && moving { iced::time::every(Duration::from_millis(42)).map(Msg::Tick) } else { Subscription::none() };
         let progress = if self.loading.is_some() { iced::time::every(Duration::from_millis(150)).map(|_| Msg::BootProgress) } else { Subscription::none() };
-        let focus = iced::event::listen_with(|event, _, _| match event {
-            iced::Event::Window(window::Event::Focused) => Some(Msg::WindowActive(true)),
-            iced::Event::Window(window::Event::Unfocused) => Some(Msg::WindowActive(false)),
-            iced::Event::Window(window::Event::Moved(p)) => Some(Msg::Moved(p)),
+        let focus = iced::event::listen_with(|event, _, id| match event {
+            iced::Event::Window(event @ (window::Event::Focused | window::Event::Unfocused | window::Event::Moved(_) | window::Event::Resized(_))) => Some(Msg::WindowEvent(id, event)),
             iced::Event::Window(window::Event::FileDropped(path)) => Some(Msg::AttachPath(path.to_string_lossy().into_owned())),
             // M19: o campo de texto consome o Ctrl+V do texto; a imagem é lida à parte (status ignorado de propósito)
             iced::Event::Keyboard(iced::keyboard::Event::KeyPressed { key: iced::keyboard::Key::Character(c), modifiers, .. })
@@ -1100,8 +1088,7 @@ impl App {
             }
             _ => None,
         });
-        let poll = if self.window_active && self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
-        let resize = window::resize_events().map(|(_, s)| Msg::Resized(s));
+        let poll = if (self.window_active || self.desktop_island.focused) && self.api.is_some() && self.logged && self.streaming.is_none() { iced::time::every(Duration::from_secs(6)).map(|_| Msg::Poll) } else { Subscription::none() };
         // Enquanto um atalho é capturado, a assinatura é outra: o estado vem só de `short_edit`.
         let keys = if self.short_edit.is_some() { iced::keyboard::listen().filter_map(crate::keys::map_capture) } else { iced::keyboard::listen().filter_map(crate::keys::map) };
         let fundo = match &self.monitor {
@@ -1116,8 +1103,10 @@ impl App {
         let canvas = if self.canvas_subscription_active() { iced::time::every(crate::canvas_ui::POLL).map(|_| Msg::Canvas(crate::canvas_ui::Cv::Poll)) } else { Subscription::none() };
         let camera = if self.logged && self.camera.is_some() { iced::time::every(crate::camera_ui::POLL).map(|_| Msg::Camera(crate::camera_ui::CameraMsg::Poll)) } else { Subscription::none() };
         let presence = if self.window_active && !self.fundo && !self.mini && self.presence_visible() { iced::time::every(Duration::from_millis(33)).map(Msg::Presence) } else { Subscription::none() };
-        let mini_frame = if self.mini_opened_at.is_some() { window::frames().map(Msg::MiniFrame) } else { Subscription::none() };
-        Subscription::batch([sky_tick, tick, island, hud, camera, canvas, resize, keys, poll, fundo, fechar, focus, progress, resources, presence, mini_frame])
+        let desktop_morph = if !self.p.reduced && !self.system_reduces_motion && self.desktop_island.shown && self.desktop_island.animating() {
+            iced::time::every(Duration::from_millis(16)).map(|_| Msg::DesktopIsland(crate::desktop_island::Event::Frame))
+        } else { Subscription::none() };
+        Subscription::batch([sky_tick, tick, island, desktop_morph, hud, camera, canvas, keys, poll, fundo, fechar, focus, progress, resources, presence])
     }
 
     /// A esfera aparece na tela inicial e na ilha de voz.
@@ -1218,7 +1207,14 @@ impl App {
     pub fn update(&mut self, msg: Msg) -> Task<Msg> {
         // o céu acompanha a tela (login, início, barra recolhida) na mensagem seguinte à mudança
         self.sync_sky();
+        let logged = self.logged;
+        let dialog = self.set_open || self.pal.open || self.qcap.is_some() || self.isso.is_some() || self.auto_senha.is_some() || self.private_confirm.is_some();
         let task = self.update_core(msg);
+        let task = if logged != self.logged { Task::batch([task, self.update_desktop_island(crate::desktop_island::Event::Collapse)]) } else { task };
+        // Pedidos que precisam da tela completa continuam visíveis quando vêm da ilha.
+        let task = if self.desktop_island.focused && !dialog && (self.set_open || self.pal.open || self.qcap.is_some() || self.isso.is_some() || self.auto_senha.is_some() || self.private_confirm.is_some()) {
+            Task::batch([task, self.update_inner(Msg::Mostrar)])
+        } else { task };
         let ids = std::mem::take(&mut self.images_to_release);
         match (ids.is_empty(), self.api.clone()) {
             (false, Some(api)) => Task::batch([task, Task::perform(async move { let _ = api.post("/chat/imagens/liberar", serde_json::json!({"ids": ids})).await; }, |_| Msg::Noop)]),
@@ -1232,6 +1228,23 @@ impl App {
     }
 
     fn update_core(&mut self, msg: Msg) -> Task<Msg> {
+        if let Msg::DesktopIsland(event) = msg { return self.update_desktop_island(event); }
+        if let Msg::WindowEvent(id, event) = msg {
+            if self.desktop_island.id == Some(id) {
+                return match event {
+                    window::Event::Focused => self.update_desktop_island(crate::desktop_island::Event::Focus(true)),
+                    window::Event::Unfocused => self.update_desktop_island(crate::desktop_island::Event::Focus(false)),
+                    _ => Task::none(),
+                };
+            }
+            return match event {
+                window::Event::Focused => self.update(Msg::WindowActive(true)),
+                window::Event::Unfocused => self.update(Msg::WindowActive(false)),
+                window::Event::Moved(p) => self.update(Msg::Moved(p)),
+                window::Event::Resized(size) => self.update(Msg::Resized(size)),
+                _ => Task::none(),
+            };
+        }
         if let Msg::Resources(event)=msg { return self.update_resources(event); }
         let _timing = Timing::new("update", self.view);
         if !matches!(&msg, Msg::Tick(_) | Msg::SkyTick(_) | Msg::Presence(_) | Msg::Bandeja | Msg::BootProgress) { self.now = Instant::now(); }
@@ -1393,22 +1406,13 @@ impl App {
             Msg::MessageSize(session, index, height) => { if self.message_heights.len() > 10000 { self.message_heights.clear(); } self.message_heights.insert((session, index), height); }
             Msg::BootProgress => { if let Some(message) = self.api.as_ref().and_then(|api| api.progress()) { self.loading = Some(message); } }
             Msg::WindowActive(active) => { self.window_active = active; if !active { self.sky_frame.pause(); } self.now = Instant::now(); }
-            Msg::Moved(p) => {
-                if self.mini {
-                    // M6: a mini barra lembra a própria posição, separada da janela principal
-                    self.mini_pos = Some(p);
-                    let _ = crate::uiprefs::save_mini_pos(p);
-                } else {
-                    self.win_pos = Some(p);
-                }
-            }
+            Msg::Moved(p) => { if !self.mini { self.win_pos = Some(p); } }
             Msg::Resized(s) => {
                 // M5: o mínimo do winit (WM_GETMINMAXINFO) só vale para o arrasto da borda; SetWindowPos, encaixe
                 // de outros programas e afins passam por baixo e quebravam o cabeçalho. O app devolve ao mínimo.
-                // Fora: mini barra, janela minimizada (0×0) e o último aviso do tamanho da mini barra ao voltar.
+                // A ilha tem janela própria; este mínimo vale só para a principal, fora do estado minimizado (0×0).
                 let min = crate::run::MIN_SIZE;
-                let resto_da_mini = s.width == crate::views::mini::SIZE.width && s.height == crate::views::mini::SIZE.height;
-                if !self.mini && s.width > 0.0 && s.height > 0.0 && !resto_da_mini && (s.width < min.width || s.height < min.height) {
+                if !self.mini && s.width > 0.0 && s.height > 0.0 && (s.width < min.width || s.height < min.height) {
                     if let Some(id) = self.win_id {
                         return window::resize(id, Size::new(s.width.max(min.width), s.height.max(min.height)));
                     }
@@ -2154,7 +2158,18 @@ impl App {
             Msg::Win(id) => {
                 self.win_id = id;
                 self.estilizar_janela(true);
-                if let Some(id) = id { return window::scale_factor(id).map(Msg::Dpi); }
+                if let Some(id) = id {
+                    let show = !self.fundo;
+                    let native = window::run(id, |window| {
+                        if let Ok(handle) = window.window_handle() {
+                            if let iced::window::raw_window_handle::RawWindowHandle::Win32(h) = handle.as_raw() {
+                                orion_platform::set_main_window(h.hwnd.get());
+                            }
+                        }
+                        Msg::Noop
+                    }).chain(if show { window::set_mode(id, window::Mode::Windowed) } else { Task::none() });
+                    return Task::batch([native, window::scale_factor(id).map(Msg::Dpi)]);
+                }
             }
             Msg::Bandeja => {
                 let mut acoes = vec![];
@@ -2185,7 +2200,7 @@ impl App {
                 match acao {
                     Acao::Exit => {
                         let sync = self.api.as_ref().map(|a| a.vault_sync_on_close()).unwrap_or_else(|| Box::pin(async {}));
-                        return Task::perform(sync, |_| Msg::Noop).chain(window::oldest().and_then(|id| window::close(id).chain(iced::exit())));
+                        return Task::perform(sync, |_| Msg::Noop).chain(iced::exit());
                     }
                     Acao::Panic => {
                         let r = self.api.as_ref().map(|a| a.panico()).unwrap_or_else(|| Err("pânico indisponível".into()));
@@ -2211,94 +2226,38 @@ impl App {
                 }
             }
             Msg::CloseReq(id) => {
-                self.window_active = false;
-                // tamanho e posição valem na próxima abertura; a mini barra guarda o tamanho de antes
-                if self.api.is_some() {
-                    let size = if self.mini { self.mini_prev } else { self.win };
-                    let _ = crate::uiprefs::save_geometry(size, self.win_pos);
+                if self.desktop_island.id == Some(id) {
+                    return self.update_desktop_island(crate::desktop_island::Event::Collapse);
                 }
-                // com bandeja o app segue vivo, só esconde a janela; sem bandeja, fechar encerra.
-                // M14: no primeiro uso ainda não há núcleo para manter vivo: o X encerra (o progresso fica salvo).
+                self.window_active = false;
+                self.fundo = true;
+                if self.api.is_some() {
+                    let _ = crate::uiprefs::save_geometry(self.win, self.win_pos);
+                }
                 if self.bandeja.is_none() || self.onboarding.is_some() {
                     let sync = self.api.as_ref().map(|a| a.vault_sync_on_close()).unwrap_or_else(|| Box::pin(async {}));
-                    return Task::perform(sync, |_| Msg::Noop).chain(window::close(id).chain(iced::exit()));
+                    return Task::perform(sync, |_| Msg::Noop).chain(iced::exit());
                 }
-                let mut ts = vec![window::set_mode(id, window::Mode::Hidden)];
-                if self.mini {
-                    self.mini = false;
-                    ts.push(window::resize(id, self.mini_prev));
-                    ts.push(window::set_min_size(id, Some(crate::run::MIN_SIZE)));
-                    ts.push(window::set_level(id, window::Level::Normal));
-                    ts.extend(self.restore_main_pos(id));
-                }
-                return Task::batch(ts);
+                return window::set_mode(id, window::Mode::Hidden);
             }
             Msg::Mostrar => {
                 self.window_active = true;
+                self.fundo = false;
                 self.now = Instant::now();
                 let Some(id) = self.win_id else { return Task::none() };
-                let mut ts = vec![window::set_mode(id, window::Mode::Windowed), window::minimize(id, false), window::gain_focus(id)];
-                if self.mini {
-                    self.mini = false;
-                    ts.push(window::resize(id, self.mini_prev));
-                    ts.push(window::set_min_size(id, Some(crate::run::MIN_SIZE)));
-                    ts.push(window::set_level(id, window::Level::Normal));
-                    ts.extend(self.restore_main_pos(id));
-                }
-                return Task::batch(ts);
+                return Task::batch([
+                    self.update_desktop_island(crate::desktop_island::Event::Collapse),
+                    window::set_mode(id, window::Mode::Windowed),
+                    window::minimize(id, false),
+                    window::gain_focus(id),
+                ]);
             }
             Msg::Mini(on) => {
-                let Some(id) = self.win_id else { return Task::none() };
-                if on == self.mini {
-                    return window::gain_focus(id);
-                }
-                self.mini = on;
-                self.pop = None;
                 return if on {
-                    self.mini_prev = self.win;
-                    self.main_pos_before_mini = self.win_pos;
-                    self.mini_opened_at = Some(Instant::now());
-                    // M6: volta para onde foi arrastada; na primeira vez, centralizada no topo.
-                    let place = match self.mini_pos {
-                        Some(p) => window::move_to(id, p),
-                        None => window::monitor_size(id).map(move |s| Msg::MiniPos(id, s)),
-                    };
-                    // M7: tamanho, mínimo e lugar mudam antes de a janela aparecer. Antes ela era mostrada no
-                    // tamanho da principal e só depois encolhia, recriando a superfície já visível (quadro vazio).
-                    Task::batch([
-                        // a janela principal tem mínimo de 760×520 (run.rs); sem soltar o mínimo a mini barra
-                        // ficava presa nesse tamanho em vez de 660×340
-                        window::set_min_size(id, None),
-                        window::resize(id, crate::views::mini::SIZE),
-                        place,
-                        window::set_level(id, window::Level::AlwaysOnTop),
-                        window::set_mode(id, window::Mode::Windowed),
-                        window::minimize(id, false),
-                        window::gain_focus(id),
-                        // T27: quem chama a mini barra já digita a pergunta
-                        iced::widget::operation::focus(crate::views::composer::COMPOSER_ID),
-                    ])
-                } else {
-                    let mut ts = vec![
-                        window::resize(id, self.mini_prev),
-                        window::set_min_size(id, Some(crate::run::MIN_SIZE)),
-                        window::set_level(id, window::Level::Normal),
-                    ];
-                    ts.extend(self.restore_main_pos(id));
-                    Task::batch(ts)
-                };
+                    self.update_desktop_island(crate::desktop_island::Event::Wake)
+                } else { self.update_inner(Msg::Mostrar) };
             }
-            Msg::MiniFrame(_) => {
-                // M7: no Windows com Vulkan a mini barra ficava ~3 s em branco; o log mede antes de mexer no desenho
-                if let Some(at) = self.mini_opened_at.take() {
-                    tracing::info!(target: "orion.performance", ms = at.elapsed().as_millis() as u64, "mini barra: primeiro quadro");
-                }
-            }
-            Msg::MiniPos(id, size) => {
-                if let Some(s) = size {
-                    return window::move_to(id, iced::Point::new(((s.width - crate::views::mini::SIZE.width) / 2.0).max(0.0), 16.0));
-                }
-            }
+            Msg::DesktopIsland(_) | Msg::WindowEvent(_, _) => {}
             Msg::DragWindow => return window::oldest().and_then(window::drag),
             Msg::Minimize => { self.window_active = false; return window::oldest().and_then(|id| window::minimize(id, true)); },
             Msg::Fullscreen => return window::oldest().and_then(window::toggle_maximize),
@@ -2332,8 +2291,8 @@ impl App {
                 }
             }
             Msg::Esc => {
-                if self.mini {
-                    return self.update_inner(Msg::CloseWindow);
+                if self.desktop_island.focused {
+                    return self.update_desktop_island(crate::desktop_island::Event::Collapse);
                 }
                 if self.pop.is_some() {
                     self.pop = None;
@@ -2462,13 +2421,6 @@ impl App {
             let _ = crate::keys::set(id, before);
             self.short_err = crate::i18n::formatted("{} não foi registrado: {}", format!("{} não foi registrado: {}", crate::keys::display(&next), crate::i18n::status(&e)));
         }
-    }
-
-    /// M6: ao sair da mini barra a janela principal volta para a posição dela, não para o topo da tela
-    /// onde a mini barra estava (o que deixava a janela grande passando da borda).
-    fn restore_main_pos(&mut self, id: window::Id) -> Option<Task<Msg>> {
-        let p = self.main_pos_before_mini.take().or(self.win_pos)?;
-        Some(window::move_to(id, p))
     }
 
     fn resolve(&mut self, c: usize, m: usize, ok: bool) {

@@ -621,7 +621,7 @@ fn section<'a>(app: &'a App) -> El<'a> {
             c = c.push(sh(crate::i18n::text("Ativação")));
             c = c.push(setting(crate::i18n::text("Palavra “Orion”"), crate::i18n::text("Escuta localmente. Traz a janela para o foco."), sw(p.wake, "wake")));
             c = c.push(setting(crate::i18n::text("Duas palmas"), crate::i18n::text("Também traz a janela para o foco"), sw(p.clap, "clap")));
-            c = c.push(setting(crate::i18n::text("Testar a mini barra"), crate::i18n::text("Barra flutuante no topo da tela enquanto você fala"), btn(if app.voice { crate::i18n::text("Fechar") } else { crate::i18n::text("Mostrar") }, Kind::Normal, true, None, Some(Msg::Live))));
+            c = c.push(crate::views::mini::settings());
             c = c.push(sh(crate::i18n::text("Fala")));
             c = c.push(setting(crate::i18n::text("Resposta falada"), crate::i18n::text("Só quando o pedido foi por voz"), badge(crate::i18n::text("só por voz"), Tone::Plain)));
             // Voz do Orion: Gemini (Charon, tom calmo), chave própria e teto mensal, sem voz de reserva.

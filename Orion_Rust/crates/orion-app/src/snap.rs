@@ -315,6 +315,20 @@ pub fn scenarios() -> Vec<(&'static str, Size, App)> {
         a.update(Msg::OpenConv(0));
         a.collapsed = true;
     })));
+    for (name, mode) in [
+        ("70-ilha-desktop", crate::desktop_island::Mode::Desktop),
+        ("71-ilha-compacta", crate::desktop_island::Mode::Compact),
+        ("72-ilha-expandida", crate::desktop_island::Mode::Expanded),
+    ] {
+        let mut app = logged();
+        app.mini = true;
+        app.desktop_island.mode = mode;
+        app.win = mode.size();
+        if mode == crate::desktop_island::Mode::Expanded {
+            app.composer = text_editor::Content::with_text("Orion, vamos organizar meu dia.");
+        }
+        v.push((name, mode.size(), app));
+    }
     // as fotos saem em 2 px por ponto: o céu é composto nessa densidade, como numa tela de 200%
     for (_, _, a) in &mut v {
         a.dpi = 2.0;
@@ -343,6 +357,9 @@ pub fn render_scrolled(app: &App, size: Size, out: &Path, offset: f32) {
     })]);
     let snap = sim.snapshot(&app.theme()).expect("snapshot");
     let _ = std::fs::remove_file(out);
+    // iced_test acrescenta o backend ao nome; sem removê-lo, só compara com a captura antiga.
+    let actual = out.with_file_name(format!("{}-tiny-skia.png", out.file_stem().unwrap_or_default().to_string_lossy()));
+    let _ = std::fs::remove_file(actual);
     let _ = snap.matches_image(out);
 }
 

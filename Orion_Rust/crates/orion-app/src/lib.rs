@@ -8,6 +8,7 @@ pub mod canvas_ui;
 pub mod sky_frame;
 pub mod chart;
 pub mod data;
+pub mod desktop_island;
 pub mod graph;
 pub mod run;
 pub mod html;

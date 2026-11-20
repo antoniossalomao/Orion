@@ -81,6 +81,9 @@ O front HTML/CSS/JS antigo (`Orion_Core/Front_end_Orion/`) e a rota `/ui` foram 
 
 A tela Vida (E10) e a legenda ao vivo (E11) existiam no front antigo, removido em 21/10/2026. No app iced a tela Vida foi cortada (21/10/2026) e a legenda é uma faixa estática de demonstração; os backends (`/vida/*`, `/foco`, `/legenda`) funcionam.
 
+
+**Ilha do desktop (18/11/2026):** `orion-app::run` mantém o app e a ilha em janelas separadas do mesmo daemon iced/processo. `desktop_island.rs` controla visibilidade, foco e transição entre desktop/cápsula/conversa; `views/mini.rs` desenha a ilha usando o mesmo compositor e as mesmas ações do chat. `tray::Monitor` consulta contexto de foco/bloqueio a cada 250 ms e só publica mudanças, além dos atalhos e ativações de áudio existentes. `orion-platform::janela` consulta apenas a classe Win32 em primeiro plano, registra explicitamente o HWND principal e aplica recorte, posição e estilo passivo/interativo no HWND da ilha. Não há captura de conteúdo, persistência de títulos nem saída de rede nova. Voz e palmas continuam opt-in; a ilha some antes do login e na sessão bloqueada. Capturas de Windows são uma composição simulada com o componente nativo; aceite físico permanece pendente.
+
 ## 7. Destino em Rust
 
 O alvo está atingido na estrutura: núcleo, API e UI em Rust, um executável, sem servidor HTTP no uso normal e sem Python no produto. Falta prova no Windows real e as fases F08–F27 do plano.

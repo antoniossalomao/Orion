@@ -4,7 +4,7 @@ use crate::net::Api;
 use crate::theme;
 use iced::{window, Size, Task};
 
-/// Menor tamanho da janela principal. A mini barra solta esse mínimo enquanto está aberta.
+/// Menor tamanho da janela principal; a ilha usa sua própria janela sem esse mínimo.
 pub const MIN_SIZE: Size = Size::new(760.0, 520.0);
 
 /// A janela nasceu transparente (só com GPU real no Windows): é o que deixa o Mica aparecer (F01.05).
@@ -50,11 +50,29 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
         visible: !fundo,
         // M13: o ícone oficial do Orion na barra de tarefas e no Alt+Tab (antes, o quadrado genérico)
         icon: window_icon(),
+        exit_on_close_request: false,
         ..Default::default()
     };
     win.platform_specific = Default::default();
     let boot = move || {
-        let id = window::oldest().map(Msg::Win);
+        let (main_id, open_main) = window::open(win.clone());
+        #[allow(unused_mut)]
+        let mut island_settings = window::Settings {
+            size: crate::desktop_island::Mode::Desktop.size(),
+            position: window::Position::Centered,
+            decorations: false,
+            transparent: true,
+            resizable: false,
+            minimizable: false,
+            level: window::Level::AlwaysOnTop,
+            visible: false,
+            exit_on_close_request: false,
+            ..Default::default()
+        };
+        #[cfg(windows)] { island_settings.platform_specific.skip_taskbar = true; }
+        let (island_id, open_island) = window::open(island_settings);
+        let windows = open_main.map(|id| Msg::Win(Some(id)))
+            .chain(open_island.map(|id| Msg::DesktopIsland(crate::desktop_island::Event::Opened(id))));
         if let Some(api) = api.clone() {
             let (mut a, t) = App::live(api);
             if let Some((tamanho, pos)) = salva {
@@ -63,11 +81,15 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
             }
             a.fundo = fundo;
             a.window_active = !fundo;
-            return (a, Task::batch([t, id]));
+            a.win_id = Some(main_id);
+            a.desktop_island.id = Some(island_id);
+            return (a, Task::batch([t, windows]));
         }
         let (mut a, t) = App::boot();
         a.fundo = fundo;
         a.window_active = !fundo;
+        a.win_id = Some(main_id);
+        a.desktop_island.id = Some(island_id);
         if cena.is_some() {
             a.logged = true;
             a.hour = Some(9);
@@ -83,9 +105,14 @@ pub fn run_ui(api: Option<Api>, cena: Option<String>, fundo: bool) -> iced::Resu
             Some("editor") => drop(a.update(Msg::EditorOpen("03 Recursos/Orion/Memória/Nota.md".into()))),
             _ => {}
         }
-        (a, Task::batch([t, id]))
+        (a, Task::batch([t, windows]))
     };
-    let mut app = iced::application(boot, App::update, App::view).title(App::title).theme(App::theme).subscription(App::subscription).scale_factor(App::scale_factor).window(win).default_font(theme::UI).antialiasing(hardware).exit_on_close_request(false);
+    let mut app = iced::daemon(boot, App::update, App::view_window)
+        .title(|app: &App, id| if app.desktop_island.id == Some(id) { "Orion Island".into() } else { app.title() })
+        .theme(|app: &App, _| app.theme())
+        .subscription(App::subscription)
+        .scale_factor(|app: &App, id| if app.desktop_island.id == Some(id) { 1.0 } else { app.scale_factor() })
+        .default_font(theme::UI).antialiasing(hardware);
     for f in theme::fonts() {
         app = app.font(f);
     }

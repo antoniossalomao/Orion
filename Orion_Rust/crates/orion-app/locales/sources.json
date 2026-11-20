@@ -1524,5 +1524,15 @@
   "Seu banco é cifrado: a senha é pedida sempre que o Orion abre de novo ou o Windows é bloqueado": "ui-1450",
   "Presença": "ui-1451",
   "Última sincronização deu certo": "ui-1452",
-  "Última sincronização falhou": "ui-1453"
+  "Última sincronização falhou": "ui-1453",
+  "Estou por aqui": "desktop-island-01",
+  "Ouvindo você": "desktop-island-02",
+  "Recolher ilha": "desktop-island-03",
+  "O que vamos fazer?": "desktop-island-04",
+  "Uma pergunta, uma ideia ou o próximo passo.": "desktop-island-05",
+  "Microfone em uso": "desktop-island-06",
+  "Clique no microfone para falar": "desktop-island-07",
+  "Esc para recolher": "desktop-island-08",
+  "Ilha do desktop": "desktop-island-09",
+  "Fica no topo do desktop e recolhe ao focar outro app. Use o atalho configurado para chamar.": "desktop-island-10"
 }
