@@ -1,6 +1,6 @@
 # Orion — estado, plano e decisões
 
-> Fonte única do estado do projeto. Atualizado em 16/11/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
+> Fonte única do estado do projeto. Atualizado em 19/11/2026. Princípios e regras: [REGRAS.md](REGRAS.md). Arquitetura, módulos e referências: [ARQUITETURA.md](ARQUITETURA.md). Melhorias pré-lançamento v1: [ORION_MELHORIAS_PRE_V1.md](ORION_MELHORIAS_PRE_V1.md). Roadmap pós-v1: [ORION_MELHORIAS_POS_V1.md](ORION_MELHORIAS_POS_V1.md). Como rodar: [README](../README.md). Material antigo e detalhado: [ORION_LEGADO.md](ORION_LEGADO.md).
 
 ## Visão
 
@@ -9,6 +9,18 @@ Assistente pessoal com identidade masculina, técnico, direto, não-servil. Não
 *"Não é uma IA. É uma extensão do sistema nervoso."*
 
 Antônio é o administrador: decide, aprova e pode desligar qualquer coisa. Nada que o modelo diga anula isso.
+
+## Dynamic Island no desktop — 18/11/2026
+
+Pedido do Antônio: transformar a mini barra em uma ilha persistente no topo do Windows, seguindo as referências visuais enviadas.
+
+- **Janela própria:** `orion-app::run` usa um daemon iced com duas janelas. A ilha não substitui nem redimensiona a conversa; fechar a janela principal continua deixando o processo na bandeja.
+- **Estados:** desktop (344×60), cápsula sobre outro app (156×36) e conversa expandida (496×264). Clique, `Ctrl+Alt+Espaço`, palavra Orion e duas palmas usam a mesma ativação existente. Esc, botão Recolher e perda de foco recolhem; voltar ao desktop restaura o estado de repouso. Transição de 240 ms, respeitando Reduzir movimento.
+- **Windows:** o adaptador lê somente a classe da janela em primeiro plano, sem título/conteúdo nem captura. A ilha fica sempre à frente, fora do Alt+Tab e da barra de tarefas, centralizada na área útil do monitor, com recorte arredondado inclusive no renderizador CPU. Em repouso não toma o foco. A identificação nativa da janela principal fica explícita para não aplicar Mica/Face ID na ilha.
+- **Conversa:** campo compartilhado com o chat, enviar/parar, microfone por clique, voz ao vivo, prévia curta da resposta e botão para abrir o Orion completo. Sem botões de aprovação na prévia cortada. Os recursos de voz/palmas continuam dependendo dos opt-ins e modelos configurados; a ilha não liga o microfone por existir. Escondida antes do login e com o Windows bloqueado.
+- **Validação:** 550 testes existentes passaram no Linux, sem falhas; adaptador nativo checado para Windows MSVC; três capturas da ilha renderizadas pelo próprio código Rust e compostas num desktop Windows simulado. A suíte exigiu os arquivos de desenvolvimento do ALSA no ambiente Linux, preparados apenas no workspace. Sem testes novos nem CI reativado. Aceite com foco, monitores/DPI e microfone no Windows real continua pendente; screenshots de Windows são simulação visual, com o componente renderizado do código Rust.
+
+- **Publicação (19/11/2026):** PR [#133](https://github.com/antoniossalomao/Orion/pull/133), branch `codex/orion-desktop-island`, atualizado sobre a `main` (`9506264`). A conciliação preserva céu, DPI, ícone oficial, atalhos personalizáveis, colagem de imagem, encerramento do primeiro uso e sincronização ao sair. A ilha mostra o atalho configurado e respeita Reduzir movimento do Windows. Validação após o rebase: **555 testes existentes passaram no Linux, sem falhas nem avisos**, e `orion-platform` passou na checagem Windows MSVC. Nenhum teste novo foi criado; o aceite físico no Windows permanece pendente.
 
 ## Bugs médios do QA Vulkan e conferência do PR #131 — 18/11/2026
 
@@ -674,6 +686,7 @@ Registro cronológico: vale a decisão mais recente de cada tema; as anteriores 
 
 | Data | Decisão | Motivo |
 |---|---|---|
+| 18/11/2026 | Mini barra vira ilha persistente em janela própria: desktop, cápsula ao focar app e painel ao chamar por clique/tecla/voz/palmas; sem ligar captura automaticamente | Pedido do Antônio e referências Apple; preservar a janela de conversa e os opt-ins existentes |
 | 22/10/2026 | Tarefas de código do board (PR 50): aviso de novidades uma vez por versão, só com janela visível, versão guardada em `%APPDATA%\Orion\ultima_versao.txt` (F01.26, F10.25); Sobre em Sistema (F07.23); VRAM mínima dos LLMs estimada em 1,2 × o GGUF, catálogo fixado em `orion-local` mantido (F03.17); Voz e Câmera marcadas como em breve (F07.19); Mostrar avançado com logs e reset em breve (F07.04); toast ao copiar (parte de F01.08); persona com tom novo (F04.27) | Pedido do Antônio para fazer o backlog de código; F04.27 confirmada por ele no PR. Pendências: escala tipográfica (F01.03), formas (F01.04), painel (F01.28), espaçamento e cursor (F01.08), spec de modelos divergente do catálogo |
 | 22/10/2026 | Escala de tipo em `theme.rs` (texto base 14, h1 24, eyebrow 11, legenda 11) aplicada a títulos, subtítulos, seções e configurações (F01.03); cantos de bolha e compositor em 14 px, teto da faixa 10–14 (F01.04); Painel offline sem dados de exemplo, só o aviso de conexão (F01.28) | Pedido do Antônio para fazer as 5 tarefas. Pendentes: aplicar a escala às demais telas (tamanhos literais restantes), login com cantos de 18 px, espaçamento e cursor (F01.08) |
 | 22/10/2026 | Cartão de aprovação mostra a classe de risco, a ferramenta e todos os argumentos (campo `risk` novo nos eventos de aprovação); argumento cortado só pode ser negado; Aprovar e Negar sem destaque de "caminho feliz" (só a ação destrutiva pende para negar); a página Aprovações não oferece mais ligar o modo autônomo (fica em Configurações, com senha; ali só o atalho para desligar); a Memória mostra "N de M notas" quando há filtro | Achados de UI de 21/10/2026 (REGRAS.md: só se aprova o que se vê inteiro). "Ver o diff" segue só nos dados de exemplo: o servidor não gera diff para aprovações |

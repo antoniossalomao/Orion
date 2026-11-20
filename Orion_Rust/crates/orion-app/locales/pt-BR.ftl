@@ -1524,3 +1524,14 @@ ui-1450 = { "Seu banco é cifrado: a senha é pedida sempre que o Orion abre de 
 ui-1451 = { "Presença" }
 ui-1452 = { "Última sincronização deu certo" }
 ui-1453 = { "Última sincronização falhou" }
+
+desktop-island-01 = { "Estou por aqui" }
+desktop-island-02 = { "Ouvindo você" }
+desktop-island-03 = { "Recolher ilha" }
+desktop-island-04 = { "O que vamos fazer?" }
+desktop-island-05 = { "Uma pergunta, uma ideia ou o próximo passo." }
+desktop-island-06 = { "Microfone em uso" }
+desktop-island-07 = { "Clique no microfone para falar" }
+desktop-island-08 = { "Esc para recolher" }
+desktop-island-09 = { "Ilha do desktop" }
+desktop-island-10 = { "Fica no topo do desktop e recolhe ao focar outro app. Use o atalho configurado para chamar." }

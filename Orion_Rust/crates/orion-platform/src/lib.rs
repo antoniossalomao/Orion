@@ -14,7 +14,7 @@ pub mod despertar;
 #[cfg(windows)]
 mod janela;
 #[cfg(windows)]
-pub use janela::{allow_foreground, main_window, set_mica, style_main_window, Estilo};
+pub use janela::{allow_foreground, main_window, set_main_window, set_mica, style_main_window, style_island_window, desktop_focused, window_focused, Estilo};
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
@@ -41,6 +41,15 @@ pub fn allow_foreground() {}
 pub fn main_window() -> Option<isize> {
     None
 }
+
+#[cfg(not(windows))]
+pub fn set_main_window(_hwnd: isize) {}
+#[cfg(not(windows))]
+pub fn style_island_window(_hwnd: isize, _radius: i32, _interactive: bool) {}
+#[cfg(not(windows))]
+pub fn desktop_focused() -> Option<bool> { None }
+#[cfg(not(windows))]
+pub fn window_focused(_hwnd: isize) -> bool { true }
 
 /// A sessão está bloqueada (Win+L)? `None` se o Windows não soube dizer.
 ///

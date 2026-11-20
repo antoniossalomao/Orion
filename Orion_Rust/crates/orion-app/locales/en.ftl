@@ -1524,3 +1524,14 @@ ui-1450 = { "Your database is encrypted: the password is asked every time Orion 
 ui-1451 = { "Presence" }
 ui-1452 = { "Last sync succeeded" }
 ui-1453 = { "Last sync failed" }
+
+desktop-island-01 = { "I’m here" }
+desktop-island-02 = { "Listening to you" }
+desktop-island-03 = { "Collapse island" }
+desktop-island-04 = { "What shall we do?" }
+desktop-island-05 = { "A question, an idea, or the next step." }
+desktop-island-06 = { "Microphone in use" }
+desktop-island-07 = { "Click the microphone to speak" }
+desktop-island-08 = { "Esc to collapse" }
+desktop-island-09 = { "Desktop island" }
+desktop-island-10 = { "Stays at the top of your desktop and collapses when another app is focused. Use your configured shortcut to summon it." }

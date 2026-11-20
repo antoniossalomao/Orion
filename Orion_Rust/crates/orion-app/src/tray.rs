@@ -76,8 +76,16 @@ impl Monitor {
             let monitor = monitor.clone();
             async_stream::stream! {
                 let mut interval = tokio::time::interval(std::time::Duration::from_millis(250));
+                let mut previous_context = None;
                 loop {
                     interval.tick().await;
+                    if cfg!(windows) {
+                        let context = (orion_platform::desktop_focused().unwrap_or(false), orion_platform::session_locked());
+                        if previous_context != Some(context) {
+                            previous_context = Some(context);
+                            yield crate::app::Msg::DesktopIsland(crate::desktop_island::Event::Context { desktop: context.0, locked: context.1 });
+                        }
+                    }
                     for action in (monitor.0.poll)() { yield crate::app::Msg::Acao(action); }
                     match monitor.0.api.as_ref().and_then(|api| api.acordar()) {
                         Some(crate::net::Acordar::Voz) => yield crate::app::Msg::Acao(Acao::MiniBar),
