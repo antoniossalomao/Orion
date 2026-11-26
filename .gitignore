@@ -32,3 +32,10 @@ tests/eval_pessoal.local.json
 
 # spikes
 Orion_Rust/spikes/*/target/
+
+# QA de usuário (tools/qa): prints, perfil de teste, venv e credenciais locais
+qa-prints/
+tools/qa/.venv/
+tools/qa/.perfil/
+.orion-test-admin.local
+**/.orion-test-admin.local
