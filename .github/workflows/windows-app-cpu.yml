@@ -2,7 +2,7 @@ name: Windows App e instalador (GPU automática)
 # Só compila e empacota o app: wgpu com GPU real, tiny-skia para adaptador de CPU.
 # Sem testes, sem Vulkan para IA local e sem modelo de IA.
 # O modelo pesado baixa pelo instalador; as chaves de API (Gemini, Cerebras...) valem sem modelo local.
-# Só manual (workflow_dispatch), como manda o ADR 0007: o CI automático segue pausado.
+# Só manual (workflow_dispatch); o CI automático de PR é o `rust-windows.yml`.
 # O botão "Run workflow" só aparece depois que este arquivo estiver na branch principal.
 # Rápido de propósito: o `rust-windows.yml` roda a suíte inteira, compila a versão Vulkan e baixa um modelo.
 on:

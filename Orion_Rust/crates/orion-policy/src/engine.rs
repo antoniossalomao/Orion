@@ -55,6 +55,22 @@ impl ToolCall {
             Some(v) => v.to_string(),
         }
     }
+
+    /// Como `arg_str`, mas lista de textos vira os próprios textos separados por espaço, sem o
+    /// escape de JSON: no Windows `C:\\x` (JSON) não casaria com a pasta bloqueada `C:\x`.
+    pub fn arg_texto(&self, k: &str) -> String {
+        match self.args.get(k) {
+            Some(Value::Array(v)) => v
+                .iter()
+                .map(|e| match e {
+                    Value::String(s) => s.clone(),
+                    outro => outro.to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join(" "),
+            _ => self.arg_str(k),
+        }
+    }
 }
 
 /// Estado de uma sessão para a política. `tainted` vira `true` quando a sessão leu conteúdo
@@ -272,7 +288,7 @@ impl PolicyEngine {
         // texto digitado (abrir_app com argumentos, enviar_teclas).
         let shell_ativo = spec.cmd_arg.is_some() || Self::age_como_shell(&spec, call);
         for arg in spec.cmd_arg.iter().chain(spec.shell_args.iter()).map(String::as_str).chain(spec.shell_like.then_some(["nome", "texto", "teclas"]).into_iter().flatten()) {
-            if let Some(motivo) = self.path_guard.command_touches_blocked(&call.arg_str(arg)) {
+            if let Some(motivo) = self.path_guard.command_touches_blocked(&call.arg_texto(arg)) {
                 return Decision::new(Action::Deny, r, motivo);
             }
         }
