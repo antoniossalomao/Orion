@@ -1,6 +1,6 @@
 # cargo-deny: licenças, avisos de segurança, bans e origens das dependências.
 # Rodar à mão: `cargo deny check` (instalar com `cargo install cargo-deny --locked`).
-# O CI está pausado desde 21/10/2026; este arquivo foi escrito a partir das licenças reais do Cargo.lock.
+# Roda no CI (rust-windows.yml) em todo PR. Escrito a partir das licenças reais do Cargo.lock.
 
 [graph]
 targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
@@ -8,7 +8,15 @@ targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"]
 [advisories]
 version = 2
 yanked = "deny"
-ignore = []
+# Cada exceção tem motivo e é dívida rastreada no issue #135 (remover ao atualizar a dependência).
+ignore = [
+    { id = "RUSTSEC-2026-0187", reason = "lopdf (printpdf 0.7 e pdf-extract 0.7): corrigido só na 0.42; exige trocar as bibliotecas de PDF. Entrada de PDF vem do próprio usuário." },
+    { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.36 direto em orion-core: atualizar para >=0.41 muda a API." },
+    { id = "RUSTSEC-2026-0195", reason = "quick-xml 0.36 direto em orion-core: atualizar para >=0.41 muda a API." },
+    { id = "RUSTSEC-2026-0459", reason = "libsqlite3-sys 0.30 via rusqlite 0.32: corrigido no rusqlite 0.41 (salto grande de versão)." },
+    { id = "RUSTSEC-2026-0543", reason = "chrono sem manutenção; sem substituto seguro ainda." },
+    { id = "RUSTSEC-2026-0555", reason = "chrono-tz sem manutenção; sem substituto seguro ainda." },
+]
 
 [licenses]
 version = 2

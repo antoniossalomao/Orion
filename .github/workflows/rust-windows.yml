@@ -50,7 +50,8 @@ jobs:
         with:
           manifest-path: Orion_Rust/Cargo.toml
           command: check
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
       - name: cargo audit
-        run: |
-          cargo install cargo-audit --locked
-          cargo audit
+        run: cargo audit
