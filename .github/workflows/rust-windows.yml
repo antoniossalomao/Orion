@@ -36,7 +36,7 @@ jobs:
         with:
           workspaces: Orion_Rust -> C:/t
       - name: Testar o workspace
-        run: cargo test --locked --no-fail-fast -p orion-vault --test protecao -- --nocapture #TMPDEBUG
+        run: cargo test --locked --no-fail-fast --workspace --exclude orion-llama --exclude orion-local
   supply-chain:
     name: cargo deny e audit
     runs-on: ubuntu-latest
