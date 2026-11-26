@@ -225,6 +225,7 @@ impl GitSync {
     ) -> Result<String, GitError> {
         let out = self.output(args, index, input)?;
         if !out.status.success() {
+            eprintln!("DEBUGTMP git {:?} => {}", args, String::from_utf8_lossy(&out.stderr));
             // stderr pode conter URLs com credenciais: nunca retorná-lo nem registrá-lo.
             return Err(GitError::CommandFailed("solicitada"));
         }
