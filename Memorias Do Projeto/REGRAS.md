@@ -120,7 +120,7 @@
 | Princípio | Imposto em | Prova |
 |---|---|---|
 | **SQL parametrizado e exceções específicas.** SQL só parametrizado via `rusqlite`; identificadores vêm de constantes; erros são tipados com `thiserror`/`anyhow` sem silenciamento indevido. | `orion-store/src/` | `cargo test -p orion-store` |
-| **CI verde em Rust/Windows para mergear.** Testes unitários e de integração verdes no CI Windows (`rust-windows.yml`). | `.github/workflows/rust-windows.yml` | o próprio workflow |
+| **CI verde para mergear.** Nenhum PR entra na `main` sem os checks `Testes (Windows)` e `cargo deny e audit` verdes (workflow `rust-windows.yml`, roda em todo PR que mexe em `Orion_Rust/`). Exige a regra de branch protegida na `main` (#111) com esses checks obrigatórios. Falha de CI se corrige ou se explica no PR; nunca se pula nem se desativa o teste. | `.github/workflows/rust-windows.yml`, `Orion_Rust/deny.toml` | o próprio workflow |
 
 ## Vida pessoal e visão (E10 e E11)
 

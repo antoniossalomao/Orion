@@ -1,0 +1,10 @@
+# Mesmas exceções de deny.toml (motivos lá); dívida rastreada no issue #135.
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0187",
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+    "RUSTSEC-2026-0459",
+    "RUSTSEC-2026-0543",
+    "RUSTSEC-2026-0555",
+]

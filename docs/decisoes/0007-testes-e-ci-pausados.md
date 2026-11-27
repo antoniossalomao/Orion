@@ -1,6 +1,6 @@
 # ADR 0007 — Testes e CI pausados
 
-**Estado:** aceita
+**Estado:** substituída em 26/11/2026 (CI reativado, #109)
 
 ## Contexto
 O workflow Windows levava ~30 min e falhava (4 testes de `orion-vault` quebram no Windows).
@@ -10,3 +10,7 @@ Decisão de 21/10/2026: sem testes novos e sem CI por ora. O workflow `rust-wind
 
 ## Consequências
 Nada valida PRs automaticamente; reativar é trabalho futuro (religar o gatilho e corrigir os testes do vault no Windows).
+
+
+## Revisão de 26/11/2026
+O CI voltou: `rust-windows.yml` roda em todo PR que mexe em `Orion_Rust/` (testes Windows, `cargo deny`, `cargo audit`). Advisories sem correção imediata ficam como exceções com motivo em `Orion_Rust/deny.toml` e `.cargo/audit.toml` (dívida no #135). Regra: CI verde para mergear (`REGRAS.md`); a proteção da `main` com os checks obrigatórios é o #111.

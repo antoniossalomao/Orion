@@ -144,7 +144,7 @@ impl GitSync {
         let mut cmd = hardened_command();
         cmd.current_dir(&self.vault_path);
         if let Some(index) = index {
-            cmd.env("GIT_INDEX_FILE", index);
+            cmd.env("GIT_INDEX_FILE", sem_prefixo_verbatim(index));
             // A revalidação de entradas do índice não pode ler a árvore de trabalho real
             // nem disparar filtros configurados nos arquivos do usuário.
             cmd.env(
@@ -721,6 +721,16 @@ fn explain_failure(stderr: &str) -> &'static str {
         "outro processo está usando o repositório do vault (índice Git bloqueado); feche o Git ou outro programa que use o vault e tente de novo"
     } else {
         "o Git recusou o pull do vault; rode `git pull --ff-only` na pasta do vault para ver o motivo exato"
+    }
+}
+
+/// No Windows, `canonicalize` devolve `\\?\C:\...` e o Git não cria arquivos de trava nesse formato
+/// (`Unable to create ...tree.lock: Invalid argument`). Tira o prefixo dos caminhos de unidade.
+fn sem_prefixo_verbatim(p: &Path) -> PathBuf {
+    let s = p.to_string_lossy();
+    match s.strip_prefix(r"\\?\") {
+        Some(resto) if !resto.starts_with("UNC\\") => PathBuf::from(resto),
+        _ => p.to_path_buf(),
     }
 }
 

@@ -1,0 +1,57 @@
+name: Rust Windows
+# CI obrigatório no PR (ADR 0007 revisto): testes no Windows + cargo deny/audit.
+# Builds pesados (Vulkan, GGUF real, instalador) ficam nos workflows manuais windows-app-*.yml.
+on:
+  pull_request:
+    paths:
+      - "Orion_Rust/**"
+      - "tests/mcp_cliente/**"
+      - ".github/workflows/rust-windows.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Orion_Rust/**"
+  workflow_dispatch:
+concurrency:
+  group: rust-windows-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  testes:
+    name: Testes (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: Orion_Rust
+    env:
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+      # Alvo curto: evita caminhos longos no MSBuild.
+      CARGO_TARGET_DIR: C:\t
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: Orion_Rust -> C:/t
+      - name: Testar o workspace
+        run: cargo test --locked --no-fail-fast --workspace --exclude orion-llama --exclude orion-local
+  supply-chain:
+    name: cargo deny e audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Orion_Rust
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: Orion_Rust/Cargo.toml
+          command: check
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit
+        run: cargo audit
